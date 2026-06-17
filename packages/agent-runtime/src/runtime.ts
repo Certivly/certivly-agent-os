@@ -3,6 +3,9 @@ import { SessionManager } from '@agent-os/sessions';
 import { ToolRegistry, readFileTool, writeFileTool, listFilesTool, searchFilesTool, runCommandTool } from '@agent-os/tools';
 import { Provider, OpenAIProvider, AnthropicProvider, GeminiProvider, DeepSeekProvider, OpenRouterProvider, OllamaProvider } from '@agent-os/providers';
 import { RuntimeError, logger, runWithContext, agentContext, LoggingEventBus } from '@agent-os/shared';
+import { EventStore } from '@agent-os/events';
+import { ContextStack, ContextEntry } from '@agent-os/context';
+import { MemoryStore, MemoryExtractor } from '@agent-os/memory';
 import * as path from 'path';
 import { PipelineContext } from './pipeline';
 import { DefaultContextBuilder, DefaultPlanner, DefaultProviderExecutor, DefaultToolExecutor, DefaultObservationHandler, DefaultResponseBuilder } from './pipeline-stages';
@@ -18,6 +21,11 @@ export class AgentRuntime {
   private activeProvider: Provider;
   
   private eventBus: LoggingEventBus;
+  private eventStore: EventStore;
+  private memoryStore: MemoryStore;
+  private memoryExtractor: MemoryExtractor;
+  private contextStack: ContextStack;
+
   private contextBuilder: DefaultContextBuilder;
   private planner: DefaultPlanner;
   private providerExecutor: DefaultProviderExecutor;
@@ -38,6 +46,33 @@ export class AgentRuntime {
     this.activeProvider = this.initializeProvider(config);
 
     this.eventBus = new LoggingEventBus();
+    
+    // Initialize EventStore
+    const eventsDbPath = path.join(process.cwd(), config.runtime.sessionDir, 'events.db');
+    this.eventStore = new EventStore(eventsDbPath);
+
+    // Initialize Memory Engine
+    const memoryDbPath = path.join(process.cwd(), config.runtime.sessionDir, 'memory.db');
+    this.memoryStore = new MemoryStore(memoryDbPath);
+    this.memoryExtractor = new MemoryExtractor(this.memoryStore);
+
+    // Initialize Context Stack
+    this.contextStack = new ContextStack({ maxEntries: 100 }, this.memoryExtractor);
+
+    // Hook Event Bus to Event Store
+    this.eventBus.subscribe('*', (e) => {
+      this.eventStore.append({
+        id: e.id,
+        eventType: e.type,
+        timestamp: e.timestamp,
+        requestId: e.correlationId || 'unknown',
+        sessionId: e.sessionId || 'unknown',
+        source: 'runtime',
+        payload: e.payload,
+        version: '1.0'
+      });
+    });
+
     this.contextBuilder = new DefaultContextBuilder(this.sessionManager);
     this.planner = new DefaultPlanner();
     this.providerExecutor = new DefaultProviderExecutor();
@@ -87,7 +122,7 @@ export class AgentRuntime {
     
     return runWithContext({ requestId, sessionId }, async () => {
       logger.info('runtime', 'message.received', `Handling request for session ${sessionId}`);
-      this.eventBus.publish('message.received', { sessionId, input });
+      const userEventId = this.eventBus.publish('message.received', { sessionId, input });
 
       try {
         this.sessionManager.getSession(sessionId);
@@ -108,6 +143,15 @@ export class AgentRuntime {
         history: []
       };
 
+      // Push user message to context stack
+      await this.contextStack.push({
+        id: crypto.randomUUID(),
+        type: 'MessageContext',
+        content: `User: ${input}`,
+        timestamp: new Date().toISOString(),
+        sourceEventIds: [userEventId]
+      });
+
       await this.contextBuilder.buildContext(ctx);
       await this.planner.plan(ctx);
 
@@ -122,12 +166,36 @@ export class AgentRuntime {
           await this.observationHandler.handle(ctx);
           // Reload history for next provider loop
           ctx.history = this.sessionManager.getMessages(ctx.sessionId) as any;
+          
+          // Push tool execution result to context stack
+          const lastMsg = ctx.history[ctx.history.length - 1];
+          if (lastMsg && lastMsg.role === 'tool') {
+             const toolEventId = this.eventBus.publish('tool.execution.result.captured', { toolResult: lastMsg.content });
+             await this.contextStack.push({
+               id: crypto.randomUUID(),
+               type: 'ToolContext',
+               content: `Tool Execution Result: ${lastMsg.content}`,
+               timestamp: new Date().toISOString(),
+               sourceEventIds: [toolEventId]
+             });
+          }
         }
       } while (toolExecutionOccurred && !stream); 
-      // If streaming is requested and tool calls exist, we must break here for Phase 1.1 or handle tool calls natively if the provider stream doesn't stream text.
-      // But in Phase 1.1 OpenAI SDK will handle stream logic.
       
       const response = await this.responseBuilder.buildResponse(ctx);
+
+      // Push response to context stack
+      if (typeof response === 'string') {
+        const responseEventId = this.eventBus.publish('message.responded', { sessionId, response });
+        await this.contextStack.push({
+          id: crypto.randomUUID(),
+          type: 'MessageContext',
+          content: `Assistant: ${response}`,
+          timestamp: new Date().toISOString(),
+          sourceEventIds: [responseEventId]
+        });
+      }
+
       return response;
     });
   }

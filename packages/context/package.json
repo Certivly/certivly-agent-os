@@ -1,0 +1,17 @@
+{
+  "name": "@agent-os/context",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agent-os/shared": "workspace:*",
+    "drizzle-orm": "^0.30.0",
+    "@agent-os/events": "workspace:*"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.14"
+  }
+}

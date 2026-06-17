@@ -33,6 +33,9 @@
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/config": "workspace:*",
+        "@agent-os/context": "workspace:*",
+        "@agent-os/events": "workspace:*",
+        "@agent-os/memory": "workspace:*",
         "@agent-os/providers": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
@@ -45,6 +48,42 @@
       "dependencies": {
         "@agent-os/shared": "workspace:*",
         "zod": "^3.22.4",
+      },
+    },
+    "packages/context": {
+      "name": "@agent-os/context",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "drizzle-orm": "^0.30.0",
+      },
+      "devDependencies": {
+        "drizzle-kit": "^0.20.14",
+      },
+    },
+    "packages/events": {
+      "name": "@agent-os/events",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/shared": "workspace:*",
+        "drizzle-orm": "^0.30.0",
+      },
+      "devDependencies": {
+        "drizzle-kit": "^0.20.14",
+      },
+    },
+    "packages/memory": {
+      "name": "@agent-os/memory",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/context": "workspace:*",
+        "@agent-os/events": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "drizzle-orm": "^0.30.0",
+      },
+      "devDependencies": {
+        "drizzle-kit": "^0.20.14",
       },
     },
     "packages/providers": {
@@ -85,6 +124,12 @@
     "@agent-os/cli": ["@agent-os/cli@workspace:apps/cli"],
 
     "@agent-os/config": ["@agent-os/config@workspace:packages/config"],
+
+    "@agent-os/context": ["@agent-os/context@workspace:packages/context"],
+
+    "@agent-os/events": ["@agent-os/events@workspace:packages/events"],
+
+    "@agent-os/memory": ["@agent-os/memory@workspace:packages/memory"],
 
     "@agent-os/providers": ["@agent-os/providers@workspace:packages/providers"],
 

@@ -4,10 +4,13 @@
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
-    "@agent-os/shared": "workspace:*",
     "@agent-os/config": "workspace:*",
+    "@agent-os/providers": "workspace:*",
     "@agent-os/sessions": "workspace:*",
+    "@agent-os/shared": "workspace:*",
     "@agent-os/tools": "workspace:*",
-    "@agent-os/providers": "workspace:*"
+    "@agent-os/events": "workspace:*",
+    "@agent-os/context": "workspace:*",
+    "@agent-os/memory": "workspace:*"
   }
 }

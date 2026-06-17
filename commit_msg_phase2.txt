@@ -1,0 +1,10 @@
+Phase 2: Event Store, Context Stack, and Memory Engine
+
+This commit implements Phase 2 of AgentOS, introducing the core foundational intelligence and data layers.
+
+Key changes:
+- `packages/events`: Implemented an append-only, immutable EventStore powered by SQLite to act as the global source of truth.
+- `packages/context`: Added LIFO ContextStack to replace raw chat arrays with temporary working memory. Implemented bounds/eviction policies.
+- `packages/memory`: Built the MemoryEngine and MemoryExtractor. When context overflows, it structurally extracts and stores durable knowledge (FactMemory, DecisionMemory, etc.).
+- Runtime Integration: Wired LoggingEventBus to sync all events to EventStore. Updated AgentRuntime to push Message and Tool execution contexts into ContextStack.
+- Traceability & Observability: Resolved audit fixes by plumbing generated Event IDs into the `sourceEventIds` graph lineage for the ContextStack, and integrated `metric.event.written`, `metric.context.evicted`, and `metric.memory.created` explicitly into logs.

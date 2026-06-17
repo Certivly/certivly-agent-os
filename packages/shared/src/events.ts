@@ -12,7 +12,7 @@ export interface RuntimeEvent {
 }
 
 export interface EventPublisher {
-  publish(type: string, payload: JsonObject): void;
+  publish(type: string, payload: JsonObject): string;
 }
 
 export interface EventSubscriber {
@@ -24,7 +24,7 @@ export interface EventBus extends EventPublisher, EventSubscriber {}
 export class LoggingEventBus implements EventBus {
   private handlers: Map<string, Array<(event: RuntimeEvent) => void | Promise<void>>> = new Map();
 
-  publish(type: string, payload: JsonObject): void {
+  publish(type: string, payload: JsonObject): string {
     const ctx = getAgentContext();
     const event: RuntimeEvent = {
       id: crypto.randomUUID(),
@@ -47,6 +47,8 @@ export class LoggingEventBus implements EventBus {
         logger.error('eventbus', 'event.handler.error', `Error in event handler for ${type}`, { error: err.message });
       });
     }
+
+    return event.id;
   }
 
   subscribe(type: string, handler: (event: RuntimeEvent) => void | Promise<void>): void {
