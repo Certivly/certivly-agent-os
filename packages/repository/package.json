@@ -7,8 +7,8 @@
     "@agent-os/events": "workspace:*",
     "@agent-os/metrics": "workspace:*",
     "@agent-os/shared": "workspace:*",
-    "chokidar": "^3.6.0",
-    "ts-morph": "^22.0.0"
+    "@agent-os/parser": "workspace:*",
+    "chokidar": "^3.6.0"
   },
   "devDependencies": {
     "bun-types": "latest",

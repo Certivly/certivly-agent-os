@@ -35,7 +35,7 @@ async function runBenchmark() {
   const indexer = new RepositoryIndexer(eventStore);
 
   const idxStart = performance.now();
-  const snapshot = indexer.indexRepository(testDir);
+  const snapshot = await indexer.indexRepository(testDir);
   const idxEnd = performance.now();
   console.log(`Full Repository Indexing: ${(idxEnd - idxStart).toFixed(2)}ms`);
 

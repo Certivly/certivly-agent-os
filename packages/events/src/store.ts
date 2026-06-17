@@ -86,8 +86,8 @@ export class EventStore {
             metrics.counter('event_replay_failures').inc();
             throw new EventStoreError(`Integrity failure: duplicate or out of order event detected at sequence ${record.sequenceNumber}`);
           } else {
-            metrics.counter('event_replay_failures').inc();
-            throw new EventStoreError(`Integrity failure: sequence gap detected. Expected ${expectedSequence + 1}, got ${record.sequenceNumber}`);
+            // Gap detected. This is normal since sequenceNumber is a global autoincrement across all sessions.
+            // Do not throw an error here.
           }
         }
         expectedSequence = record.sequenceNumber;

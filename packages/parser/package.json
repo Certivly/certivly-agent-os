@@ -1,0 +1,17 @@
+{
+  "name": "@agent-os/parser",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "web-tree-sitter": "^0.24.4",
+    "tree-sitter-wasms": "^0.1.13"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}

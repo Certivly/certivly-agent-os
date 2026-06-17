@@ -1,127 +1,80 @@
-import { Project, SourceFile, Node, SyntaxKind, ClassDeclaration, FunctionDeclaration, MethodDeclaration, InterfaceDeclaration, TypeAliasDeclaration, EnumDeclaration } from 'ts-morph';
 import { SymbolNode, SymbolVisibility } from '../models';
+import { ParsedAST } from '@agent-os/parser';
 
 export class SymbolExtractor {
-  public extractSymbols(sourceFile: SourceFile, fileId: string): SymbolNode[] {
+  public extractSymbols(parsedAst: ParsedAST, fileId: string): SymbolNode[] {
     const symbols: SymbolNode[] = [];
     
-    // Classes
-    sourceFile.getClasses().forEach(cls => {
-      symbols.push(this.mapClass(cls, fileId));
-      
-      // Methods inside classes
-      cls.getMethods().forEach(method => {
-        symbols.push(this.mapMethod(method, cls.getName() || 'Anonymous', fileId));
-      });
-    });
-
-    // Functions
-    sourceFile.getFunctions().forEach(func => {
-      symbols.push(this.mapFunction(func, fileId));
-    });
-
-    // Interfaces
-    sourceFile.getInterfaces().forEach(iface => {
-      symbols.push(this.mapInterface(iface, fileId));
-    });
-
-    // Types
-    sourceFile.getTypeAliases().forEach(typeAlias => {
-      symbols.push(this.mapType(typeAlias, fileId));
-    });
-
-    // Enums
-    sourceFile.getEnums().forEach(enm => {
-      symbols.push(this.mapEnum(enm, fileId));
-    });
+    for (const node of parsedAst.nodes) {
+      if (node.kind === 'class') {
+        symbols.push({
+          symbolId: `${fileId}#${node.name}`,
+          name: node.name,
+          type: 'Class',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: `class ${node.name}`,
+          visibility: 'public'
+        });
+      } else if (node.kind === 'function') {
+        symbols.push({
+          symbolId: `${fileId}#${node.name}`,
+          name: node.name,
+          type: 'Function',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: node.signature || `function ${node.name}`,
+          visibility: 'public'
+        });
+      } else if (node.kind === 'method') {
+        symbols.push({
+          symbolId: `${fileId}#${node.parent}.${node.name}`,
+          name: node.name,
+          type: 'Method',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: node.signature || `method ${node.name}`,
+          visibility: 'public'
+        });
+      } else if (node.kind === 'interface') {
+        symbols.push({
+          symbolId: `${fileId}#${node.name}`,
+          name: node.name,
+          type: 'Interface',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: `interface ${node.name}`,
+          visibility: 'public'
+        });
+      } else if (node.kind === 'type') {
+        symbols.push({
+          symbolId: `${fileId}#${node.name}`,
+          name: node.name,
+          type: 'Type',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: `type ${node.name}`,
+          visibility: 'public'
+        });
+      } else if (node.kind === 'enum') {
+        symbols.push({
+          symbolId: `${fileId}#${node.name}`,
+          name: node.name,
+          type: 'Enum',
+          filePath: fileId,
+          startLine: node.startLine,
+          endLine: node.endLine,
+          signature: `enum ${node.name}`,
+          visibility: 'public'
+        });
+      }
+    }
 
     return symbols.filter(s => s.name !== undefined && s.name !== '');
-  }
-
-  private getVisibility(node: Node): SymbolVisibility {
-    if (Node.isModifierable(node)) {
-      if (node.hasModifier(SyntaxKind.PrivateKeyword)) return 'private';
-      if (node.hasModifier(SyntaxKind.ProtectedKeyword)) return 'protected';
-      if (node.hasModifier(SyntaxKind.PublicKeyword)) return 'public';
-    }
-    return 'public'; // default in TS/JS if not specified, though structurally could be unknown
-  }
-
-  private mapClass(node: ClassDeclaration, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${node.getName()}`,
-      name: node.getName() || 'AnonymousClass',
-      type: 'Class',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: node.getText().split('{')[0].trim(),
-      visibility: this.getVisibility(node)
-    };
-  }
-
-  private mapMethod(node: MethodDeclaration, className: string, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${className}.${node.getName()}`,
-      name: node.getName(),
-      type: 'Method',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: node.getSignature().getDeclaration()?.getText() || node.getName(), // fallback
-      visibility: this.getVisibility(node)
-    };
-  }
-
-  private mapFunction(node: FunctionDeclaration, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${node.getName()}`,
-      name: node.getName() || 'AnonymousFunction',
-      type: 'Function',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: node.getSignature().getDeclaration()?.getText() || node.getName() || '',
-      visibility: this.getVisibility(node)
-    };
-  }
-
-  private mapInterface(node: InterfaceDeclaration, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${node.getName()}`,
-      name: node.getName(),
-      type: 'Interface',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: `interface ${node.getName()}`,
-      visibility: this.getVisibility(node)
-    };
-  }
-
-  private mapType(node: TypeAliasDeclaration, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${node.getName()}`,
-      name: node.getName(),
-      type: 'Type',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: `type ${node.getName()}`,
-      visibility: this.getVisibility(node)
-    };
-  }
-
-  private mapEnum(node: EnumDeclaration, filePath: string): SymbolNode {
-    return {
-      symbolId: `${filePath}#${node.getName()}`,
-      name: node.getName(),
-      type: 'Enum',
-      filePath,
-      startLine: node.getStartLineNumber(),
-      endLine: node.getEndLineNumber(),
-      signature: `enum ${node.getName()}`,
-      visibility: this.getVisibility(node)
-    };
   }
 }

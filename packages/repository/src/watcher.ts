@@ -1,4 +1,5 @@
 import * as chokidar from 'chokidar';
+import * as fs from 'fs';
 import { EventStore } from '@agent-os/events';
 import { metrics } from '@agent-os/metrics';
 import { RepositoryIndexer } from './indexer';
@@ -7,18 +8,24 @@ import { FileGraphBuilder } from './builders/file-builder';
 import { SymbolExtractor } from './builders/symbol-builder';
 import { DependencyGraphBuilder } from './builders/dependency-builder';
 import { CallGraphBuilder } from './builders/call-builder';
+import { ParserRegistry } from '@agent-os/parser';
 
 export class RepositoryWatcher {
   private watcher: chokidar.FSWatcher | null = null;
-  private currentSnapshot: RepositoryGraphSnapshot;
+  private currentSnapshot!: RepositoryGraphSnapshot;
+  private parserRegistry: ParserRegistry;
   
   constructor(
     private rootDir: string, 
     private eventStore: EventStore,
     private indexer: RepositoryIndexer
   ) {
-    // Initial sync full index
-    this.currentSnapshot = this.indexer.indexRepository(this.rootDir);
+    this.parserRegistry = new ParserRegistry();
+  }
+
+  public async initialize() {
+    await this.parserRegistry.initialize();
+    this.currentSnapshot = await this.indexer.indexRepository(this.rootDir);
   }
 
   public start() {
@@ -45,12 +52,7 @@ export class RepositoryWatcher {
   }
 
   private handleFileChanged(filePath: string, eventType: 'add' | 'change' | 'remove') {
-    // Incremental Update
     metrics.counter('incremental_updates_count').inc();
-    
-    // In a fully robust incremental watcher, we would only update the affected FileNode, 
-    // run the AST builders against that specific file, and patch the currentSnapshot in place.
-    // For structural compliance with Phase 3 (DO NOT REINDEX ENTIRE REPO), we will mutate the map.
     
     if (eventType === 'remove') {
       this.currentSnapshot.files.delete(filePath);
@@ -69,47 +71,43 @@ export class RepositoryWatcher {
       return;
     }
 
-    // For Add / Change, we re-run the specific file parsing
+    // Add / Change
     const fileBuilder = new FileGraphBuilder();
     const node = fileBuilder.buildFileNode(filePath, this.rootDir);
     
-    if (!node) return; // not a file or error
+    if (!node) return;
     this.currentSnapshot.files.set(filePath, node);
 
-    if (node.language === 'typescript' || node.language === 'javascript') {
-      import('ts-morph').then(({ Project }) => {
-        const project = new Project();
-        project.addSourceFileAtPath(filePath);
-        const sourceFile = project.getSourceFile(filePath);
-        if (!sourceFile) return;
+    const sourceCode = fs.readFileSync(filePath, 'utf-8');
+    const parsedAst = this.parserRegistry.parseFile(filePath, sourceCode);
 
-        // Clean old
-        const oldSymbolIds = this.currentSnapshot.fileSymbols.get(filePath) || [];
-        for (const sid of oldSymbolIds) {
-          this.currentSnapshot.symbols.delete(sid);
-        }
-        this.currentSnapshot.dependencies = this.currentSnapshot.dependencies.filter(d => d.sourceFileId !== filePath);
-        this.currentSnapshot.calls = this.currentSnapshot.calls.filter(c => c.filePath !== filePath);
+    if (parsedAst) {
+      // Clean old
+      const oldSymbolIds = this.currentSnapshot.fileSymbols.get(filePath) || [];
+      for (const sid of oldSymbolIds) {
+        this.currentSnapshot.symbols.delete(sid);
+      }
+      this.currentSnapshot.dependencies = this.currentSnapshot.dependencies.filter(d => d.sourceFileId !== filePath);
+      this.currentSnapshot.calls = this.currentSnapshot.calls.filter(c => c.filePath !== filePath);
 
-        // Extract new
-        const symbolExtractor = new SymbolExtractor();
-        const symbols = symbolExtractor.extractSymbols(sourceFile, filePath);
-        this.currentSnapshot.fileSymbols.set(filePath, symbols.map(s => s.symbolId));
-        for (const s of symbols) {
-          this.currentSnapshot.symbols.set(s.symbolId, s);
-        }
+      // Extract new
+      const symbolExtractor = new SymbolExtractor();
+      const symbols = symbolExtractor.extractSymbols(parsedAst, filePath);
+      this.currentSnapshot.fileSymbols.set(filePath, symbols.map(s => s.symbolId));
+      for (const s of symbols) {
+        this.currentSnapshot.symbols.set(s.symbolId, s);
+      }
 
-        const dependencyBuilder = new DependencyGraphBuilder();
-        const deps = dependencyBuilder.extractDependencies(sourceFile, filePath);
-        this.currentSnapshot.dependencies.push(...deps);
+      const dependencyBuilder = new DependencyGraphBuilder();
+      const deps = dependencyBuilder.extractDependencies(parsedAst, filePath);
+      this.currentSnapshot.dependencies.push(...deps);
 
-        const callBuilder = new CallGraphBuilder();
-        const calls = callBuilder.extractCallEdges(sourceFile, filePath);
-        this.currentSnapshot.calls.push(...calls);
+      const callBuilder = new CallGraphBuilder();
+      const calls = callBuilder.extractCallEdges(parsedAst, filePath);
+      this.currentSnapshot.calls.push(...calls);
 
-        this.currentSnapshot.version++;
-        this.currentSnapshot.timestamp = new Date().toISOString();
-      });
+      this.currentSnapshot.version++;
+      this.currentSnapshot.timestamp = new Date().toISOString();
     } else {
       this.currentSnapshot.version++;
       this.currentSnapshot.timestamp = new Date().toISOString();

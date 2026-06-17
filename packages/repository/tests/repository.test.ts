@@ -25,7 +25,7 @@ describe('Repository Intelligence', () => {
     if (fs.existsSync(testDir)) fs.rmSync(testDir, { recursive: true, force: true });
   });
 
-  it('should scan files and extract symbols, dependencies, and calls', () => {
+  it('should scan files and extract symbols, dependencies, and calls', async () => {
     // Write fake TS files
     fs.writeFileSync(path.join(testDir, 'math.ts'), `
       export function add(a: number, b: number) { return a + b; }
@@ -42,7 +42,7 @@ describe('Repository Intelligence', () => {
     `);
 
     const indexer = new RepositoryIndexer(eventStore);
-    const snapshot = indexer.indexRepository(testDir);
+    const snapshot = await indexer.indexRepository(testDir);
     const query = new RepositoryQueryEngine(snapshot);
 
     // 1. Files
@@ -84,6 +84,7 @@ describe('Repository Intelligence', () => {
 
     const indexer = new RepositoryIndexer(eventStore);
     const watcher = new RepositoryWatcher(testDir, eventStore, indexer);
+    await watcher.initialize();
     
     let snapshot = watcher.getSnapshot();
     let query = new RepositoryQueryEngine(snapshot);

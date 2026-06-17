@@ -1,4 +1,4 @@
-import { Project } from 'ts-morph';
+import * as fs from 'fs';
 import { EventStore } from '@agent-os/events';
 import { metrics } from '@agent-os/metrics';
 import { FileGraphBuilder } from './builders/file-builder';
@@ -6,6 +6,7 @@ import { SymbolExtractor } from './builders/symbol-builder';
 import { DependencyGraphBuilder } from './builders/dependency-builder';
 import { CallGraphBuilder } from './builders/call-builder';
 import { RepositoryGraphSnapshot, FileNode, SymbolNode, DependencyEdge, CallEdge } from './models';
+import { ParserRegistry } from '@agent-os/parser';
 
 export class RepositoryIndexer {
   private fileBuilder = new FileGraphBuilder();
@@ -13,11 +14,9 @@ export class RepositoryIndexer {
   private dependencyBuilder = new DependencyGraphBuilder();
   private callBuilder = new CallGraphBuilder();
   
-  private project = new Project();
-  
   constructor(private eventStore: EventStore) {}
 
-  public indexRepository(rootDir: string): RepositoryGraphSnapshot {
+  public async indexRepository(rootDir: string): Promise<RepositoryGraphSnapshot> {
     const startMs = performance.now();
     
     this.eventStore.append({
@@ -37,13 +36,9 @@ export class RepositoryIndexer {
     for (const f of fileNodes) filesMap.set(f.fileId, f);
     metrics.counter('files_indexed').inc(fileNodes.length);
 
-    // Filter to TS/JS files for ts-morph parsing
-    const codeFiles = fileNodes.filter(f => f.language === 'typescript' || f.language === 'javascript');
-    
-    // Add all source files to project
-    codeFiles.forEach(f => {
-      this.project.addSourceFileAtPath(f.fileId);
-    });
+    // Initialize Parser
+    const parserRegistry = new ParserRegistry();
+    await parserRegistry.initialize();
 
     const symbolsMap = new Map<string, SymbolNode>();
     const fileSymbolsMap = new Map<string, string[]>();
@@ -51,9 +46,19 @@ export class RepositoryIndexer {
     const allCalls: CallEdge[] = [];
 
     // 2. Extract AST components per file
-    for (const fileNode of codeFiles) {
-      const sourceFile = this.project.getSourceFile(fileNode.fileId);
-      if (!sourceFile) continue;
+    for (const fileNode of fileNodes) {
+      // For phase 3.1, tree-sitter will dynamically handle known languages or return null.
+      const sourceCode = fs.readFileSync(fileNode.fileId, 'utf-8');
+      
+      const parseStart = performance.now();
+      const parsedAst = parserRegistry.parseFile(fileNode.fileId, sourceCode);
+      if (!parsedAst) continue; // Unsupported language
+      
+      const parseDuration = performance.now() - parseStart;
+      // @ts-ignore
+      if (metrics.histogram) metrics.histogram('parser_parse_duration').observe(parseDuration);
+      metrics.counter('language_parse_count').inc(1, { language: parsedAst.language });
+      metrics.counter('ast_nodes_extracted').inc(parsedAst.nodes.length);
 
       this.eventStore.append({
         id: crypto.randomUUID(),
@@ -67,7 +72,7 @@ export class RepositoryIndexer {
       });
 
       // Symbols
-      const symbols = this.symbolExtractor.extractSymbols(sourceFile, fileNode.fileId);
+      const symbols = this.symbolExtractor.extractSymbols(parsedAst, fileNode.fileId);
       fileSymbolsMap.set(fileNode.fileId, symbols.map(s => s.symbolId));
       for (const s of symbols) {
         symbolsMap.set(s.symbolId, s);
@@ -86,7 +91,7 @@ export class RepositoryIndexer {
       metrics.counter('symbols_extracted').inc(symbols.length);
 
       // Dependencies
-      const deps = this.dependencyBuilder.extractDependencies(sourceFile, fileNode.fileId);
+      const deps = this.dependencyBuilder.extractDependencies(parsedAst, fileNode.fileId);
       allDependencies.push(...deps);
       if (deps.length > 0) {
         this.eventStore.append({
@@ -103,7 +108,7 @@ export class RepositoryIndexer {
       metrics.counter('dependencies_found').inc(deps.length);
 
       // Calls
-      const calls = this.callBuilder.extractCallEdges(sourceFile, fileNode.fileId);
+      const calls = this.callBuilder.extractCallEdges(parsedAst, fileNode.fileId);
       allCalls.push(...calls);
       if (calls.length > 0) {
         this.eventStore.append({
