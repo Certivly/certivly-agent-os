@@ -1,0 +1,17 @@
+{
+  "name": "@agent-os/repository",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "chokidar": "^3.6.0",
+    "ts-morph": "^22.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}
