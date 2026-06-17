@@ -34,6 +34,7 @@ describe('MemoryEngine', () => {
       sourceEventIds: ['evt-1'],
       sourceSessionIds: ['sess-1'],
       sourceRequestIds: ['req-1'],
+      sourceContextIds: ['ctx-1'],
       tags: ['test'],
       version: 1
     };
@@ -56,6 +57,7 @@ describe('MemoryEngine', () => {
       sourceEventIds: [],
       sourceSessionIds: [],
       sourceRequestIds: [],
+      sourceContextIds: [],
       tags: [],
       version: 1
     };
