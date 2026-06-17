@@ -1,0 +1,13 @@
+{
+  "name": "@agent-os/sessions",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "drizzle-orm": "^0.30.0",
+    "@agent-os/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.20.14"
+  }
+}

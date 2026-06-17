@@ -1,0 +1,23 @@
+{
+  "name": "@agent-os/cli",
+  "version": "1.0.0",
+  "bin": {
+    "agent": "./dist/index.js"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./dist --target bun"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "ink": "^4.4.1",
+    "react": "^18.2.0",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/config": "workspace:*",
+    "@agent-os/sessions": "workspace:*",
+    "@agent-os/agent-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0"
+  }
+}
