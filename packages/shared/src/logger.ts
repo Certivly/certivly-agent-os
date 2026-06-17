@@ -27,7 +27,10 @@ export interface Logger {
 }
 
 export class JsonLogger implements Logger {
+  public silent: boolean = false;
+
   private log(severity: LogLevel, component: string, eventType: string, message: string, meta?: JsonObject) {
+    if (this.silent) return;
     const ctx = getAgentContext();
     
     const entry: LogEntry = {

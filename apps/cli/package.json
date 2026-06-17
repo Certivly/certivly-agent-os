@@ -1,6 +1,18 @@
 {
   "name": "@agent-os/cli",
   "version": "1.0.0",
+  "dependencies": {
+    "@agent-os/agent-runtime": "workspace:*",
+    "@agent-os/config": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/sessions": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@types/react": "^19.2.17",
+    "chalk": "^5.6.2",
+    "commander": "^12.0.0",
+    "ink": "^7.1.0",
+    "react": "^19.2.7"
+  },
   "bin": {
     "agent": "./dist/index.js"
   },
@@ -8,16 +20,7 @@
     "start": "bun run src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target bun"
   },
-  "dependencies": {
-    "commander": "^12.0.0",
-    "ink": "^4.4.1",
-    "react": "^18.2.0",
-    "@agent-os/shared": "workspace:*",
-    "@agent-os/config": "workspace:*",
-    "@agent-os/sessions": "workspace:*",
-    "@agent-os/agent-runtime": "workspace:*"
-  },
   "devDependencies": {
-    "@types/react": "^18.2.0"
+    "react-devtools-core": "^7.0.1"
   }
 }
