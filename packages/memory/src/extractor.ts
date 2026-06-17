@@ -1,7 +1,7 @@
 import { ContextEntry, MemoryExtractor as IMemoryExtractor } from '@agent-os/context';
 import { MemoryStore } from './store';
 import { Memory, MemoryType } from './models';
-import { logger } from '@agent-os/shared';
+import { metrics } from '@agent-os/metrics';
 
 export class MemoryExtractor implements IMemoryExtractor {
   constructor(private store: MemoryStore) {}
@@ -52,8 +52,9 @@ export class MemoryExtractor implements IMemoryExtractor {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       sourceEventIds: entry.sourceEventIds,
-      sourceSessionIds: [], // We would extract this from context if we plumbed it, or from events.
-      sourceRequestIds: [],
+      sourceSessionIds: entry.sourceSessionIds || [],
+      sourceRequestIds: entry.sourceRequestIds || [],
+      sourceContextIds: [entry.id],
       tags: [type.toLowerCase()],
       version: 1
     };
@@ -61,6 +62,6 @@ export class MemoryExtractor implements IMemoryExtractor {
     this.store.save(memory);
     
     // Observability Metric
-    logger.info('metrics', 'metric.memory.created', `Memory extracted: ${type}`, { memoryId, topic, confidence });
+    metrics.counter('memories_created').inc();
   }
 }

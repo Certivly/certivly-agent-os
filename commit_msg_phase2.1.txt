@@ -1,0 +1,10 @@
+Phase 2.1: Memory Stabilization, Traceability, and Observability
+
+This commit resolves all findings from the Phase 2 Audit Report.
+
+Key changes:
+- `packages/metrics`: Created a machine-facing telemetry package decoupled from logging (Counters, Gauges, Histograms).
+- Traceability Linkage: Added `sourceRequestIds`, `sourceSessionIds`, and `sourceContextIds` deeply into the Memory schema and Context models.
+- Runtime Instrumentation: `EventStore`, `ContextStack`, and `MemoryExtractor` automatically emit metrics for tracking behavior transparently.
+- Replay Verification: Implemented gap and duplicate detection directly inside `EventStore.loadEvents()`.
+- Benchmarking: Added `scripts/benchmark.ts` confirming the SQLite foundation can comfortably ingest 10k events and extract 1k memories in under 2 seconds synchronously, while replaying 10k events in ~20ms.

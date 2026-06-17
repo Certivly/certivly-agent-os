@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { RuntimeEvent, EventEnvelope } from './models';
 import { AgentError, logger } from '@agent-os/shared';
+import { metrics } from '@agent-os/metrics';
 
 export class EventStoreError extends AgentError {
   constructor(message: string) {
@@ -61,7 +62,7 @@ export class EventStore {
       }).run();
       
       // Observability Metric
-      logger.info('metrics', 'metric.event.written', `Event stored: ${event.eventType}`, { eventId: event.id });
+      metrics.counter('events_written').inc();
     } catch (e: any) {
       if (e.message.includes('UNIQUE constraint failed')) {
         throw new EventStoreError(`Event with id ${event.id} already exists`);
@@ -77,6 +78,20 @@ export class EventStore {
         .where(eq(schema.events.sessionId, sessionId))
         .orderBy(asc(schema.events.sequenceNumber))
         .all();
+
+      let expectedSequence = -1;
+      for (const record of records) {
+        if (expectedSequence !== -1 && record.sequenceNumber !== expectedSequence + 1) {
+          if (record.sequenceNumber <= expectedSequence) {
+            metrics.counter('event_replay_failures').inc();
+            throw new EventStoreError(`Integrity failure: duplicate or out of order event detected at sequence ${record.sequenceNumber}`);
+          } else {
+            metrics.counter('event_replay_failures').inc();
+            throw new EventStoreError(`Integrity failure: sequence gap detected. Expected ${expectedSequence + 1}, got ${record.sequenceNumber}`);
+          }
+        }
+        expectedSequence = record.sequenceNumber;
+      }
 
       return records.map(r => ({
         event: {
@@ -95,6 +110,7 @@ export class EventStore {
         }
       }));
     } catch (e: any) {
+      if (e instanceof EventStoreError) throw e;
       throw new EventStoreError(`Failed to load events: ${e.message}`);
     }
   }

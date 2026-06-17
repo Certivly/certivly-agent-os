@@ -8,9 +8,10 @@ export const memories = sqliteTable('memories', {
   confidence: real('confidence').notNull(),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
-  sourceEventIds: text('source_event_ids').notNull(), // JSON array
-  sourceSessionIds: text('source_session_ids').notNull(), // JSON array
-  sourceRequestIds: text('source_request_ids').notNull(), // JSON array
-  tags: text('tags').notNull(), // JSON array
+  sourceEventIds: text('source_event_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  sourceSessionIds: text('source_session_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  sourceRequestIds: text('source_request_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  sourceContextIds: text('source_context_ids', { mode: 'json' }).$type<string[]>().notNull(),
+  tags: text('tags', { mode: 'json' }).$type<string[]>().notNull(),
   version: integer('version').notNull().default(1),
 });

@@ -11,6 +11,7 @@
     "@agent-os/tools": "workspace:*",
     "@agent-os/events": "workspace:*",
     "@agent-os/context": "workspace:*",
-    "@agent-os/memory": "workspace:*"
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/metrics": "workspace:*"
   }
 }

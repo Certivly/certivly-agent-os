@@ -36,6 +36,7 @@
         "@agent-os/context": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
         "@agent-os/providers": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
@@ -55,6 +56,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/events": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "drizzle-orm": "^0.30.0",
       },
@@ -66,6 +68,7 @@
       "name": "@agent-os/events",
       "version": "1.0.0",
       "dependencies": {
+        "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "drizzle-orm": "^0.30.0",
       },
@@ -79,11 +82,22 @@
       "dependencies": {
         "@agent-os/context": "workspace:*",
         "@agent-os/events": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "drizzle-orm": "^0.30.0",
       },
       "devDependencies": {
         "drizzle-kit": "^0.20.14",
+      },
+    },
+    "packages/metrics": {
+      "name": "@agent-os/metrics",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
       },
     },
     "packages/providers": {
@@ -130,6 +144,8 @@
     "@agent-os/events": ["@agent-os/events@workspace:packages/events"],
 
     "@agent-os/memory": ["@agent-os/memory@workspace:packages/memory"],
+
+    "@agent-os/metrics": ["@agent-os/metrics@workspace:packages/metrics"],
 
     "@agent-os/providers": ["@agent-os/providers@workspace:packages/providers"],
 

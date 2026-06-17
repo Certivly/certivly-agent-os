@@ -8,6 +8,9 @@ export interface ContextEntry {
   content: string;
   timestamp: string;
   sourceEventIds: string[];
+  sourceRequestIds: string[];
+  sourceSessionIds: string[];
+  origin?: string;
   metadata?: Record<string, any>;
 }
 

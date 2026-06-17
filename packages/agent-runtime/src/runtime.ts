@@ -6,6 +6,7 @@ import { RuntimeError, logger, runWithContext, agentContext, LoggingEventBus } f
 import { EventStore } from '@agent-os/events';
 import { ContextStack, ContextEntry } from '@agent-os/context';
 import { MemoryStore, MemoryExtractor } from '@agent-os/memory';
+import { metrics } from '@agent-os/metrics';
 import * as path from 'path';
 import { PipelineContext } from './pipeline';
 import { DefaultContextBuilder, DefaultPlanner, DefaultProviderExecutor, DefaultToolExecutor, DefaultObservationHandler, DefaultResponseBuilder } from './pipeline-stages';
@@ -126,8 +127,10 @@ export class AgentRuntime {
 
       try {
         this.sessionManager.getSession(sessionId);
+        metrics.counter('session_loads').inc();
       } catch {
         this.sessionManager.createSession(sessionId);
+        metrics.counter('session_saves').inc();
         this.eventBus.publish('session.created', { sessionId });
       }
 
@@ -149,7 +152,10 @@ export class AgentRuntime {
         type: 'MessageContext',
         content: `User: ${input}`,
         timestamp: new Date().toISOString(),
-        sourceEventIds: [userEventId]
+        sourceEventIds: [userEventId],
+        sourceSessionIds: [sessionId],
+        sourceRequestIds: [requestId],
+        origin: 'User Input'
       });
 
       await this.contextBuilder.buildContext(ctx);
@@ -176,7 +182,10 @@ export class AgentRuntime {
                type: 'ToolContext',
                content: `Tool Execution Result: ${lastMsg.content}`,
                timestamp: new Date().toISOString(),
-               sourceEventIds: [toolEventId]
+               sourceEventIds: [toolEventId],
+               sourceSessionIds: [sessionId],
+               sourceRequestIds: [requestId],
+               origin: `Tool: ${lastMsg.name}`
              });
           }
         }
@@ -192,7 +201,10 @@ export class AgentRuntime {
           type: 'MessageContext',
           content: `Assistant: ${response}`,
           timestamp: new Date().toISOString(),
-          sourceEventIds: [responseEventId]
+          sourceEventIds: [responseEventId],
+          sourceSessionIds: [sessionId],
+          sourceRequestIds: [requestId],
+          origin: 'Assistant Response'
         });
       }
 

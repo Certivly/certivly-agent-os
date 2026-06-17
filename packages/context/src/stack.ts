@@ -1,5 +1,6 @@
 import { ContextEntry, ContextSnapshot, ContextPolicy, MemoryExtractor, ContextType } from './models';
 import { AgentError, logger } from '@agent-os/shared';
+import { metrics } from '@agent-os/metrics';
 
 export class ContextStackError extends AgentError {
   constructor(message: string) {
@@ -35,7 +36,7 @@ export class ContextStack {
       if (this.stack.length === 0) break;
       const oldest = this.stack.shift();
       if (oldest) {
-        logger.info('metrics', 'metric.context.evicted', `Context evicted: ${oldest.type}`, { contextId: oldest.id });
+        metrics.counter('context_entries_evicted').inc();
         if (this.extractor) {
           await this.extractor.extractAndStore(oldest);
         }

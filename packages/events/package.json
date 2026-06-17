@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@agent-os/shared": "workspace:*",
-    "drizzle-orm": "^0.30.0"
+    "drizzle-orm": "^0.30.0",
+    "@agent-os/metrics": "workspace:*"
   },
   "devDependencies": {
     "drizzle-kit": "^0.20.14"

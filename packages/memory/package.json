@@ -10,7 +10,8 @@
     "@agent-os/shared": "workspace:*",
     "drizzle-orm": "^0.30.0",
     "@agent-os/events": "workspace:*",
-    "@agent-os/context": "workspace:*"
+    "@agent-os/context": "workspace:*",
+    "@agent-os/metrics": "workspace:*"
   },
   "devDependencies": {
     "drizzle-kit": "^0.20.14"

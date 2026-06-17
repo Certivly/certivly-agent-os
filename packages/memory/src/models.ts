@@ -11,6 +11,7 @@ export interface Memory {
   sourceEventIds: string[];
   sourceSessionIds: string[];
   sourceRequestIds: string[];
+  sourceContextIds: string[];
   tags: string[];
   version: number;
 }

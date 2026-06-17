@@ -36,6 +36,7 @@ export class MemoryStore {
         source_event_ids TEXT NOT NULL,
         source_session_ids TEXT NOT NULL,
         source_request_ids TEXT NOT NULL,
+        source_context_ids TEXT NOT NULL,
         tags TEXT NOT NULL,
         version INTEGER NOT NULL DEFAULT 1
       );
@@ -56,10 +57,11 @@ export class MemoryStore {
       confidence: record.confidence,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
-      sourceEventIds: JSON.parse(record.sourceEventIds),
-      sourceSessionIds: JSON.parse(record.sourceSessionIds),
-      sourceRequestIds: JSON.parse(record.sourceRequestIds),
-      tags: JSON.parse(record.tags),
+      sourceEventIds: typeof record.sourceEventIds === 'string' ? JSON.parse(record.sourceEventIds) : record.sourceEventIds,
+      sourceSessionIds: typeof record.sourceSessionIds === 'string' ? JSON.parse(record.sourceSessionIds) : record.sourceSessionIds,
+      sourceRequestIds: typeof record.sourceRequestIds === 'string' ? JSON.parse(record.sourceRequestIds) : record.sourceRequestIds,
+      sourceContextIds: typeof record.sourceContextIds === 'string' ? JSON.parse(record.sourceContextIds) : record.sourceContextIds,
+      tags: typeof record.tags === 'string' ? JSON.parse(record.tags) : record.tags,
       version: record.version
     };
   }
@@ -77,6 +79,7 @@ export class MemoryStore {
           sourceEventIds: JSON.stringify(memory.sourceEventIds),
           sourceSessionIds: JSON.stringify(memory.sourceSessionIds),
           sourceRequestIds: JSON.stringify(memory.sourceRequestIds),
+          sourceContextIds: JSON.stringify(memory.sourceContextIds),
           tags: JSON.stringify(memory.tags),
           version: memory.version + 1
         }).where(eq(schema.memories.id, memory.id)).run();
@@ -92,6 +95,7 @@ export class MemoryStore {
           sourceEventIds: JSON.stringify(memory.sourceEventIds),
           sourceSessionIds: JSON.stringify(memory.sourceSessionIds),
           sourceRequestIds: JSON.stringify(memory.sourceRequestIds),
+          sourceContextIds: JSON.stringify(memory.sourceContextIds),
           tags: JSON.stringify(memory.tags),
           version: memory.version
         }).run();
