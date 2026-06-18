@@ -34,13 +34,21 @@ program.command('chat')
     const adapter = new EventStreamAdapter(runtime.agentRuntime.getEventBus(), sessionId);
 
     const handleInput = async (input: string, mode: string) => {
-      if (mode === 'chat') {
-        await runtime.agentRuntime.handleRequest(sessionId, input);
-      } else {
-        const parsed = InputParser.parse(input);
-        if (parsed.isCommand) {
-          await router.route(parsed, { runtime });
+      try {
+        if (mode === 'chat') {
+          await runtime.agentRuntime.handleRequest(sessionId, input);
+        } else {
+          const parsed = InputParser.parse(input);
+          if (parsed.isCommand) {
+            await router.route(parsed, { runtime });
+          }
         }
+      } catch (error: any) {
+        const errorMsg = error.message || String(error);
+        runtime.agentRuntime.getEventBus().publish('message.responded', {
+          sessionId,
+          response: `[System Error]: ${errorMsg}`
+        });
       }
     };
 

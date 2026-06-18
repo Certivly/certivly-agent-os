@@ -6,7 +6,8 @@ export enum SkillLevel {
   READ = 'READ',
   ANALYZE = 'ANALYZE',
   TRANSFORM = 'TRANSFORM',
-  EXECUTE = 'EXECUTE'
+  EXECUTE = 'EXECUTE',
+  MODIFY = 'MODIFY'
 }
 
 export interface SkillContext {
