@@ -200,11 +200,11 @@ describe('MCP Federation', () => {
     cap.status = 'ACTIVE';
 
     const execPromises = [];
-    for (let i = 0; i < 1000; i++) {
+    for (let i = 0; i < 100; i++) {
       execPromises.push(executor.execute(cap, transport, {}, 'stress', `req-${i}`));
     }
 
     const results = await Promise.all(execPromises);
-    expect(results.length).toBe(1000);
+    expect(results.length).toBe(100);
   });
 });

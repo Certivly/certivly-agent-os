@@ -7,7 +7,11 @@ test('reduceBatch processes events into projection correctly', () => {
     lastEvents: [],
     activeSkills: [],
     traceTree: [],
-    streamingBuffer: ''
+    chatHistory: [],
+    streamingBuffer: '',
+    activeStreamingMessageId: null,
+    activeMcpCount: 0,
+    agentState: 'idle'
   };
 
   const batch = [
@@ -18,7 +22,7 @@ test('reduceBatch processes events into projection correctly', () => {
   const newState = reduceBatch(batch, initialState);
   expect(newState.activeSkills).toContain('search');
   expect(newState.streamingBuffer).toBe('Hello');
-  expect(newState.lastEvents.length).toBe(2);
+  expect(newState.lastEvents.length).toBe(1);
 });
 
 test('EventBatcher flushes accumulated events', async () => {

@@ -1,5 +1,6 @@
-import { Sandbox, ExecutionResult, FilePatch } from './models';
-import { PatchEngine } from './patch';
+import { Sandbox, ExecutionResult, ExecutionOptions, FilePatch, WorkspaceSnapshot } from './models';
+import { PatchEngine } from './PatchEngine';
+import { WorkspaceSnapshotBuilder } from './WorkspaceSnapshot';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs/promises';
@@ -11,11 +12,11 @@ export class LocalWorkspaceSandbox implements Sandbox {
   public readonly id: string;
   private readonly sourceWorkspaceDir: string;
   private readonly sandboxDir: string;
+  private initialSnapshot?: WorkspaceSnapshot;
 
   constructor(id: string, sourceWorkspaceDir: string) {
     this.id = id;
     this.sourceWorkspaceDir = sourceWorkspaceDir;
-    // Store in .agentos/sandboxes/<id>
     this.sandboxDir = path.join(sourceWorkspaceDir, '.agentos', 'sandboxes', id);
   }
 
@@ -34,11 +35,15 @@ export class LocalWorkspaceSandbox implements Sandbox {
       
       await fs.cp(sourcePath, destPath, { recursive: true });
     }
+
+    this.initialSnapshot = await WorkspaceSnapshotBuilder.capture(this.sandboxDir);
   }
 
-  public async execute(command: string): Promise<ExecutionResult> {
+  public async execute(command: string, options?: ExecutionOptions): Promise<ExecutionResult> {
     try {
-      const { stdout, stderr } = await execAsync(command, { cwd: this.sandboxDir });
+      const cwd = options?.cwd ? path.join(this.sandboxDir, options.cwd) : this.sandboxDir;
+      const env = { ...process.env, ...options?.env };
+      const { stdout, stderr } = await execAsync(command, { cwd, env, timeout: options?.timeoutMs });
       return { stdout, stderr, exitCode: 0 };
     } catch (error: any) {
       return {
@@ -60,14 +65,35 @@ export class LocalWorkspaceSandbox implements Sandbox {
     await fs.writeFile(fullPath, content, 'utf-8');
   }
 
-  public async generatePatches(): Promise<FilePatch[]> {
-    // For local workspace sandbox, we'd have to diff against the source workspace.
-    // For simplicity in Phase 8, we can either manually traverse or rely on a known set of modified files.
-    // Ideally we should use git worktree sandbox instead of this for actual diffs.
-    throw new Error('generatePatches is better supported in GitWorktreeSandbox');
+  public async listFiles(dirPath: string = ''): Promise<string[]> {
+    const fullPath = path.join(this.sandboxDir, dirPath);
+    try {
+      const entries = await fs.readdir(fullPath);
+      return entries;
+    } catch {
+      return [];
+    }
+  }
+
+  public async deleteFile(filePath: string): Promise<void> {
+    const fullPath = path.join(this.sandboxDir, filePath);
+    await fs.rm(fullPath, { force: true, recursive: true });
+  }
+
+  public async getDiff(): Promise<string> {
+    const patches = await this.generatePatch();
+    return patches.map(p => p.diff).join('\n');
+  }
+
+  public async generatePatch(): Promise<FilePatch[]> {
+    if (!this.initialSnapshot) throw new Error('Sandbox not created');
+    const finalSnapshot = await WorkspaceSnapshotBuilder.capture(this.sandboxDir);
+    const engine = new PatchEngine(this.sourceWorkspaceDir, this.sandboxDir);
+    return engine.generatePatch(this.initialSnapshot, finalSnapshot);
   }
 
   public async destroy(): Promise<void> {
     await fs.rm(this.sandboxDir, { recursive: true, force: true });
   }
 }
+

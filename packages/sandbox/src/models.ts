@@ -1,3 +1,9 @@
+export interface ExecutionOptions {
+  timeoutMs?: number;
+  cwd?: string;
+  env?: Record<string, string>;
+}
+
 export interface ExecutionResult {
   stdout: string;
   stderr: string;
@@ -11,41 +17,42 @@ export type FilePatch = {
   diff: string;
 };
 
+export type SnapshotFile = {
+  path: string;
+  sha256: string;
+};
+
+export type WorkspaceSnapshot = {
+  id: string;
+  createdAt: number;
+  files: SnapshotFile[];
+};
+
 export interface Sandbox {
   id: string;
 
-  /**
-   * Initializes the sandbox environment (e.g. creating directories, copying files, git worktree).
-   */
   create(): Promise<void>;
 
-  /**
-   * Executes a shell command within the sandbox.
-   * @param command The command string to run
-   * @returns The execution result containing stdout, stderr, and exitCode.
-   */
-  execute(command: string): Promise<ExecutionResult>;
+  execute(
+    command: string,
+    options?: ExecutionOptions
+  ): Promise<ExecutionResult>;
 
-  /**
-   * Reads a file from the sandbox.
-   * @param filePath Relative path from sandbox root.
-   */
-  readFile(filePath: string): Promise<string>;
+  readFile(path: string): Promise<string>;
 
-  /**
-   * Writes content to a file in the sandbox.
-   * @param filePath Relative path from sandbox root.
-   * @param content The new content.
-   */
-  writeFile(filePath: string, content: string): Promise<void>;
+  writeFile(
+    path: string,
+    content: string
+  ): Promise<void>;
 
-  /**
-   * Computes patches for the modified files in the sandbox.
-   */
-  generatePatches(): Promise<FilePatch[]>;
+  listFiles(path?: string): Promise<string[]>;
 
-  /**
-   * Cleans up and destroys the sandbox environment.
-   */
+  deleteFile(path: string): Promise<void>;
+
+  getDiff(): Promise<string>;
+
+  generatePatch(): Promise<FilePatch[]>;
+
   destroy(): Promise<void>;
 }
+

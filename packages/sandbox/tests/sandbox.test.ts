@@ -8,74 +8,65 @@ import * as fs from "fs/promises";
 // We'll use a temporary dummy workspace for tests instead of the main repo
 // so we don't accidentally mess up real files if something goes wrong.
 
-const DUMMY_WORKSPACE = path.join(process.cwd(), ".agentos", "test-workspace");
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 describe("Sandbox Environment", () => {
+  const TEST_WORKSPACE = path.join(process.cwd(), "sandbox-test-workspace");
+
   beforeAll(async () => {
-    // Setup dummy workspace
-    await fs.mkdir(DUMMY_WORKSPACE, { recursive: true });
-    await fs.writeFile(path.join(DUMMY_WORKSPACE, "test.txt"), "Hello World");
-    
-    // Initialize git repo in dummy workspace to test worktrees
-    const { exec } = require("child_process");
-    const { promisify } = require("util");
-    const execAsync = promisify(exec);
-    await execAsync("git init", { cwd: DUMMY_WORKSPACE });
-    await execAsync("git add test.txt", { cwd: DUMMY_WORKSPACE });
-    await execAsync(`git config user.email "test@example.com"`, { cwd: DUMMY_WORKSPACE });
-    await execAsync(`git config user.name "Test User"`, { cwd: DUMMY_WORKSPACE });
-    await execAsync(`git commit -m "Initial commit"`, { cwd: DUMMY_WORKSPACE });
+    // Setup a dummy workspace with git
+    await fs.mkdir(TEST_WORKSPACE, { recursive: true });
+    await execAsync("git init", { cwd: TEST_WORKSPACE });
+    await fs.writeFile(path.join(TEST_WORKSPACE, "test.txt"), "hello world");
+    await execAsync("git add test.txt", { cwd: TEST_WORKSPACE });
+    await execAsync('git config user.email "test@example.com"', { cwd: TEST_WORKSPACE });
+    await execAsync('git config user.name "Test User"', { cwd: TEST_WORKSPACE });
+    await execAsync('git commit -m "initial commit"', { cwd: TEST_WORKSPACE });
   });
 
   afterAll(async () => {
     // Cleanup dummy workspace
-    await fs.rm(DUMMY_WORKSPACE, { recursive: true, force: true });
+    await fs.rm(TEST_WORKSPACE, { recursive: true, force: true });
   });
 
   test("LocalWorkspaceSandbox creation and execution", async () => {
-    const sandbox = new LocalWorkspaceSandbox("test-local-1", DUMMY_WORKSPACE);
-    
+    const sandbox = new LocalWorkspaceSandbox("test-local-1", TEST_WORKSPACE);
     await sandbox.create();
+
+    const fileContent = await sandbox.readFile("test.txt");
+    expect(fileContent).toBe("hello world");
+
+    await sandbox.writeFile("new.txt", "new file");
     
-    // Test execution
-    const res = await sandbox.execute("echo 'Hello Sandbox'");
+    const res = await sandbox.execute(`bun -e "process.stdout.write(require('fs').readFileSync('new.txt', 'utf8'))"`);
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("Hello Sandbox");
-    
-    // Test file read
-    const content = await sandbox.readFile("test.txt");
-    expect(content).toBe("Hello World");
-    
-    // Test file write
-    await sandbox.writeFile("new.txt", "New File");
-    const newContent = await sandbox.readFile("new.txt");
-    expect(newContent).toBe("New File");
+    expect(res.stdout).toBe("new file");
 
     await sandbox.destroy();
   });
 
   test("GitWorktreeSandbox creation and patches", async () => {
-    const sandbox = new GitWorktreeSandbox("test-worktree-1", DUMMY_WORKSPACE);
-    
+    const sandbox = new GitWorktreeSandbox("test-worktree-1", TEST_WORKSPACE);
     await sandbox.create();
+
+    const fileContent = await sandbox.readFile("test.txt");
+    expect(fileContent).toBe("hello world");
+
+    await sandbox.writeFile("test.txt", "hello agentos");
     
-    const content = await sandbox.readFile("test.txt");
-    expect(content).toBe("Hello World");
-    
-    // Modify file
-    await sandbox.writeFile("test.txt", "Hello Worktree");
-    
-    // Test execution
     const res = await sandbox.execute("git status");
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("modified:   test.txt");
 
     // Generate patches
-    const patches = await sandbox.generatePatches();
-    expect(patches.length).toBe(1);
+    const patches = await sandbox.generatePatch();
+    expect(patches).toHaveLength(1);
     expect(patches[0].filePath).toBe("test.txt");
-    expect(patches[0].diff).toContain("-Hello World");
-    expect(patches[0].diff).toContain("+Hello Worktree");
+    expect(patches[0].diff).toContain("-hello world");
+    expect(patches[0].diff).toContain("+hello agentos");
 
     await sandbox.destroy();
   });

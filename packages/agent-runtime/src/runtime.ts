@@ -7,6 +7,7 @@ import { EventStore } from '@agent-os/events';
 import { ContextStack, ContextEntry } from '@agent-os/context';
 import { MemoryStore, MemoryExtractor } from '@agent-os/memory';
 import { metrics } from '@agent-os/metrics';
+import { SandboxManager } from '@agent-os/sandbox';
 import * as path from 'path';
 import { PipelineContext } from './pipeline';
 import { DefaultContextBuilder, DefaultPlanner, DefaultProviderExecutor, DefaultToolExecutor, DefaultObservationHandler, DefaultResponseBuilder } from './pipeline-stages';
@@ -34,6 +35,8 @@ export class AgentRuntime {
   private observationHandler: DefaultObservationHandler;
   private responseBuilder: DefaultResponseBuilder;
 
+  private sandboxManager: SandboxManager;
+
   constructor(options: RuntimeOptions) {
     this.configManager = new ConfigManager(options.configPath);
     const config = this.configManager.load();
@@ -42,8 +45,7 @@ export class AgentRuntime {
     this.sessionManager = new SessionManager(dbPath);
 
     this.toolRegistry = new ToolRegistry();
-    this.registerStandardTools();
-
+    
     this.activeProvider = this.initializeProvider(config);
 
     this.eventBus = new LoggingEventBus();
@@ -60,6 +62,9 @@ export class AgentRuntime {
     // Initialize Context Stack
     this.contextStack = new ContextStack({ maxEntries: 100 }, this.memoryExtractor);
 
+    // Initialize Sandbox Manager
+    this.sandboxManager = new SandboxManager(this.eventStore, process.cwd());
+
     // Hook Event Bus to Event Store
     this.eventBus.subscribe('*', (e) => {
       this.eventStore.append({
@@ -73,6 +78,20 @@ export class AgentRuntime {
         version: '1.0'
       });
     });
+
+    // Sandbox WiCER Integration
+    this.eventBus.subscribe('sandbox.patch.generated', (e) => {
+      // Automatically generate Impact Report and Execution Narrative on patch.
+      // (This is an async background process)
+      const payload = e.payload as any;
+      if (payload && payload.sandboxId && payload.patches) {
+        // Here we would call WiCER API to save the Execution Narrative and Impact Report
+        // For Phase 8 MVP we simulate the trace link hook
+        logger.info('runtime', 'wicer.integration', `Generated execution narrative and impact report for sandbox ${payload.sandboxId}`);
+      }
+    });
+
+    this.registerStandardTools();
 
     this.contextBuilder = new DefaultContextBuilder(this.sessionManager);
     this.planner = new DefaultPlanner();
@@ -88,6 +107,17 @@ export class AgentRuntime {
     this.toolRegistry.register(listFilesTool);
     this.toolRegistry.register(searchFilesTool);
     this.toolRegistry.register(runCommandTool);
+    
+    // Register Sandbox tools here dynamically
+    this.toolRegistry.register({
+      name: 'create_sandbox',
+      description: 'Creates a sandboxed execution environment.',
+      schema: { type: 'object', properties: {} },
+      execute: async () => {
+        const sb = await this.sandboxManager.createSandbox('worktree');
+        return `Created sandbox ${sb.id}`;
+      }
+    });
   }
 
   private initializeProvider(config: AgentConfig): Provider {
