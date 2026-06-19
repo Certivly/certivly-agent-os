@@ -1,0 +1,8 @@
+export enum ExecutionPhase {
+  UNDERSTAND = 'UNDERSTAND',
+  ANALYZE = 'ANALYZE',
+  PLAN = 'PLAN',
+  MODIFY = 'MODIFY',
+  VALIDATE = 'VALIDATE',
+  SUMMARIZE = 'SUMMARIZE'
+}

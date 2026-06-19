@@ -9,6 +9,7 @@ export interface LanguageParser {
   language: string;
   initialize(wasmPath: string): Promise<void>;
   parse(filePath: string, sourceCode: string): ParsedAST;
+  getRawParser(): any;
 }
 
 export class ParserRegistry {

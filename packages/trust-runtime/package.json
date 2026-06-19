@@ -1,0 +1,15 @@
+{
+  "name": "@agent-os/trust-runtime",
+  "version": "1.0.0",
+  "description": "Self-Validation & Trust Runtime for AgentOS",
+  "main": "index.ts",
+  "dependencies": {
+
+    "@agent-os/subagents": "workspace:*",
+    "@agent-os/adaptive-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -13,6 +13,7 @@
     "@agent-os/context": "workspace:*",
     "@agent-os/memory": "workspace:*",
     "@agent-os/metrics": "workspace:*",
-    "@agent-os/sandbox": "workspace:*"
+    "@agent-os/sandbox": "workspace:*",
+    "@agent-os/narrative": "workspace:*"
   }
 }

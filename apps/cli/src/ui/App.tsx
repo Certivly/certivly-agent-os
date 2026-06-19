@@ -59,6 +59,8 @@ export const App: React.FC<{ sessionId: string, batcher: EventBatcher, onInput: 
             executionLog={projection.chatHistory} 
             streamingBuffer={projection.streamingBuffer} 
             agentState={projection.agentState} 
+            narrativeState={projection.narrativeState}
+            narrativeSummary={projection.narrativeSummary}
           />
         </Box>
 

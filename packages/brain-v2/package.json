@@ -1,0 +1,14 @@
+{
+  "name": "@agent-os/brain-v2",
+  "version": "1.0.0",
+  "description": "Predictive Planning & Strategy Selection for AgentOS",
+  "main": "index.ts",
+  "dependencies": {
+    "@agent-os/brain": "workspace:*",
+    "@agent-os/adaptive-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@agent-os/brain",
+  "version": "1.0.0",
+  "description": "Deterministic Repository Intelligence for AgentOS",
+  "main": "index.ts",
+  "dependencies": {
+    "@agent-os/adaptive-runtime": "workspace:*",
+    "@agent-os/trust-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

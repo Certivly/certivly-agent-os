@@ -1,0 +1,22 @@
+{
+  "name": "@agent-os/daemon",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/brain": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/repository": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/wicer": "workspace:*",
+    "chokidar": "^5.0.0",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0",
+    "@types/uuid": "^10.0.0"
+  }
+}

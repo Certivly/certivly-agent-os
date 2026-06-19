@@ -31,7 +31,7 @@ program.command('chat')
     router.register(ChatCommand);
     router.register(RunCommand);
 
-    const adapter = new EventStreamAdapter(runtime.agentRuntime.getEventBus(), sessionId);
+    const adapter = new EventStreamAdapter(runtime.agentRuntime.getEventBus(), sessionId, options.debug);
 
     const handleInput = async (input: string, mode: string) => {
       try {

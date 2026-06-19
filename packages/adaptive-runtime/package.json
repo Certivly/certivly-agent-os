@@ -1,0 +1,15 @@
+{
+  "name": "@agent-os/adaptive-runtime",
+  "version": "1.0.0",
+  "description": "Adaptive Autonomous Engineering Runtime for AgentOS",
+  "main": "index.ts",
+  "dependencies": {
+
+    "@agent-os/daemon": "workspace:*",
+    "@agent-os/subagents": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

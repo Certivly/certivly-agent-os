@@ -8,6 +8,7 @@ import { ContextStack, ContextEntry } from '@agent-os/context';
 import { MemoryStore, MemoryExtractor } from '@agent-os/memory';
 import { metrics } from '@agent-os/metrics';
 import { SandboxManager } from '@agent-os/sandbox';
+import { NarrativeEngine } from '@agent-os/narrative';
 import * as path from 'path';
 import { PipelineContext } from './pipeline';
 import { DefaultContextBuilder, DefaultPlanner, DefaultProviderExecutor, DefaultToolExecutor, DefaultObservationHandler, DefaultResponseBuilder } from './pipeline-stages';
@@ -36,8 +37,9 @@ export class AgentRuntime {
   private responseBuilder: DefaultResponseBuilder;
 
   private sandboxManager: SandboxManager;
+  private narrativeEngine: NarrativeEngine;
 
-  constructor(options: RuntimeOptions) {
+  constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.configManager = new ConfigManager(options.configPath);
     const config = this.configManager.load();
 
@@ -64,6 +66,9 @@ export class AgentRuntime {
 
     // Initialize Sandbox Manager
     this.sandboxManager = new SandboxManager(this.eventStore, process.cwd());
+
+    // Initialize Narrative Engine
+    this.narrativeEngine = new NarrativeEngine(this.eventBus, sessionId);
 
     // Hook Event Bus to Event Store
     this.eventBus.subscribe('*', (e) => {

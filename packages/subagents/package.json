@@ -1,0 +1,14 @@
+{
+  "name": "@agent-os/subagents",
+  "version": "1.0.0",
+  "description": "SubAgent Swarm Runtime for AgentOS",
+  "main": "index.ts",
+  "dependencies": {
+
+    "@agent-os/daemon": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@agent-os/narrative",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}

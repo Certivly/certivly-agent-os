@@ -63,13 +63,31 @@ export class EventStreamAdapter {
   public readonly ringBuffer = new EventRingBuffer();
   public readonly batcher = new EventBatcher(33);
 
-  constructor(private eventBus: EventBus, private sessionId: string) {
+  constructor(private eventBus: EventBus, private sessionId: string, private debug: boolean = false) {
     this.subscribeToStore();
   }
 
   private subscribeToStore() {
     this.eventBus.subscribe('*', (rawEvent: any) => {
       if (rawEvent.sessionId && rawEvent.sessionId !== this.sessionId) return;
+      
+      // If not in debug mode, filter out raw infrastructure events unless they are core UI events
+      if (!this.debug) {
+         const isCoreUiEvent = [
+           'message.received',
+           'message.responded',
+           'llm.token.stream',
+           'provider.request.started',
+           'provider.request.completed'
+         ].includes(rawEvent.type);
+         
+         const isNarrativeEvent = rawEvent.type.startsWith('narrative.');
+         
+         if (!isCoreUiEvent && !isNarrativeEvent) {
+           return; // Drop internal event from UI stream in normal mode
+         }
+      }
+
       const uiEvent: UIEvent = {
         id: rawEvent.id || Date.now().toString(),
         type: rawEvent.type,

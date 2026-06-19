@@ -12,7 +12,7 @@ export class CliRuntime {
   public readonly debug: boolean;
 
   constructor(options: CliRuntimeOptions, sessionId: string) {
-    this.agentRuntime = new AgentRuntime({ configPath: options.configPath });
+    this.agentRuntime = new AgentRuntime({ configPath: options.configPath }, sessionId);
     this.stateManager = new SessionStateManager(sessionId);
     this.debug = options.debug || false;
   }

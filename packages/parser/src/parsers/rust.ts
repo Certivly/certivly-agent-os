@@ -14,6 +14,10 @@ export class RustParser implements LanguageParser {
     this.parser.setLanguage(this.lang);
   }
 
+  public getRawParser(): Parser | null {
+    return this.parser;
+  }
+
   public parse(filePath: string, sourceCode: string): ParsedAST {
     if (!this.parser) throw new Error('RustParser not initialized');
 

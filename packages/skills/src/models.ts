@@ -29,6 +29,10 @@ export interface SkillResult {
   events: RuntimeEvent[];
   wicerReferences: string[];
   graphReferences: string[];
+  narrativeHints?: {
+    activity: string;
+    phase: any; // Using any here to avoid strict circular dependency or redefine enum
+  };
 }
 
 export interface Skill {

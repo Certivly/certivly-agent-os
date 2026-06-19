@@ -14,6 +14,10 @@ export class TypeScriptParser implements LanguageParser {
     this.parser.setLanguage(this.lang);
   }
 
+  public getRawParser(): Parser | null {
+    return this.parser;
+  }
+
   public parse(filePath: string, sourceCode: string): ParsedAST {
     if (!this.parser || !this.lang) {
       throw new Error('TypeScriptParser not initialized');

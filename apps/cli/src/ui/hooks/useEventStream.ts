@@ -28,6 +28,8 @@ export type UIProjection = {
   activeStreamingMessageId: string | null;
   activeMcpCount: number;
   agentState: AgentState;
+  narrativeState?: any;
+  narrativeSummary?: any;
 };
 
 export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection => {
@@ -135,6 +137,14 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
       const astId = event.id + '-ast';
       newState.chatHistory.push({ id: astId, role: 'assistant', content: '', toolExecutions: [], streaming: false });
       newState.activeStreamingMessageId = astId;
+    } else if (event.type.startsWith('narrative.activity.')) {
+      if (event.payload?.snapshot) {
+        newState.narrativeState = event.payload.snapshot;
+      }
+    } else if (event.type === 'narrative.summary.generated') {
+      if (event.payload?.summary) {
+        newState.narrativeSummary = event.payload.summary;
+      }
     }
     
     // Developer mode filtered logs

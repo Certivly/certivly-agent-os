@@ -28,7 +28,13 @@ export const ChatRenderer = memo(({ msg }: { msg: ChatMessage }) => {
   );
 });
 
-export const MainExecutionPanel: React.FC<{ executionLog: ChatMessage[], streamingBuffer: string, agentState: AgentState }> = ({ executionLog, streamingBuffer, agentState }) => {
+export const MainExecutionPanel: React.FC<{ 
+  executionLog: ChatMessage[], 
+  streamingBuffer: string, 
+  agentState: AgentState,
+  narrativeState?: any,
+  narrativeSummary?: any 
+}> = ({ executionLog, streamingBuffer, agentState, narrativeState, narrativeSummary }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
 
   useInput((char, key) => {
@@ -54,6 +60,32 @@ export const MainExecutionPanel: React.FC<{ executionLog: ChatMessage[], streami
   const startIdx = Math.max(0, endIdx - 50);
   const visibleLog = executionLog.slice(startIdx, endIdx);
 
+  const renderNarrative = () => {
+    if (!narrativeState || !narrativeState.activities || narrativeState.activities.length === 0) return null;
+    return (
+      <Box flexDirection="column" marginY={1}>
+        {narrativeState.activities.map((act: any, i: number) => (
+          <Text key={i} color={act.status === 'completed' ? 'green' : (act.status === 'failed' ? 'red' : 'blue')}>
+            {act.status === 'completed' ? '✓ ' : (act.status === 'failed' ? '✗ ' : '● ')}{act.message}
+            {act.status === 'active' ? '...' : ''}
+          </Text>
+        ))}
+      </Box>
+    );
+  };
+
+  const renderSummary = () => {
+    if (!narrativeSummary) return null;
+    return (
+      <Box flexDirection="column" marginY={1} borderStyle="round" borderColor="green" padding={1}>
+        <Text color="green" bold>✓ {narrativeSummary.objective}</Text>
+        <Text> </Text>
+        <Text bold>What I changed</Text>
+        {narrativeSummary.reasoning.map((r: string, i: number) => <Text key={i}>• {r}</Text>)}
+      </Box>
+    );
+  };
+
   return (
     <Box flexDirection="row" flexGrow={1}>
       <Box flexDirection="column" paddingX={0} flexGrow={1}>
@@ -62,6 +94,8 @@ export const MainExecutionPanel: React.FC<{ executionLog: ChatMessage[], streami
           {visibleLog.map(msg => (
             <ChatRenderer key={msg.id} msg={msg} />
           ))}
+          {renderNarrative()}
+          {renderSummary()}
           {scrollOffset === 0 && agentState === 'thinking' && <Text color="yellow">+ Thought: processing...</Text>}
         </Box>
       </Box>
