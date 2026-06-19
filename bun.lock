@@ -230,6 +230,30 @@
         "typescript": "^5.0.0",
       },
     },
+    "packages/orchestrator": {
+      "name": "@agent-os/orchestrator",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/execution-engine": "workspace:*",
+        "@agent-os/memory": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
+        "@agent-os/patch-engine": "workspace:*",
+        "@agent-os/planner": "workspace:*",
+        "@agent-os/repository": "workspace:*",
+        "@agent-os/sandbox": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "@agent-os/skills": "workspace:*",
+        "@agent-os/trust-runtime": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
+        "uuid": "^9.0.1",
+      },
+      "devDependencies": {
+        "@types/uuid": "^9.0.8",
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
     "packages/parser": {
       "name": "@agent-os/parser",
       "version": "1.0.0",
@@ -439,6 +463,8 @@
     "@agent-os/metrics": ["@agent-os/metrics@workspace:packages/metrics"],
 
     "@agent-os/narrative": ["@agent-os/narrative@workspace:packages/narrative"],
+
+    "@agent-os/orchestrator": ["@agent-os/orchestrator@workspace:packages/orchestrator"],
 
     "@agent-os/parser": ["@agent-os/parser@workspace:packages/parser"],
 
@@ -827,6 +853,10 @@
     "@agent-os/execution-engine/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
 
     "@agent-os/execution-engine/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
+
+    "@agent-os/orchestrator/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
+
+    "@agent-os/orchestrator/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
 
     "@agent-os/planner/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
 

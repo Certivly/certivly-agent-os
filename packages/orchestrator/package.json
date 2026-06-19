@@ -1,0 +1,29 @@
+{
+  "name": "@agent-os/orchestrator",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/execution-engine": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/patch-engine": "workspace:*",
+    "@agent-os/planner": "workspace:*",
+    "@agent-os/repository": "workspace:*",
+    "@agent-os/sandbox": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/skills": "workspace:*",
+    "@agent-os/trust-runtime": "workspace:*",
+    "@agent-os/wicer": "workspace:*",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/uuid": "^9.0.8",
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}
