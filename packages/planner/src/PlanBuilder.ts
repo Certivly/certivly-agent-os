@@ -22,6 +22,20 @@ export class PlanBuilder {
 
     let previousTask = analyzeTask;
 
+    // 1.5 Research
+    if (analysis.category !== "ANALYSIS") {
+      const researchTask: TaskNode = {
+        id: uuidv4(),
+        type: TaskType.RESEARCH,
+        title: "Acquire External Knowledge via ResearchAgent",
+        dependencies: [previousTask.id],
+        status: "pending"
+      };
+      tasks.push(researchTask);
+      dependencies.push({ fromTaskId: previousTask.id, toTaskId: researchTask.id });
+      previousTask = researchTask;
+    }
+
     // 2. Main Logic Execution
     if (analysis.category === "TESTING" || analysis.category === "BUG_FIX") {
       const searchTask: TaskNode = {

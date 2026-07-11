@@ -19,6 +19,8 @@
         "@agent-os/agent-runtime": "workspace:*",
         "@agent-os/config": "workspace:*",
         "@agent-os/events": "workspace:*",
+        "@agent-os/runtime-audit": "workspace:*",
+        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@types/react": "^19.2.17",
@@ -54,6 +56,7 @@
         "@agent-os/metrics": "workspace:*",
         "@agent-os/narrative": "workspace:*",
         "@agent-os/providers": "workspace:*",
+        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/sandbox": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
@@ -141,6 +144,7 @@
       "name": "@agent-os/execution-engine",
       "version": "1.0.0",
       "dependencies": {
+        "@agent-os/context": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -332,6 +336,7 @@
       "dependencies": {
         "@agent-os/config": "workspace:*",
         "@agent-os/shared": "workspace:*",
+        "@anthropic-ai/sdk": "^0.24.0",
         "openai": "^4.28.0",
       },
     },
@@ -344,6 +349,48 @@
         "@agent-os/parser": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "chokidar": "^3.6.0",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
+    "packages/runtime-audit": {
+      "name": "@agent-os/runtime-audit",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/runtime-integration": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
+    "packages/runtime-integration": {
+      "name": "@agent-os/runtime-integration",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/brain": "workspace:*",
+        "@agent-os/brain-v2": "workspace:*",
+        "@agent-os/events": "workspace:*",
+        "@agent-os/execution-engine": "workspace:*",
+        "@agent-os/hardening": "workspace:*",
+        "@agent-os/mcp": "workspace:*",
+        "@agent-os/memory": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
+        "@agent-os/orchestrator": "workspace:*",
+        "@agent-os/parser": "workspace:*",
+        "@agent-os/patch-engine": "workspace:*",
+        "@agent-os/pattern-intelligence": "workspace:*",
+        "@agent-os/planner": "workspace:*",
+        "@agent-os/repository": "workspace:*",
+        "@agent-os/sandbox": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "@agent-os/skills": "workspace:*",
+        "@agent-os/trust-runtime": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "bun-types": "latest",
@@ -499,6 +546,10 @@
 
     "@agent-os/repository": ["@agent-os/repository@workspace:packages/repository"],
 
+    "@agent-os/runtime-audit": ["@agent-os/runtime-audit@workspace:packages/runtime-audit"],
+
+    "@agent-os/runtime-integration": ["@agent-os/runtime-integration@workspace:packages/runtime-integration"],
+
     "@agent-os/sandbox": ["@agent-os/sandbox@workspace:packages/sandbox"],
 
     "@agent-os/seol": ["@agent-os/seol@workspace:packages/seol"],
@@ -518,6 +569,8 @@
     "@agent-os/wicer": ["@agent-os/wicer@workspace:packages/wicer"],
 
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],
+
+    "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.24.3", "", { "dependencies": { "@types/node": "^18.11.18", "@types/node-fetch": "^2.6.4", "abort-controller": "^3.0.0", "agentkeepalive": "^4.2.1", "form-data-encoder": "1.7.2", "formdata-node": "^4.3.2", "node-fetch": "^2.6.7", "web-streams-polyfill": "^3.2.1" } }, "sha512-916wJXO6T6k8R6BAAcLhLPv/pnLGy7YSEBZXZ1XTFbLcTZE8oTy3oDW9WJf9KKZwMvVcePIfoTSvzXHRcGxkQQ=="],
 
     "@esbuild-kit/core-utils": ["@esbuild-kit/core-utils@3.3.2", "", { "dependencies": { "esbuild": "~0.18.20", "source-map-support": "^0.5.21" } }, "sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ=="],
 
@@ -851,7 +904,7 @@
 
     "uuid": ["uuid@10.0.0", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ=="],
 
-    "web-streams-polyfill": ["web-streams-polyfill@4.0.0-beta.3", "", {}, "sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug=="],
+    "web-streams-polyfill": ["web-streams-polyfill@3.3.3", "", {}, "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="],
 
     "web-tree-sitter": ["web-tree-sitter@0.24.7", "", {}, "sha512-CdC/TqVFbXqR+C51v38hv6wOPatKEUGxa39scAeFSm98wIhZxAYonhRQPSMmfZ2w7JDI0zQDdzdmgtNk06/krQ=="],
 
@@ -891,6 +944,8 @@
 
     "@agent-os/repository/chokidar": ["chokidar@3.6.0", "", { "dependencies": { "anymatch": "~3.1.2", "braces": "~3.0.2", "glob-parent": "~5.1.2", "is-binary-path": "~2.1.0", "is-glob": "~4.0.1", "normalize-path": "~3.0.0", "readdirp": "~3.6.0" }, "optionalDependencies": { "fsevents": "~2.3.2" } }, "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw=="],
 
+    "@anthropic-ai/sdk/@types/node": ["@types/node@18.19.130", "", { "dependencies": { "undici-types": "~5.26.4" } }, "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg=="],
+
     "@esbuild-kit/core-utils/esbuild": ["esbuild@0.18.20", "", { "optionalDependencies": { "@esbuild/android-arm": "0.18.20", "@esbuild/android-arm64": "0.18.20", "@esbuild/android-x64": "0.18.20", "@esbuild/darwin-arm64": "0.18.20", "@esbuild/darwin-x64": "0.18.20", "@esbuild/freebsd-arm64": "0.18.20", "@esbuild/freebsd-x64": "0.18.20", "@esbuild/linux-arm": "0.18.20", "@esbuild/linux-arm64": "0.18.20", "@esbuild/linux-ia32": "0.18.20", "@esbuild/linux-loong64": "0.18.20", "@esbuild/linux-mips64el": "0.18.20", "@esbuild/linux-ppc64": "0.18.20", "@esbuild/linux-riscv64": "0.18.20", "@esbuild/linux-s390x": "0.18.20", "@esbuild/linux-x64": "0.18.20", "@esbuild/netbsd-x64": "0.18.20", "@esbuild/openbsd-x64": "0.18.20", "@esbuild/sunos-x64": "0.18.20", "@esbuild/win32-arm64": "0.18.20", "@esbuild/win32-ia32": "0.18.20", "@esbuild/win32-x64": "0.18.20" }, "bin": { "esbuild": "bin/esbuild" } }, "sha512-ceqxoedUrcayh7Y7ZX6NdbbDzGROiyVBgC4PriJThBKSVPWnnFHZAkfI1lJT8QFkOwH4qOS2SJkS4wvpGl8BpA=="],
 
     "@types/node-fetch/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
@@ -898,6 +953,8 @@
     "bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
 
     "drizzle-kit/commander": ["commander@9.5.0", "", {}, "sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ=="],
+
+    "formdata-node/web-streams-polyfill": ["web-streams-polyfill@4.0.0-beta.3", "", {}, "sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug=="],
 
     "glob/minimatch": ["minimatch@5.1.9", "", { "dependencies": { "brace-expansion": "^2.0.1" } }, "sha512-7o1wEA2RyMP7Iu7GNba9vc0RWWGACJOCZBJX2GJWip0ikV+wcOsgVuY9uE8CPiyQhkGFSlhuSkZPavN7u1c2Fw=="],
 
@@ -908,6 +965,8 @@
     "openai/ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 
     "@agent-os/repository/chokidar/readdirp": ["readdirp@3.6.0", "", { "dependencies": { "picomatch": "^2.2.1" } }, "sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA=="],
+
+    "@anthropic-ai/sdk/@types/node/undici-types": ["undici-types@5.26.5", "", {}, "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA=="],
 
     "@esbuild-kit/core-utils/esbuild/@esbuild/android-arm": ["@esbuild/android-arm@0.18.20", "", { "os": "android", "cpu": "arm" }, "sha512-fyi7TDI/ijKKNZTUJAQqiG5T7YjJXgnzkURqmGj13C6dCqckZBLdl4h7bkhHt/t0WP+zO9/zwroDvANaOqO5Sw=="],
 

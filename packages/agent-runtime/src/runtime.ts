@@ -1,17 +1,10 @@
 import { ConfigManager, AgentConfig } from '@agent-os/config';
 import { SessionManager } from '@agent-os/sessions';
 import { ToolRegistry, readFileTool, writeFileTool, listFilesTool, searchFilesTool, runCommandTool } from '@agent-os/tools';
-import { Provider, OpenAIProvider, AnthropicProvider, GeminiProvider, DeepSeekProvider, OpenRouterProvider, OllamaProvider } from '@agent-os/providers';
-import { RuntimeError, logger, runWithContext, agentContext, LoggingEventBus } from '@agent-os/shared';
-import { EventStore } from '@agent-os/events';
-import { ContextStack, ContextEntry } from '@agent-os/context';
-import { MemoryStore, MemoryExtractor } from '@agent-os/memory';
-import { metrics } from '@agent-os/metrics';
-import { SandboxManager } from '@agent-os/sandbox';
-import { NarrativeEngine } from '@agent-os/narrative';
+import { Provider, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OpenRouterProvider, OllamaProvider } from '@agent-os/providers';
+import { RuntimeError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
+import { RuntimeBootstrap, RuntimePipeline } from '@agent-os/runtime-integration';
 import * as path from 'path';
-import { PipelineContext } from './pipeline';
-import { DefaultContextBuilder, DefaultPlanner, DefaultProviderExecutor, DefaultToolExecutor, DefaultObservationHandler, DefaultResponseBuilder } from './pipeline-stages';
 
 export interface RuntimeOptions {
   configPath: string;
@@ -23,21 +16,8 @@ export class AgentRuntime {
   private toolRegistry: ToolRegistry;
   private activeProvider: Provider;
   
-  private eventBus: LoggingEventBus;
-  private eventStore: EventStore;
-  private memoryStore: MemoryStore;
-  private memoryExtractor: MemoryExtractor;
-  private contextStack: ContextStack;
-
-  private contextBuilder: DefaultContextBuilder;
-  private planner: DefaultPlanner;
-  private providerExecutor: DefaultProviderExecutor;
-  private toolExecutor: DefaultToolExecutor;
-  private observationHandler: DefaultObservationHandler;
-  private responseBuilder: DefaultResponseBuilder;
-
-  private sandboxManager: SandboxManager;
-  private narrativeEngine: NarrativeEngine;
+  private bootstrap: RuntimeBootstrap;
+  private pipelinePromise: Promise<RuntimePipeline>;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.configManager = new ConfigManager(options.configPath);
@@ -47,63 +27,31 @@ export class AgentRuntime {
     this.sessionManager = new SessionManager(dbPath);
 
     this.toolRegistry = new ToolRegistry();
-    
     this.activeProvider = this.initializeProvider(config);
-
-    this.eventBus = new LoggingEventBus();
-    
-    // Initialize EventStore
-    const eventsDbPath = path.join(process.cwd(), config.runtime.sessionDir, 'events.db');
-    this.eventStore = new EventStore(eventsDbPath);
-
-    // Initialize Memory Engine
-    const memoryDbPath = path.join(process.cwd(), config.runtime.sessionDir, 'memory.db');
-    this.memoryStore = new MemoryStore(memoryDbPath);
-    this.memoryExtractor = new MemoryExtractor(this.memoryStore);
-
-    // Initialize Context Stack
-    this.contextStack = new ContextStack({ maxEntries: 100 }, this.memoryExtractor);
-
-    // Initialize Sandbox Manager
-    this.sandboxManager = new SandboxManager(this.eventStore, process.cwd());
-
-    // Initialize Narrative Engine
-    this.narrativeEngine = new NarrativeEngine(this.eventBus, sessionId);
-
-    // Hook Event Bus to Event Store
-    this.eventBus.subscribe('*', (e) => {
-      this.eventStore.append({
-        id: e.id,
-        eventType: e.type,
-        timestamp: e.timestamp,
-        requestId: e.correlationId || 'unknown',
-        sessionId: e.sessionId || 'unknown',
-        source: 'runtime',
-        payload: e.payload,
-        version: '1.0'
-      });
-    });
-
-    // Sandbox WiCER Integration
-    this.eventBus.subscribe('sandbox.patch.generated', (e) => {
-      // Automatically generate Impact Report and Execution Narrative on patch.
-      // (This is an async background process)
-      const payload = e.payload as any;
-      if (payload && payload.sandboxId && payload.patches) {
-        // Here we would call WiCER API to save the Execution Narrative and Impact Report
-        // For Phase 8 MVP we simulate the trace link hook
-        logger.info('runtime', 'wicer.integration', `Generated execution narrative and impact report for sandbox ${payload.sandboxId}`);
-      }
-    });
 
     this.registerStandardTools();
 
-    this.contextBuilder = new DefaultContextBuilder(this.sessionManager);
-    this.planner = new DefaultPlanner();
-    this.providerExecutor = new DefaultProviderExecutor();
-    this.toolExecutor = new DefaultToolExecutor(this.sessionManager);
-    this.observationHandler = new DefaultObservationHandler();
-    this.responseBuilder = new DefaultResponseBuilder(this.sessionManager);
+    // The entire architectural intelligence payload and infrastructure dependencies
+    // (events, memory, sandbox, planner, pattern-intelligence, etc)
+    // are now isolated in the RuntimeContainer via RuntimeBootstrap.
+    this.bootstrap = new RuntimeBootstrap();
+    const activeModel = this.activeProvider.getModel(config.activeModel);
+    this.pipelinePromise = this.bootstrap.bootstrap(this.activeProvider, activeModel);
+    
+    // Wire up Narrative Engine
+    const NarrativeEngine = require('@agent-os/narrative').NarrativeEngine;
+    new NarrativeEngine(this.bootstrap.getEventBus(), sessionId);
+
+    // Check provider health at startup and publish event
+    this.pipelinePromise.then(async () => {
+      const health = await this.activeProvider.checkHealth();
+      const bus = this.bootstrap.getEventBus();
+      if (!health.ok) {
+        bus.publish('provider.health.failed', { sessionId: 'system', error: health.error });
+      } else {
+        bus.publish('provider.health.ok', { sessionId: 'system' });
+      }
+    }).catch(() => {});
   }
 
   private registerStandardTools() {
@@ -112,137 +60,87 @@ export class AgentRuntime {
     this.toolRegistry.register(listFilesTool);
     this.toolRegistry.register(searchFilesTool);
     this.toolRegistry.register(runCommandTool);
-    
-    // Register Sandbox tools here dynamically
-    this.toolRegistry.register({
-      name: 'create_sandbox',
-      description: 'Creates a sandboxed execution environment.',
-      schema: { type: 'object', properties: {} },
-      execute: async () => {
-        const sb = await this.sandboxManager.createSandbox('worktree');
-        return `Created sandbox ${sb.id}`;
-      }
-    });
   }
 
   private initializeProvider(config: AgentConfig): Provider {
     switch (config.activeProvider) {
-      case 'openai':
-        return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl);
-      case 'lmstudio':
-        return new OpenAIProvider(
-          config.providers['lmstudio']?.apiKey || 'lm-studio',
-          config.providers['lmstudio']?.baseUrl || 'http://localhost:1234/v1'
-        );
-      case 'anthropic':
-        return AnthropicProvider;
-      case 'gemini':
-        return GeminiProvider;
-      case 'deepseek':
-        return DeepSeekProvider;
-      case 'openrouter':
-        return OpenRouterProvider;
-      case 'ollama':
-        return OllamaProvider;
-      default:
-        throw new RuntimeError(`Unsupported provider: ${config.activeProvider}`);
+      case 'openai': return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl);
+      case 'lmstudio': return new LMStudioProvider(config.providers['lmstudio']?.apiKey, config.providers['lmstudio']?.baseUrl);
+      case 'anthropic': return AnthropicProvider;
+      case 'gemini': return GeminiProvider;
+      case 'deepseek': return DeepSeekProvider;
+      case 'openrouter': return OpenRouterProvider;
+      case 'ollama': return OllamaProvider;
+      default: throw new RuntimeError(`Unsupported provider: ${config.activeProvider}`);
     }
   }
 
   public getSessionManager() { return this.sessionManager; }
   public getConfigManager() { return this.configManager; }
-  public getEventBus() { return this.eventBus; }
+  
+  // To satisfy external UI streams, we fetch the centralized event bus from the container bootstrap
+  public getEventBus(): LoggingEventBus {
+    return this.bootstrap.getEventBus();
+  }
+
+  public getBootstrap(): RuntimeBootstrap {
+    return this.bootstrap;
+  }
 
   public async handleRequest(sessionId: string, input: string, stream = false): Promise<AsyncIterable<string> | string> {
     const requestId = crypto.randomUUID();
     
     return runWithContext({ requestId, sessionId }, async () => {
-      logger.info('runtime', 'message.received', `Handling request for session ${sessionId}`);
-      const userEventId = this.eventBus.publish('message.received', { sessionId, input });
+      logger.info('runtime', 'message.received', `Handling request via autonomous production pipeline for session ${sessionId}`);
+      const eventBus = this.getEventBus();
+      eventBus.publish('message.received', { sessionId, input });
 
       try {
         this.sessionManager.getSession(sessionId);
-        metrics.counter('session_loads').inc();
       } catch {
         this.sessionManager.createSession(sessionId);
-        metrics.counter('session_saves').inc();
-        this.eventBus.publish('session.created', { sessionId });
+        eventBus.publish('session.created', { sessionId });
       }
 
-      const config = this.configManager.getConfig();
-      const model = this.activeProvider.getModel(config.activeModel);
+      // Check provider health before attempting pipeline execution
+      const health = await this.activeProvider.checkHealth();
+      if (!health.ok) {
+        const errMsg = `Provider connection failed: ${health.error}`;
+        eventBus.publish('message.responded', { sessionId, response: errMsg });
+        return errMsg;
+      }
 
-      const ctx: PipelineContext = {
-        sessionId,
-        userPrompt: input,
-        session: null as any,
-        model,
-        toolRegistry: this.toolRegistry,
-        history: []
-      };
-
-      // Push user message to context stack
-      await this.contextStack.push({
-        id: crypto.randomUUID(),
-        type: 'MessageContext',
-        content: `User: ${input}`,
-        timestamp: new Date().toISOString(),
-        sourceEventIds: [userEventId],
-        sourceSessionIds: [sessionId],
-        sourceRequestIds: [requestId],
-        origin: 'User Input'
-      });
-
-      await this.contextBuilder.buildContext(ctx);
-      await this.planner.plan(ctx);
-
-      let toolExecutionOccurred = false;
-      do {
-        this.eventBus.publish('provider.request.started', { modelId: model.id });
-        await this.providerExecutor.execute(ctx, stream);
-        this.eventBus.publish('provider.request.completed', { modelId: model.id });
-        
-        toolExecutionOccurred = await this.toolExecutor.executeTools(ctx);
-        if (toolExecutionOccurred) {
-          await this.observationHandler.handle(ctx);
-          // Reload history for next provider loop
-          ctx.history = this.sessionManager.getMessages(ctx.sessionId) as any;
-          
-          // Push tool execution result to context stack
-          const lastMsg = ctx.history[ctx.history.length - 1];
-          if (lastMsg && lastMsg.role === 'tool') {
-             const toolEventId = this.eventBus.publish('tool.execution.result.captured', { toolResult: lastMsg.content });
-             await this.contextStack.push({
-               id: crypto.randomUUID(),
-               type: 'ToolContext',
-               content: `Tool Execution Result: ${lastMsg.content}`,
-               timestamp: new Date().toISOString(),
-               sourceEventIds: [toolEventId],
-               sourceSessionIds: [sessionId],
-               sourceRequestIds: [requestId],
-               origin: `Tool: ${lastMsg.name}`
-             });
-          }
-        }
-      } while (toolExecutionOccurred && !stream); 
+      // Delegate pure execution to RuntimePipeline
+      const pipeline = await this.pipelinePromise;
+      const approvalPackage = await pipeline.execute(sessionId, input);
       
-      const response = await this.responseBuilder.buildResponse(ctx);
-
-      // Push response to context stack
-      if (typeof response === 'string') {
-        const responseEventId = this.eventBus.publish('message.responded', { sessionId, response });
-        await this.contextStack.push({
-          id: crypto.randomUUID(),
-          type: 'MessageContext',
-          content: `Assistant: ${response}`,
-          timestamp: new Date().toISOString(),
-          sourceEventIds: [responseEventId],
-          sourceSessionIds: [sessionId],
-          sourceRequestIds: [requestId],
-          origin: 'Assistant Response'
-        });
+      try {
+        const memoryStore: any = this.bootstrap.getRegistry().resolve("memory-store");
+        if (memoryStore) {
+          memoryStore.save({
+            id: crypto.randomUUID(),
+            type: 'FactMemory',
+            topic: input.slice(0, 50),
+            content: `Goal: "${input}". Risk score: ${approvalPackage.planSummary?.riskScore ?? 0}. Success: ${approvalPackage.executionResult?.success ?? false}.`,
+            confidence: 0.9,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            sourceEventIds: [],
+            sourceSessionIds: [sessionId],
+            sourceRequestIds: [requestId],
+            sourceContextIds: [],
+            tags: ['execution_result'],
+            version: 1
+          });
+        }
+      } catch (err: any) {
+        logger.error('runtime', 'memory.save.error', `Failed to save execution to memory: ${err.message}`);
       }
+      
+      const response = JSON.stringify(approvalPackage, null, 2);
 
+      eventBus.publish('message.responded', { sessionId, response });
+      
       return response;
     });
   }

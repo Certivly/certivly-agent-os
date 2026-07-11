@@ -1,4 +1,4 @@
-import { BrainQuery, RankedKnowledge, AgentContext, RepositoryIntelligenceScore } from './models';
+import { BrainQuery, RankedKnowledge, BrainAgentContext, RepositoryIntelligenceScore } from './models';
 
 export class ContextAssembler {
   /**

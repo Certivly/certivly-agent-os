@@ -15,9 +15,7 @@ export * from "./AgentCoordinator";
 export * from "./AgentEvents";
 export * from "./AgentMetrics";
 
-export * from "../agents/ArchitectAgent";
-export * from "../agents/CoderAgent";
-export * from "../agents/TesterAgent";
-export * from "../agents/ReviewerAgent";
-export * from "../agents/SecurityAgent";
-export * from "../agents/DocsAgent";
+// Agent implementations
+export * from "./agents/BaseAgent";
+export * from "./agents/ArchitectAgent";
+export * from "./agents/CoderAgent";

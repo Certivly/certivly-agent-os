@@ -13,8 +13,13 @@ export class ConfigManager {
 
   public load(): AgentConfig {
     if (!fs.existsSync(this.configPath)) {
-      // Return default config if no file exists
+      // Return default config and write it to the config path if no file exists
       this.currentConfig = ConfigSchema.parse({});
+      try {
+        this.save(this.currentConfig);
+      } catch (err: any) {
+        // Fallback silently if we can't write (e.g. read-only environment)
+      }
       return this.currentConfig;
     }
 

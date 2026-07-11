@@ -125,4 +125,23 @@ export class MemoryStore {
       .all();
     return records.map(r => this.mapFromDb(r));
   }
+
+  public search(query: string, limit = 5): Memory[] {
+    // Pull recent memories and filter by keyword relevance
+    const all = this.db.select().from(schema.memories)
+      .orderBy(desc(schema.memories.createdAt))
+      .limit(200)
+      .all();
+
+    const lower = query.toLowerCase();
+    const words = lower.split(/\s+/).filter(w => w.length > 3);
+
+    return all
+      .map(r => this.mapFromDb(r))
+      .filter(m => {
+        const text = (m.topic + ' ' + m.content).toLowerCase();
+        return words.some(w => text.includes(w));
+      })
+      .slice(0, limit);
+  }
 }

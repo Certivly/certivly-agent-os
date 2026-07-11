@@ -11,7 +11,8 @@ export class ExecutionEngine {
     sessionId: string,
     requestId: string,
     workspaceRoot: string,
-    plan: ExecutionPlan
+    plan: ExecutionPlan,
+    pipelineContext?: { goal?: string; repositorySnapshot?: any; patternSnapshot?: any; knowledgeUnits?: any[]; brainContext?: any }
   ): Promise<ApprovalPackage> {
     const context: ExecutionContext = {
       executionId: uuidv4(),
@@ -19,7 +20,12 @@ export class ExecutionEngine {
       requestId,
       workspaceRoot,
       planId: plan.id,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      goal: pipelineContext?.goal,
+      repositorySnapshot: pipelineContext?.repositorySnapshot,
+      patternSnapshot: pipelineContext?.patternSnapshot,
+      knowledgeUnits: pipelineContext?.knowledgeUnits,
+      brainContext: pipelineContext?.brainContext
     };
 
     return await this.planExecutor.execute(context, plan);

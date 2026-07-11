@@ -78,7 +78,9 @@ export class EventStreamAdapter {
            'message.responded',
            'llm.token.stream',
            'provider.request.started',
-           'provider.request.completed'
+           'provider.request.completed',
+           'provider.health.ok',
+           'provider.health.failed'
          ].includes(rawEvent.type);
          
          const isNarrativeEvent = rawEvent.type.startsWith('narrative.');

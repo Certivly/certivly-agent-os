@@ -1,14 +1,23 @@
 {
   "name": "@agent-os/daemon",
   "version": "1.0.0",
+  "description": "AgentOS background daemon — persistent process serving CLI clients over IPC",
   "main": "src/index.ts",
   "types": "src/index.ts",
+  "bin": {
+    "agent-daemon": "./src/bin/agent-daemon.ts"
+  },
+  "scripts": {
+    "start": "bun src/bin/agent-daemon.ts",
+    "test": "bun test"
+  },
   "dependencies": {
     "@agent-os/brain": "workspace:*",
     "@agent-os/events": "workspace:*",
     "@agent-os/memory": "workspace:*",
     "@agent-os/metrics": "workspace:*",
     "@agent-os/repository": "workspace:*",
+    "@agent-os/runtime-integration": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "@agent-os/wicer": "workspace:*",
     "chokidar": "^5.0.0",
@@ -17,6 +26,7 @@
   "devDependencies": {
     "bun-types": "latest",
     "typescript": "^5.0.0",
-    "@types/uuid": "^10.0.0"
+    "@types/uuid": "^10.0.0",
+    "@types/node": "^20.0.0"
   }
 }

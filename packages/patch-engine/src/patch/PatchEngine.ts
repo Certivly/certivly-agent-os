@@ -12,8 +12,56 @@ export class PatchEngine {
     private executor: PatchExecutor,
     private rollbackEngine: PatchRollback,
     private store: PatchStore,
-    private lineage: PatchLineageTracker
+    private lineage: PatchLineageTracker,
+    private sandboxManager?: any // Inject SandboxManager dynamically
   ) {}
+
+  public async generatePatch(context: any): Promise<Patch> {
+    if (!this.sandboxManager || !context || !context.sandboxId) {
+      return {
+        id: crypto.randomUUID(),
+        goalId: context?.planId || 'unknown',
+        files: [],
+        operations: [],
+        explanation: 'No sandbox active to generate patch.',
+        createdAt: Date.now()
+      };
+    }
+
+    try {
+      const sandbox = this.sandboxManager.getSandbox(context.sandboxId);
+      const filePatches = await sandbox.generatePatch();
+
+      const patch: Patch = {
+        id: crypto.randomUUID(),
+        goalId: context.planId || 'unknown',
+        files: filePatches.map((fp: any) => ({
+          path: fp.filePath,
+          originalHash: fp.beforeHash,
+          newHash: fp.afterHash
+        })),
+        operations: filePatches.map((fp: any) => ({
+          type: fp.beforeHash ? (fp.afterHash ? "MODIFY_FILE" : "DELETE_FILE") : "CREATE_FILE",
+          targetPath: fp.filePath,
+          payload: fp.diff
+        })),
+        explanation: `Generated diff of ${filePatches.length} file changes from sandbox.`,
+        createdAt: Date.now()
+      };
+
+      return patch;
+    } catch (e: any) {
+      console.error("[PatchEngine] Failed to generate patch from sandbox:", e.message);
+      return {
+        id: crypto.randomUUID(),
+        goalId: context.planId || 'unknown',
+        files: [],
+        operations: [],
+        explanation: `Failed to generate patch: ${e.message}`,
+        createdAt: Date.now()
+      };
+    }
+  }
 
   public async apply(patch: Patch): Promise<{ success: boolean; reason?: string }> {
     // 1. Validate

@@ -36,7 +36,7 @@ export class PlanExecutor {
     const lifecycleManager = new TaskLifecycleManager(state, this.events);
     const scheduler = new TaskScheduler(plan);
 
-    context.sandboxId = await this.sandboxManager.createSandbox(context.planId);
+    context.sandbox = await this.sandboxManager.createSandbox('local');
 
     try {
       while (!scheduler.isComplete()) {
@@ -59,6 +59,8 @@ export class PlanExecutor {
             this.metrics.recordTaskCompleted();
             return result;
           } catch (error: any) {
+            require('fs').appendFileSync('d:/Work/Personal/agent-os/error.log', `[PlanExecutor] Task ${task.id} (${task.type}) failed:\n${error.stack || error.message || error}\n\n`);
+            console.error(`[PlanExecutor] Task ${task.id} (${task.type}) failed:`, error.stack || error.message || error);
             scheduler.markTaskFailed(task.id);
             lifecycleManager.transitionToFailed(task.id, error.message);
             this.metrics.recordTaskFailed();
@@ -92,7 +94,7 @@ export class PlanExecutor {
       this.metrics.recordExecutionCompleted();
       this.metrics.recordExecutionDuration(Date.now() - startTime);
 
-      await this.sandboxManager.destroySandbox(context.sandboxId);
+      if (context.sandbox) await context.sandbox.destroy();
 
       return approvalPackage;
 
@@ -100,8 +102,8 @@ export class PlanExecutor {
       state.status = "failed";
       this.events.emitExecutionFailed(context.executionId, err.message);
       this.metrics.recordExecutionFailed();
-      if (context.sandboxId) {
-        await this.sandboxManager.destroySandbox(context.sandboxId);
+      if (context.sandbox) {
+        await context.sandbox.destroy();
       }
       throw err;
     }

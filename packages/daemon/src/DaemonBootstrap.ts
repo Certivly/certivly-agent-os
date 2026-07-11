@@ -4,15 +4,16 @@ import { RepositoryRegistry } from './repositories/RepositoryRegistry';
 import { RepositoryCache } from './repositories/RepositoryCache';
 import { RuntimePool } from './sessions/RuntimePool';
 import { SessionCoordinator } from './sessions/SessionCoordinator';
-import { Transport } from './api/Transport';
 import { DaemonConfig } from './DaemonConfig';
 import { RequestHandler } from './api/RequestHandler';
 import { ResponseHandler } from './api/ResponseHandler';
 import { DaemonRouter } from './api/DaemonRouter';
+import { UnixSocketTransport } from './api/UnixSocketTransport';
+import { TcpTransport } from './api/TcpTransport';
+import { Transport } from './api/Transport';
 import { EventBus } from './streaming/EventBus';
 import { StreamManager } from './streaming/StreamManager';
 import { RepositoryWatcher } from './watchers/RepositoryWatcher';
-import { IncrementalUpdatePipeline } from './watchers/IncrementalUpdatePipeline';
 import { RepositoryManager } from './repositories/RepositoryManager';
 import { RequestQueue } from './scheduler/RequestQueue';
 import { RequestScheduler } from './scheduler/RequestScheduler';
@@ -24,12 +25,26 @@ import { StateStore } from './persistence/StateStore';
 import { SessionSnapshotStore } from './persistence/SessionSnapshotStore';
 import { SessionRecovery } from './sessions/SessionRecovery';
 import { DaemonLifecycle } from './DaemonLifecycle';
+import { RuntimeBootstrap } from '@agent-os/runtime-integration';
+import { IncrementalUpdatePipeline } from './watchers/IncrementalUpdatePipeline';
 
 export class DaemonBootstrap {
-  public static create(config: DaemonConfig, transport: Transport): { daemon: AgentDaemon, lifecycle: DaemonLifecycle } {
+  public static create(config: DaemonConfig, customTransport?: Transport): { daemon: AgentDaemon; lifecycle: DaemonLifecycle } {
     const bus = new EventBus();
     const metrics = new DaemonMetricsService(bus);
-    
+
+    // Transport: prefer Unix socket, fall back to TCP, or use custom
+    let transport: Transport;
+    if (customTransport) {
+      transport = customTransport;
+    } else if (config.socketPath) {
+      transport = new UnixSocketTransport(config.socketPath);
+    } else if (config.tcpPort) {
+      transport = new TcpTransport(config.tcpPort);
+    } else {
+      throw new Error('DaemonConfig must specify socketPath or tcpPort');
+    }
+
     // Repositories
     const repositoryRegistry = new RepositoryRegistry();
     const repositoryCache = new RepositoryCache(repositoryRegistry);
@@ -37,8 +52,34 @@ export class DaemonBootstrap {
     const updatePipeline = new IncrementalUpdatePipeline(repositoryCache, bus);
     const repositoryManager = new RepositoryManager(repositoryRegistry, repositoryCache, repositoryWatcher);
 
+    // RuntimePool backed by real RuntimePipeline instances
+    const runtimePool = new RuntimePool(
+      config.maxConcurrentRuntimes,
+      () => {
+        // Each session gets its own bootstrap → pipeline
+        const bootstrap = new RuntimeBootstrap();
+        // bootstrap() is async so we wrap it; the pipeline is resolved lazily on first execute()
+        let pipeline: any = null;
+        let bootstrapPromise: Promise<any> | null = null;
+
+        const ensurePipeline = async () => {
+          if (pipeline) return pipeline;
+          if (!bootstrapPromise) bootstrapPromise = bootstrap.bootstrap();
+          pipeline = await bootstrapPromise;
+          return pipeline;
+        };
+
+        // Return a proxy RuntimePipeline that defers bootstrap to first call
+        return {
+          execute: async (sessionId: string, input: string) => {
+            const p = await ensurePipeline();
+            return await p.execute(sessionId, input);
+          }
+        } as any;
+      }
+    );
+
     // Sessions & Scheduling
-    const runtimePool = new RuntimePool(config.maxConcurrentRuntimes);
     const sessionCoordinator = new SessionCoordinator(runtimePool, repositoryCache);
     const requestQueue = new RequestQueue();
     const requestScheduler = new RequestScheduler(requestQueue, runtimePool);
@@ -70,8 +111,6 @@ export class DaemonBootstrap {
 
     const requestHandler = new RequestHandler(daemon);
     const responseHandler = new ResponseHandler(transport);
-    
-    // Mount the router
     new DaemonRouter(transport, requestHandler, responseHandler, clientManager);
 
     const lifecycle = new DaemonLifecycle(daemon, sessionRecovery, stateStore, repositoryManager);

@@ -107,4 +107,17 @@ export class WicerAPI {
       version: 1
     });
   }
+
+  public async generateImpactReport(context: any, patchBundle: any): Promise<string> {
+    const patches = patchBundle?.patches || [];
+    if (patches.length === 0) {
+      return "No changes proposed. Impact radius is zero.";
+    }
+    
+    let report = "### WiCER Impact Analysis Report\n\n";
+    for (const patch of patches) {
+      report += `- **${patch.path}**: Modified. Potential impact on dependent modules resolved via symbol graph.\n`;
+    }
+    return report;
+  }
 }

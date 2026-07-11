@@ -30,6 +30,8 @@ export type UIProjection = {
   agentState: AgentState;
   narrativeState?: any;
   narrativeSummary?: any;
+  providerStatus: 'unknown' | 'ok' | 'error';
+  providerError?: string;
 };
 
 export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection => {
@@ -145,6 +147,11 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
       if (event.payload?.summary) {
         newState.narrativeSummary = event.payload.summary;
       }
+    } else if (event.type === 'provider.health.ok') {
+      newState.providerStatus = 'ok';
+    } else if (event.type === 'provider.health.failed') {
+      newState.providerStatus = 'error';
+      newState.providerError = event.payload?.error;
     }
     
     // Developer mode filtered logs
@@ -178,7 +185,8 @@ export const useEventStream = (source: EventBatcher | ReplayAdapter | null) => {
     streamingBuffer: '',
     activeStreamingMessageId: null,
     activeMcpCount: 0,
-    agentState: 'idle'
+    agentState: 'idle',
+    providerStatus: 'unknown'
   });
 
   useEffect(() => {

@@ -1,6 +1,4 @@
 import { GoalRequest } from "./models";
-import { RepositoryGraphSnapshot } from "@agent-os/repository";
-// import WiCER layer and Memory Layer
 
 export interface GoalAnalysisResult {
   category: "BUG_FIX" | "FEATURE" | "REFACTOR" | "TESTING" | "DOCUMENTATION" | "SECURITY" | "ANALYSIS";
@@ -11,23 +9,21 @@ export interface GoalAnalysisResult {
 }
 
 export class GoalAnalyzer {
-  constructor(
-    private repositorySnapshot: RepositoryGraphSnapshot,
-    // wicer layer
-    // memory layer
-  ) {}
+  // repositorySnapshot is now received per-call via GoalRequest.repositorySnapshot
+  // so the bootstrap can construct GoalAnalyzer once without a graph
+  constructor() {}
 
   public async analyzeGoal(request: GoalRequest): Promise<GoalAnalysisResult> {
     const text = request.goal.toLowerCase();
     
-    // Simplistic classification logic to satisfy determinism rules
+    // Deterministic keyword classification
     let category: GoalAnalysisResult["category"] = "FEATURE";
     if (text.includes("fix") || text.includes("bug")) category = "BUG_FIX";
     else if (text.includes("refactor")) category = "REFACTOR";
     else if (text.includes("test")) category = "TESTING";
     else if (text.includes("doc")) category = "DOCUMENTATION";
     else if (text.includes("security")) category = "SECURITY";
-    else if (text.includes("analyze") || text.includes("investigate")) category = "ANALYSIS";
+    else if (text.includes("analyze") || text.includes("investigate") || text.includes("analysis")) category = "ANALYSIS";
 
     // Risk calculation
     let riskScore = 10; // base risk
@@ -36,14 +32,30 @@ export class GoalAnalyzer {
 
     // Required Skills Inference
     const requiredSkills: string[] = [];
+    // Always include AnalyzeRepository as first skill
+    requiredSkills.push("AnalyzeRepositorySkill");
     if (category === "TESTING") requiredSkills.push("CreateUnitTestsSkill");
     if (category === "REFACTOR") requiredSkills.push("RefactorModuleSkill");
+    if (category === "ANALYSIS" || category === "FEATURE" || category === "BUG_FIX") {
+      requiredSkills.push("SearchCodebaseSkill");
+    }
 
     const requiresSandbox = category !== "ANALYSIS" && category !== "DOCUMENTATION";
 
-    // Query graph snapshot for estimate
-    // e.g. how many files are related to keywords in the goal
-    const affectedFilesEstimate = 5; 
+    // Use repositorySnapshot from GoalRequest if available to estimate affected files
+    let affectedFilesEstimate = 5;
+    if (request.repositorySnapshot?.files) {
+      // Rough estimate: search file paths for goal keywords
+      const keywords = text.split(/\s+/).filter(w => w.length > 3);
+      let matchCount = 0;
+      for (const [, fileNode] of request.repositorySnapshot.files) {
+        const filePath = (fileNode as any).path || '';
+        if (keywords.some(kw => filePath.toLowerCase().includes(kw))) {
+          matchCount++;
+        }
+      }
+      affectedFilesEstimate = Math.max(1, matchCount || 5);
+    }
 
     return {
       category,

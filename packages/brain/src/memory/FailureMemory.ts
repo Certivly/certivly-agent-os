@@ -1,4 +1,4 @@
-import { FailureRecord } from "../models/FailureRecord";
+import { FailureRecord } from '../models';
 
 export class FailureMemory {
   private records: Map<string, FailureRecord> = new Map();

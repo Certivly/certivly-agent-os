@@ -1,0 +1,16 @@
+{
+  "name": "@agent-os/research",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/mcp": "workspace:*",
+    "@agent-os/wicer": "workspace:*",
+    "@agent-os/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "bun-types": "latest"
+  }
+}

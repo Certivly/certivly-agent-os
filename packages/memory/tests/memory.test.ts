@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MemoryStore, MemoryExtractor, Memory } from '../src';
-import { ContextEntry } from '@agent-os/context';
+import { ContextEntry } from '@agent-os/brain';
 
 describe('MemoryEngine', () => {
   const dbDir = path.join(__dirname, '.agentos');

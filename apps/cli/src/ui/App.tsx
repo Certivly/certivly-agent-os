@@ -7,11 +7,29 @@ import { useAgentSession } from './hooks/useAgentSession';
 import { useEventStream } from './hooks/useEventStream';
 import { EventBatcher } from '../bridge/EventStreamAdapter';
 
-export const App: React.FC<{ sessionId: string, batcher: EventBatcher, onInput: (input: string, mode: string) => void }> = ({ sessionId, batcher, onInput }) => {
+export const App: React.FC<{ 
+  sessionId: string;
+  batcher: EventBatcher; 
+  onInput: (input: string, mode: string) => void;
+  onApprove?: (patchBundle: any) => Promise<void>;
+}> = ({ sessionId, batcher, onInput, onApprove }) => {
   const { state, setMode, setFocus } = useAgentSession(sessionId);
   const projection = useEventStream(batcher);
   const { stdout } = useStdout();
   const [height, setHeight] = useState(stdout.rows || 24);
+
+  const handleApprove = async (msgId: string) => {
+    const msg = projection.chatHistory.find(m => m.id === msgId);
+    if (!msg) return;
+    try {
+      const data = JSON.parse(msg.content);
+      if (data.patchBundle && onApprove) {
+        await onApprove(data.patchBundle);
+      }
+    } catch (err) {
+      console.error("[App] Failed to approve patch bundle:", err);
+    }
+  };
 
   useEffect(() => {
     const onResize = () => setHeight(stdout.rows);
@@ -61,6 +79,8 @@ export const App: React.FC<{ sessionId: string, batcher: EventBatcher, onInput: 
             agentState={projection.agentState} 
             narrativeState={projection.narrativeState}
             narrativeSummary={projection.narrativeSummary}
+            onApprove={handleApprove}
+            onReject={() => {}}
           />
         </Box>
 

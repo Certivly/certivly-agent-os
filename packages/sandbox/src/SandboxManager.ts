@@ -37,6 +37,8 @@ export class SandboxManager {
         id: crypto.randomUUID(),
         eventType: SandboxEvents.CREATED,
         timestamp: new Date().toISOString(),
+        requestId: 'internal',
+        sessionId: 'internal',
         source: 'SandboxManager',
         payload: { sandboxId: id, type },
         version: '1.0'
@@ -69,6 +71,8 @@ export class SandboxManager {
       id: crypto.randomUUID(),
       eventType: SandboxEvents.DESTROYED,
       timestamp: new Date().toISOString(),
+      requestId: 'internal',
+      sessionId: 'internal',
       source: 'SandboxManager',
       payload: { sandboxId: id },
       version: '1.0'

@@ -1,14 +1,22 @@
 {
   "name": "@agent-os/subagents",
   "version": "1.0.0",
-  "description": "SubAgent Swarm Runtime for AgentOS",
-  "main": "index.ts",
+  "description": "SubAgent swarm runtime for AgentOS — parallel specialist agents",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
-
-    "@agent-os/daemon": "workspace:*"
+    "@agent-os/brain": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/repository": "workspace:*",
+    "@agent-os/wicer": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "bun-types": "latest"
   }
 }

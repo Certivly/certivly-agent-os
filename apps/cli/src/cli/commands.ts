@@ -6,7 +6,20 @@ export const ChatCommand: CliCommand = {
   description: 'Natural language chat',
   async execute(parsed: ParsedInput, context: CommandContext) {
     const sessionId = context.runtime.stateManager.getState.sessionId;
-    await context.runtime.agentRuntime.handleRequest(sessionId, parsed.raw);
+    const rawJson = await context.runtime.agentRuntime.handleRequest(sessionId, parsed.raw);
+    try {
+      const parsedOutput = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
+      if (parsedOutput.executionResult) {
+        // We let the UI components handle the rendering using the event stream.
+        // We just intercept it here in case we need to log it or emit a custom narrative event.
+        context.runtime.agentRuntime.getEventBus().publish('narrative.cli.output', {
+          sessionId,
+          summary: parsedOutput.summary || "Execution completed."
+        });
+      }
+    } catch (e) {
+      // Not JSON, ignore
+    }
   }
 };
 

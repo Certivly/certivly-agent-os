@@ -1,5 +1,6 @@
 export enum TaskType {
   ANALYZE = "ANALYZE",
+  RESEARCH = "RESEARCH",
   SEARCH = "SEARCH",
   SKILL = "SKILL",
   MODIFY = "MODIFY",
@@ -30,6 +31,10 @@ export interface GoalRequest {
   workspaceRoot: string;
   constraints?: string[];
   approvalMode: "always" | "smart" | "never";
+  // Intelligence context passed from earlier pipeline stages
+  repositorySnapshot?: any; // RepositoryGraphSnapshot
+  patternSnapshot?: any;    // PatternSnapshot
+  knowledgeUnits?: any[];   // WiCER KnowledgeUnit[]
 }
 
 export interface ExecutionPlan {

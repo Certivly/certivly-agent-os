@@ -1,31 +1,44 @@
-// Using any for AgentRuntime here to avoid complex imports during this phase
+import { RuntimePipeline } from '@agent-os/runtime-integration';
+
+/**
+ * RuntimePool manages one RuntimePipeline per session.
+ * Sessions are isolated: each has its own pipeline context.
+ */
 export class RuntimePool {
-  private runtimes = new Map<string, any>(); // Map<sessionId, AgentRuntime>
-  
-  constructor(private maxConcurrentRuntimes: number) {}
+  private pipelines = new Map<string, RuntimePipeline>();
 
-  public acquireRuntime(sessionId: string): any {
-    if (this.runtimes.has(sessionId)) {
-      return this.runtimes.get(sessionId);
+  constructor(
+    private maxConcurrentRuntimes: number,
+    private pipelineFactory: () => RuntimePipeline
+  ) {}
+
+  public acquireRuntime(sessionId: string): { id: string; execute: (req: any) => Promise<any> } {
+    if (!this.pipelines.has(sessionId)) {
+      if (this.pipelines.size >= this.maxConcurrentRuntimes) {
+        throw new Error(
+          `Runtime pool exhausted (max ${this.maxConcurrentRuntimes}). Cannot create session ${sessionId}.`
+        );
+      }
+      this.pipelines.set(sessionId, this.pipelineFactory());
     }
 
-    if (this.runtimes.size >= this.maxConcurrentRuntimes) {
-      throw new Error('Runtime pool exhausted. Cannot create new runtime session.');
-    }
+    const pipeline = this.pipelines.get(sessionId)!;
 
-    // In a real implementation, we would instantiate an AgentRuntime here
-    // connected to the RepositoryCache.
-    const runtime = { id: sessionId, execute: async (req: any) => ({ status: 'success', data: 'mock execution' }) };
-    this.runtimes.set(sessionId, runtime);
-
-    return runtime;
+    return {
+      id: sessionId,
+      execute: async (req: any) => {
+        // req.input is the natural language goal
+        const input: string = req.input ?? req.goal ?? req.query ?? JSON.stringify(req);
+        return await pipeline.execute(sessionId, input);
+      }
+    };
   }
 
   public releaseRuntime(sessionId: string): void {
-    this.runtimes.delete(sessionId);
+    this.pipelines.delete(sessionId);
   }
 
   public getActiveSessionIds(): string[] {
-    return Array.from(this.runtimes.keys());
+    return Array.from(this.pipelines.keys());
   }
 }

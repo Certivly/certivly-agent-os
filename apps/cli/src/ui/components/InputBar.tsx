@@ -6,9 +6,7 @@ export const InputBar: React.FC<{ mode: string, onSubmit: (val: string) => void 
   const [blink, setBlink] = useState(true);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setBlink(b => !b);
-    }, 500);
+    const interval = setInterval(() => setBlink(b => !b), 500);
     return () => clearInterval(interval);
   }, []);
 
@@ -18,24 +16,25 @@ export const InputBar: React.FC<{ mode: string, onSubmit: (val: string) => void 
       setInput('');
     } else if (key.backspace || key.delete) {
       setInput(prev => prev.slice(0, -1));
-    } else if (char && char !== '/') { // Avoid typing '/' in chat mode catching the transition
+    } else if (char) {
       setInput(prev => prev + char);
     }
   });
 
+  const placeholder = mode === 'command' ? 'command...' : 'message...';
+
   return (
     <Box flexDirection="column" paddingX={0} width="100%">
       <Box flexDirection="row" width="100%">
-        <Text color="blue">{mode === 'command' ? '| /' : '| '} </Text>
-        <Text>{input}</Text>
-        {blink && <Text color="white">▌</Text>}
+        <Text color="blue">{mode === 'command' ? '/ ' : '> '}</Text>
+        <Text>{input || ''}</Text>
+        {blink && <Text color="white" dimColor>▌</Text>}
       </Box>
       <Box marginTop={0} width="100%" justifyContent="space-between">
-        <Box>
-          <Text color="blue" dimColor>AgentOS</Text>
-          <Text color="gray" dimColor> - Default Model</Text>
-        </Box>
-        <Text color="gray" dimColor>ctrl+c exit</Text>
+        <Text color="gray" dimColor>
+          {mode === 'command' ? 'command mode · esc to exit' : 'type a message · / for commands'}
+        </Text>
+        <Text color="gray" dimColor>ctrl+c to quit</Text>
       </Box>
     </Box>
   );

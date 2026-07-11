@@ -7,11 +7,15 @@ import { McpMetrics } from '../metrics/metrics';
 import { McpTraceService } from '../tracing/McpTraceService';
 import { AgentError } from '@agent-os/shared';
 
+export type InterceptorDecision = "ALLOW" | "DENY";
+export type GovernanceInterceptor = (entry: CapabilityEntry) => Promise<InterceptorDecision>;
+
 export class McpExecutor {
   constructor(
     private sandbox: CapabilitySandbox,
     private eventStore: EventStore,
-    private tracer: McpTraceService
+    private tracer: McpTraceService,
+    private governanceInterceptor?: GovernanceInterceptor
   ) {}
 
   public async execute(
@@ -24,7 +28,18 @@ export class McpExecutor {
     if (entry.policy?.decision === 'DENY') {
       throw new AgentError(`Execution denied by policy: ${entry.policy.reason}`);
     }
-    // "ASK" would be handled by a UI loop or upstream runtime, assuming ALLOW for executor
+    
+    if (entry.policy?.decision === 'ASK') {
+      if (this.governanceInterceptor) {
+        const decision = await this.governanceInterceptor(entry);
+        if (decision === 'DENY') {
+          throw new AgentError(`Execution denied by user prompt.`);
+        }
+      } else {
+        throw new AgentError(`Execution requires user permission (ASK policy), but no interceptor is wired.`);
+      }
+    }
+
     if (entry.status !== 'ACTIVE' && entry.status !== 'VALIDATED') {
       throw new AgentError(`Capability is not active. Status: ${entry.status}`);
     }

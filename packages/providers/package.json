@@ -5,6 +5,7 @@
   "types": "src/index.ts",
   "dependencies": {
     "openai": "^4.28.0",
+    "@anthropic-ai/sdk": "^0.24.0",
     "@agent-os/shared": "workspace:*",
     "@agent-os/config": "workspace:*"
   }

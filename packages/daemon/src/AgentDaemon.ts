@@ -29,7 +29,7 @@ export class AgentDaemon {
       timestamp: Date.now(),
       channel: 'daemon',
       topic: 'daemon.started',
-      payload: { version: '1.0.0' }
+      payload: { version: '1.0.0', pid: process.pid }
     });
   }
 
@@ -54,21 +54,65 @@ export class AgentDaemon {
     await this.clientManager.unregisterClient(clientId);
   }
 
-  public async getRepository(repositoryId: string, rootPath: string = '/var/mock/repo'): Promise<RepositoryWorkspace> {
+  public async createSession(clientId: string, repositoryId: string, rootPath: string): Promise<string> {
+    const sessionId = await this.sessionCoordinator.createSession(clientId, repositoryId, rootPath);
+    this.metrics.increment('daemon_sessions');
+    this.bus.publish({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      channel: `session:${sessionId}`,
+      topic: 'session.created',
+      payload: { sessionId, clientId, repositoryId }
+    });
+    return sessionId;
+  }
+
+  public async endSession(sessionId: string): Promise<void> {
+    this.sessionCoordinator.endSession(sessionId);
+    this.bus.publish({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      channel: `session:${sessionId}`,
+      topic: 'session.ended',
+      payload: { sessionId }
+    });
+  }
+
+  public getActiveSessions(): string[] {
+    return this.sessionCoordinator.getActiveSessions();
+  }
+
+  public async getRepository(repositoryId: string, rootPath: string = process.cwd()): Promise<RepositoryWorkspace> {
     return await this.repositoryManager.addRepository(repositoryId, rootPath);
+  }
+
+  public listRepositories(): RepositoryWorkspace[] {
+    return this.repositoryManager.listRepositories();
   }
 
   public async getSession(sessionId: string): Promise<SessionState> {
     const session = this.sessionCoordinator.getSession(sessionId);
-    if (!session) {
-      throw new Error(`Session ${sessionId} not found`);
-    }
+    if (!session) throw new Error(`Session ${sessionId} not found`);
     return session;
   }
 
   public async execute(request: any): Promise<any> {
     this.metrics.increment('daemon_requests');
-    // Enqueue request and let the scheduler handle it
-    return await this.scheduler.schedule(request);
+    this.bus.publish({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      channel: `session:${request.payload?.sessionId ?? 'default'}`,
+      topic: 'session.execution.started',
+      payload: { requestId: request.id }
+    });
+    const result = await this.scheduler.schedule(request);
+    this.bus.publish({
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      channel: `session:${request.payload?.sessionId ?? 'default'}`,
+      topic: 'session.execution.completed',
+      payload: { requestId: request.id, success: !result?.error }
+    });
+    return result;
   }
 }

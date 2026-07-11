@@ -21,4 +21,5 @@ export interface Provider {
   name: string;
   models: Model[];
   getModel(id: string): Model;
+  checkHealth(): Promise<{ ok: boolean; error?: string }>;
 }

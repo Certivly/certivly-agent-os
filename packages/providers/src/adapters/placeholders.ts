@@ -23,11 +23,13 @@ export function createPlaceholderProvider(name: string, modelIds: string[]): Pro
       const model = this.models.find(m => m.id === id);
       if (!model) throw new ProviderError(`Model ${id} not found in ${name} provider`);
       return model;
+    },
+    async checkHealth() {
+      return { ok: false, error: `${name} provider is not configured` };
     }
   };
 }
 
-export const AnthropicProvider = createPlaceholderProvider('anthropic', ['claude-3-opus', 'claude-3-sonnet']);
 export const GeminiProvider = createPlaceholderProvider('gemini', ['gemini-1.5-pro', 'gemini-1.5-flash']);
 export const DeepSeekProvider = createPlaceholderProvider('deepseek', ['deepseek-coder']);
 export const OpenRouterProvider = createPlaceholderProvider('openrouter', ['auto']);

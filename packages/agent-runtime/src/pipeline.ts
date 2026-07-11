@@ -11,6 +11,12 @@ export interface PipelineContext {
   history: Message[]; // from context builder
   currentResponse?: AsyncIterable<string> | string; // streaming or buffered output
   toolCalls?: ToolCall[];
+  
+  // Intelligence metadata and assembled prompt
+  systemPrompt?: string;
+  repositorySnapshot?: any;
+  patternSnapshot?: any;
+  knowledgeUnits?: any[];
 }
 
 export interface ContextBuilder {

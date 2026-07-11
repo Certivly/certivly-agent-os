@@ -1,4 +1,4 @@
-import { ContextEntry, MemoryExtractor as IMemoryExtractor } from '@agent-os/context';
+import { ContextEntry, MemoryExtractor as IMemoryExtractor } from '@agent-os/brain';
 import { MemoryStore } from './store';
 import { Memory, MemoryType } from './models';
 import { metrics } from '@agent-os/metrics';

@@ -27,18 +27,22 @@ export class AgentCoordinator {
     const sequence = this.router.route(context.goal);
 
     for (const role of sequence) {
-      const agent = this.registry.getAgent(role);
-      
+      let agent;
+      try {
+        agent = this.registry.getAgent(role);
+      } catch {
+        // Agent role not registered — skip gracefully
+        continue;
+      }
+
       lifecycle.transitionToRunning(role);
       this.events.emitAgentStarted(agent.id, role);
 
-      // Simple single-pass logic for orchestrating and providing context
       const currentContext = { ...context, previousResults: results };
 
       try {
         const result = await agent.execute(currentContext);
         results.push(result);
-        
         lifecycle.transitionToCompleted(role);
         this.events.emitAgentCompleted(agent.id, role);
         this.metrics.recordAgentExecution(role);
@@ -46,8 +50,22 @@ export class AgentCoordinator {
         lifecycle.transitionToFailed(role);
         this.events.emitAgentFailed(agent.id, role, err.message);
         this.metrics.recordAgentFailure(role);
-        throw err;
+        // Non-fatal — log but don't abort pipeline
+        console.warn(`[Orchestrator] Agent ${role} failed: ${err.message}`);
       }
+    }
+
+    // If no agents ran (none registered), return a minimal plan
+    if (results.length === 0) {
+      lifecycle.transitionToFinished();
+      this.events.emitWorkflowCompleted();
+      const plan: ExecutionPlan = {
+        id: uuidv4(), goalId: "goal-1", goal: context.goal,
+        tasks: [], dependencies: [],
+        estimatedComplexity: 0, riskScore: 0,
+        requiresSandbox: false, createdAt: Date.now()
+      };
+      return { plan, agentResults: [], consensusSummary: "No agents ran." };
     }
 
     lifecycle.transitionToConsensus();

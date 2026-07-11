@@ -1,14 +1,24 @@
 {
   "name": "@agent-os/brain",
   "version": "1.0.0",
-  "description": "Deterministic Repository Intelligence for AgentOS",
-  "main": "index.ts",
+  "description": "Unified Repository Intelligence — RAG retrieval, context assembly, strategy learning, and execution optimization for AgentOS",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
   "dependencies": {
-    "@agent-os/adaptive-runtime": "workspace:*",
-    "@agent-os/trust-runtime": "workspace:*"
+    "@agent-os/events": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/skills": "workspace:*",
+    "@agent-os/wicer": "workspace:*",
+    "@agent-os/repository": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
-    "@types/node": "^20.0.0"
+    "@types/node": "^20.0.0",
+    "bun-types": "latest"
   }
 }

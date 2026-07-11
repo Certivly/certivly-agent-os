@@ -6,30 +6,22 @@ export class HybridRetriever {
   private retrievers: Map<string, KnowledgeRetriever> = new Map();
 
   constructor(retrievers: KnowledgeRetriever[]) {
-    for (const retriever of retrievers) {
-      this.retrievers.set(retriever.type, retriever);
+    for (const r of retrievers) {
+      this.retrievers.set(r.type, r);
     }
   }
 
-  /**
-   * Simultaneously executes the planned retrievers and gathers all KnowledgeItems.
-   */
   public async retrieve(query: BrainQuery, plan: RetrievalPlan): Promise<KnowledgeItem[]> {
-    const retrievePromises: Promise<KnowledgeItem[]>[] = [];
+    const promises: Promise<KnowledgeItem[]>[] = [];
 
     for (const source of plan.sources) {
       const retriever = this.retrievers.get(source);
       if (retriever) {
-        // Here we could pass down plan.maxItemsPerSource if the retriever supported it
-        retrievePromises.push(retriever.retrieve(query));
-      } else {
-        console.warn(`No retriever registered for source type: ${source}`);
+        promises.push(retriever.retrieve(query));
       }
     }
 
-    const results = await Promise.all(retrievePromises);
-    
-    // Flatten the array of arrays
+    const results = await Promise.all(promises);
     return results.flat();
   }
 }

@@ -11,7 +11,7 @@
     "@agent-os/patch-engine": "workspace:*",
     "@agent-os/repository": "workspace:*",
     "@agent-os/sandbox": "workspace:*",
-    "@agent-os/seol": "workspace:*",
+    "@agent-os/brain": "workspace:*",
     "@agent-os/shared": "workspace:*",
     "@agent-os/skills": "workspace:*",
     "@agent-os/trust-runtime": "workspace:*",

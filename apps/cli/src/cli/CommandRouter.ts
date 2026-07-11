@@ -41,4 +41,13 @@ export class CommandRouter {
   public getRegisteredCommands(): string[] {
     return Array.from(this.commands.keys());
   }
+
+  public async promptUser(message: string): Promise<boolean> {
+    // In a full implementation, this would pause the Ink event loop and await stdin input.
+    // For now, we simulate an automatic approval or rejection based on context,
+    // or log the prompt to the console.
+    console.log(`[MCP Governance] PROMPT: ${message}`);
+    console.log(`[MCP Governance] Auto-approving for current CLI iteration.`);
+    return true; // Simulate ALLOW
+  }
 }

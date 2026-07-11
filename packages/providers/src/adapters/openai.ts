@@ -122,4 +122,13 @@ export class OpenAIProvider implements Provider {
     }
     return model;
   }
+
+  async checkHealth(): Promise<{ ok: boolean; error?: string }> {
+    try {
+      await this.client.models.list();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: `OpenAI unreachable: ${e.message}` };
+    }
+  }
 }
