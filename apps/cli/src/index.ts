@@ -24,6 +24,15 @@ const localConfigPath = path.join(process.cwd(), 'agentos.config.json');
 const globalConfigPath = path.join(os.homedir(), '.agentos', 'config.json');
 const configPath = fs.existsSync(localConfigPath) ? localConfigPath : globalConfigPath;
 
+process.on('uncaughtException', (err) => {
+  fs.writeFileSync('cli-error.log', err.stack || String(err));
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason: any) => {
+  fs.writeFileSync('cli-error.log', reason?.stack || String(reason));
+  process.exit(1);
+});
+
 program.command('chat')
   .description('Start the interactive agent console')
   .action(async () => {

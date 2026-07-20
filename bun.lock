@@ -33,24 +33,12 @@
         "react-devtools-core": "^7.0.1",
       },
     },
-    "packages/adaptive-runtime": {
-      "name": "@agent-os/adaptive-runtime",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/daemon": "workspace:*",
-        "@agent-os/subagents": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^20.0.0",
-        "typescript": "^5.0.0",
-      },
-    },
     "packages/agent-runtime": {
       "name": "@agent-os/agent-runtime",
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/config": "workspace:*",
-        "@agent-os/context": "workspace:*",
+        "@agent-os/daemon": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -60,6 +48,7 @@
         "@agent-os/sandbox": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
+        "@agent-os/subagents": "workspace:*",
         "@agent-os/tools": "workspace:*",
       },
     },
@@ -67,23 +56,17 @@
       "name": "@agent-os/brain",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/adaptive-runtime": "workspace:*",
-        "@agent-os/trust-runtime": "workspace:*",
+        "@agent-os/events": "workspace:*",
+        "@agent-os/memory": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
+        "@agent-os/repository": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "@agent-os/skills": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/brain-v2": {
-      "name": "@agent-os/brain-v2",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/adaptive-runtime": "workspace:*",
-        "@agent-os/brain": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^20.0.0",
+        "bun-types": "latest",
         "typescript": "^5.0.0",
       },
     },
@@ -95,34 +78,26 @@
         "zod": "^3.22.4",
       },
     },
-    "packages/context": {
-      "name": "@agent-os/context",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "drizzle-orm": "^0.30.0",
-      },
-      "devDependencies": {
-        "drizzle-kit": "^0.20.14",
-      },
-    },
     "packages/daemon": {
       "name": "@agent-os/daemon",
       "version": "1.0.0",
+      "bin": {
+        "agent-daemon": "./src/bin/agent-daemon.ts",
+      },
       "dependencies": {
         "@agent-os/brain": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/repository": "workspace:*",
+        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@agent-os/wicer": "workspace:*",
         "chokidar": "^5.0.0",
         "uuid": "^10.0.0",
       },
       "devDependencies": {
+        "@types/node": "^20.0.0",
         "@types/uuid": "^10.0.0",
         "bun-types": "latest",
         "typescript": "^5.0.0",
@@ -144,7 +119,7 @@
       "name": "@agent-os/execution-engine",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/context": "workspace:*",
+        "@agent-os/brain": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -202,7 +177,7 @@
       "name": "@agent-os/memory",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/context": "workspace:*",
+        "@agent-os/brain": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
@@ -310,14 +285,14 @@
       "name": "@agent-os/planner",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/adaptive-runtime": "workspace:*",
+        "@agent-os/agent-runtime": "workspace:*",
+        "@agent-os/brain": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/patch-engine": "workspace:*",
         "@agent-os/repository": "workspace:*",
         "@agent-os/sandbox": "workspace:*",
-        "@agent-os/seol": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@agent-os/skills": "workspace:*",
         "@agent-os/trust-runtime": "workspace:*",
@@ -355,6 +330,20 @@
         "typescript": "^5.0.0",
       },
     },
+    "packages/research": {
+      "name": "@agent-os/research",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/mcp": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
     "packages/runtime-audit": {
       "name": "@agent-os/runtime-audit",
       "version": "1.0.0",
@@ -373,10 +362,8 @@
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/brain": "workspace:*",
-        "@agent-os/brain-v2": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/execution-engine": "workspace:*",
-        "@agent-os/hardening": "workspace:*",
         "@agent-os/mcp": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -389,6 +376,7 @@
         "@agent-os/sandbox": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@agent-os/skills": "workspace:*",
+        "@agent-os/subagents": "workspace:*",
         "@agent-os/trust-runtime": "workspace:*",
         "@agent-os/wicer": "workspace:*",
       },
@@ -404,22 +392,6 @@
         "@agent-os/events": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/seol": {
-      "name": "@agent-os/seol",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "bun-types": "latest",
@@ -460,10 +432,15 @@
       "name": "@agent-os/subagents",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/daemon": "workspace:*",
+        "@agent-os/brain": "workspace:*",
+        "@agent-os/events": "workspace:*",
+        "@agent-os/memory": "workspace:*",
+        "@agent-os/repository": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",
+        "bun-types": "latest",
         "typescript": "^5.0.0",
       },
     },
@@ -478,7 +455,7 @@
       "name": "@agent-os/trust-runtime",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/adaptive-runtime": "workspace:*",
+        "@agent-os/agent-runtime": "workspace:*",
         "@agent-os/subagents": "workspace:*",
       },
       "devDependencies": {
@@ -502,19 +479,13 @@
     },
   },
   "packages": {
-    "@agent-os/adaptive-runtime": ["@agent-os/adaptive-runtime@workspace:packages/adaptive-runtime"],
-
     "@agent-os/agent-runtime": ["@agent-os/agent-runtime@workspace:packages/agent-runtime"],
 
     "@agent-os/brain": ["@agent-os/brain@workspace:packages/brain"],
 
-    "@agent-os/brain-v2": ["@agent-os/brain-v2@workspace:packages/brain-v2"],
-
     "@agent-os/cli": ["@agent-os/cli@workspace:apps/cli"],
 
     "@agent-os/config": ["@agent-os/config@workspace:packages/config"],
-
-    "@agent-os/context": ["@agent-os/context@workspace:packages/context"],
 
     "@agent-os/daemon": ["@agent-os/daemon@workspace:packages/daemon"],
 
@@ -546,13 +517,13 @@
 
     "@agent-os/repository": ["@agent-os/repository@workspace:packages/repository"],
 
+    "@agent-os/research": ["@agent-os/research@workspace:packages/research"],
+
     "@agent-os/runtime-audit": ["@agent-os/runtime-audit@workspace:packages/runtime-audit"],
 
     "@agent-os/runtime-integration": ["@agent-os/runtime-integration@workspace:packages/runtime-integration"],
 
     "@agent-os/sandbox": ["@agent-os/sandbox@workspace:packages/sandbox"],
-
-    "@agent-os/seol": ["@agent-os/seol@workspace:packages/seol"],
 
     "@agent-os/sessions": ["@agent-os/sessions@workspace:packages/sessions"],
 

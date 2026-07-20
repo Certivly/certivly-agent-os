@@ -6,8 +6,7 @@ import { PlanRevisionEngine } from '../replanning/PlanRevisionEngine';
 import { VerificationEngine } from '../verification/VerificationEngine';
 import { CompletionChecker } from '../verification/CompletionChecker';
 import { AdaptivePlanner } from '../replanning/AdaptivePlanner';
-import { TaskGraph } from '../../../subagents/src/coordinator/TaskGraph';
-import { ParallelExecutor } from '../../../subagents/src/orchestration/ParallelExecutor';
+import { TaskGraph, ParallelExecutor } from '@agent-os/subagents';
 import { ExecutionCycle } from '../models/RuntimeObservation';
 
 export class ExecutionLoop {
@@ -25,14 +24,14 @@ export class ExecutionLoop {
     goal.status = "running";
     let state = RuntimeState.PLANNING;
     let graph: TaskGraph = this.planner.generateInitialPlan(goal);
-    
+
     let cycleNumber = 0;
-    const maxCycles = 10; // safety limit
+    const maxCycles = 10;
 
     while (goal.status === "running" && cycleNumber < maxCycles) {
       cycleNumber++;
       const cycle: ExecutionCycle = { cycleNumber, observations: [], revisions: [], completedTasks: [] };
-      
+
       // Execute DAG
       state = RuntimeState.EXECUTING;
       await this.executor.executeGraph(graph, context);
@@ -42,12 +41,11 @@ export class ExecutionLoop {
       const results = Array.from(graph.nodes.values()).map(n => n.result).filter(r => !!r);
       cycle.completedTasks = results.map(r => r.taskId);
 
-      // Simple mock observation logic for tests
       const testFailure = results.find(r => r.agentId === 'test-agent' && r.data?.failed > 0);
       if (testFailure) {
         this.observer.observe('test_failure', 'test-agent', testFailure);
       }
-      
+
       const recentObs = this.observer.getRecentObservations();
       cycle.observations = [...recentObs];
 
@@ -74,7 +72,7 @@ export class ExecutionLoop {
       }
 
       this.observer.clear();
-      
+
       if (cycle.revisions.length === 0) {
         // No replan possible, fail goal
         goal.status = "failed";

@@ -1,6 +1,6 @@
 import { GoalApprovalEngine } from "../trust/GoalApprovalEngine";
 import { TrustEngine } from "../trust/TrustEngine";
-import { Goal } from "@agent-os/adaptive-runtime/src/models/Goal";
+import { Goal } from "@agent-os/agent-runtime";
 import { Claim } from "../claims/ClaimModels";
 import { Evidence } from "../evidence/EvidenceTypes";
 import { RegressionReport } from "../regression/RegressionReport";

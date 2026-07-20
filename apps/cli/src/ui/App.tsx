@@ -16,7 +16,7 @@ export const App: React.FC<{
   const { state, setMode, setFocus } = useAgentSession(sessionId);
   const projection = useEventStream(batcher);
   const { stdout } = useStdout();
-  const [height, setHeight] = useState(stdout.rows || 24);
+  const [height, setHeight] = useState((stdout && stdout.rows) ? stdout.rows : 24);
 
   const handleApprove = async (msgId: string) => {
     const msg = projection.chatHistory.find(m => m.id === msgId);
@@ -32,10 +32,13 @@ export const App: React.FC<{
   };
 
   useEffect(() => {
-    const onResize = () => setHeight(stdout.rows);
+    if (!stdout || typeof stdout.on !== 'function') return;
+    const onResize = () => setHeight(stdout.rows || 24);
     stdout.on('resize', onResize);
     return () => {
-      stdout.off('resize', onResize);
+      if (stdout && typeof stdout.off === 'function') {
+        stdout.off('resize', onResize);
+      }
     };
   }, [stdout]);
 
@@ -70,7 +73,7 @@ export const App: React.FC<{
   };
 
   return (
-    <Box flexDirection="column" width="100%" height={height}>
+    <Box flexDirection="column" width="100%" height={Math.max(1, height - 1)}>
       <Box flexDirection="row" flexGrow={1} overflow="hidden">
         <Box flexDirection="column" width="80%" paddingRight={2} paddingBottom={1}>
           <MainExecutionPanel 

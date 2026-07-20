@@ -1,5 +1,5 @@
 import { TrustEvaluation } from "./TrustModels";
-import { Goal } from "@agent-os/adaptive-runtime/src/models/Goal";
+import { Goal } from "@agent-os/agent-runtime";
 
 export class GoalApprovalEngine {
   public approve(goal: Goal, evaluation: TrustEvaluation): { approved: boolean; reason: string } {

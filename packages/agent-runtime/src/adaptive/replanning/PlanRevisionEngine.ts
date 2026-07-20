@@ -1,4 +1,4 @@
-import { TaskGraph } from '../../../subagents/src/coordinator/TaskGraph';
+import { TaskGraph } from '@agent-os/subagents';
 import { RuntimeObservation, PlanRevision } from '../models/RuntimeObservation';
 import { DAGMutator } from './DAGMutator';
 

@@ -105,8 +105,8 @@ export class RuntimePipeline {
 
     // ── Stage 5b: SubAgent Swarm ─────────────────────────────────────────────
     // Fire the specialist agent swarm for complex goals (more than 2 tasks)
-    const taskCount = context.plan?.tasks?.length ?? 0;
-    if (taskCount > 2) {
+    const planTaskCount = context.plan?.tasks?.length ?? 0;
+    if (planTaskCount > 2) {
       try {
         const subAgentRuntime: any = this.registry.resolve("subagent-runtime");
         const workspaceFactory: any = this.registry.resolve("subagent-workspace-factory");

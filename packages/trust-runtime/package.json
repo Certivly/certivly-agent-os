@@ -6,7 +6,7 @@
   "dependencies": {
 
     "@agent-os/subagents": "workspace:*",
-    "@agent-os/adaptive-runtime": "workspace:*"
+    "@agent-os/agent-runtime": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

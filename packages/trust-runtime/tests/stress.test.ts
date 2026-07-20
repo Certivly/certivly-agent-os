@@ -9,7 +9,7 @@ import { GoalApprovalEngine } from "../src/trust/GoalApprovalEngine";
 import { RegressionDetector } from "../src/regression/RegressionDetector";
 import { BaselineManager } from "../src/regression/BaselineManager";
 import { DiffAnalyzer } from "../src/regression/DiffAnalyzer";
-import { Goal } from "@agent-os/adaptive-runtime/src/models/Goal";
+import { Goal } from "@agent-os/agent-runtime";
 
 describe("Trust Runtime Stress Test", () => {
   test("processes 1k goals, 10k claims, 100k evidence natively", async () => {

@@ -69,7 +69,7 @@ export class EventStreamAdapter {
 
   private subscribeToStore() {
     this.eventBus.subscribe('*', (rawEvent: any) => {
-      if (rawEvent.sessionId && rawEvent.sessionId !== this.sessionId) return;
+      if (rawEvent.sessionId && rawEvent.sessionId !== this.sessionId && rawEvent.sessionId !== 'system') return;
       
       // If not in debug mode, filter out raw infrastructure events unless they are core UI events
       if (!this.debug) {

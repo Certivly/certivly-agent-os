@@ -2,3 +2,5 @@ export * from './runtime';
 export * from './pipeline';
 export * from './pipeline-stages';
 export * from './DaemonMode';
+export * from './adaptive';
+

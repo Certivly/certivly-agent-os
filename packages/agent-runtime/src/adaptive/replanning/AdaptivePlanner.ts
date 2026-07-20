@@ -1,7 +1,6 @@
-import { TaskGraph } from '../../../subagents/src/coordinator/TaskGraph';
+import { TaskGraph } from '@agent-os/subagents';
 import { Goal } from '../models/Goal';
 
-// Optional integration to prevent circular deps during tests
 export class AdaptivePlanner {
   constructor(private brainQueryEngine?: any, private planningAdvisor?: any) {}
 
@@ -35,11 +34,11 @@ export class AdaptivePlanner {
     graph.addNode({ id: 'task-patch', agent: 'patch-agent', dependencies: ['task-search'], status: 'pending', task: { id: 'task-patch', type: 'patch', payload: {} } });
     graph.addNode({ id: 'task-validate', agent: 'validation-agent', dependencies: ['task-patch'], status: 'pending', task: { id: 'task-validate', type: 'validate', payload: {} } });
     graph.addNode({ id: 'task-test', agent: 'test-agent', dependencies: ['task-validate'], status: 'pending', task: { id: 'task-test', type: 'test', payload: {} } });
-    
+
     graph.addEdge('task-search', 'task-patch');
     graph.addEdge('task-patch', 'task-validate');
     graph.addEdge('task-validate', 'task-test');
-    
+
     return graph;
   }
 }

@@ -15,6 +15,7 @@
     "@agent-os/sandbox": "workspace:*",
     "@agent-os/narrative": "workspace:*",
     "@agent-os/runtime-integration": "workspace:*",
-    "@agent-os/daemon": "workspace:*"
+    "@agent-os/daemon": "workspace:*",
+    "@agent-os/subagents": "workspace:*"
   }
 }

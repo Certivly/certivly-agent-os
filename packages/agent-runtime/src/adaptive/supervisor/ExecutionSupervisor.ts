@@ -1,6 +1,6 @@
 import { Goal } from '../models/Goal';
 import { ExecutionLoop } from './ExecutionLoop';
-import { AgentContext } from '../../../subagents/src/runtime/AgentContext';
+import { AgentContext } from '@agent-os/subagents';
 
 export class ExecutionSupervisor {
   private goals: Map<string, Goal> = new Map();
