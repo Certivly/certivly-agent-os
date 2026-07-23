@@ -98,7 +98,7 @@ describe('MCP Federation', () => {
 
     const sandbox = new CapabilitySandbox();
     const tracer = new McpTraceService();
-    const executor = new McpExecutor(sandbox, eventStore, tracer);
+    const executor = new McpExecutor(sandbox, eventStore, tracer, async () => 'ALLOW');
 
     const result = await executor.execute(targetEntry!, transport, {}, 'sess-1', 'req-1');
     expect(result.success).toBe(true);

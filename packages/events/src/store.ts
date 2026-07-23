@@ -10,7 +10,8 @@ import { metrics } from '@agent-os/metrics';
 
 export class EventStoreError extends AgentError {
   constructor(message: string) {
-    super(message, 'EventStoreError');
+    super(message);
+    this.name = 'EventStoreError';
   }
 }
 
@@ -119,6 +120,31 @@ export class EventStore {
     const envelopes = this.loadEvents(sessionId);
     for (const env of envelopes) {
       handler(env.event);
+    }
+  }
+
+  public query(filter?: { sessionId?: string; eventType?: string; source?: string }): RuntimeEvent[] {
+    try {
+      const records = this.db.select().from(schema.events).all();
+      return records
+        .map(r => ({
+          id: r.id,
+          eventType: r.eventType,
+          timestamp: r.timestamp,
+          requestId: r.requestId,
+          sessionId: r.sessionId,
+          source: r.source,
+          payload: JSON.parse(r.payload),
+          version: r.version
+        }))
+        .filter(e => {
+          if (filter?.sessionId && e.sessionId !== filter.sessionId) return false;
+          if (filter?.eventType && e.eventType !== filter.eventType) return false;
+          if (filter?.source && e.source !== filter.source) return false;
+          return true;
+        });
+    } catch {
+      return [];
     }
   }
 }

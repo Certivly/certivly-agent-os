@@ -44,6 +44,9 @@ export abstract class BaseAgent implements Agent {
       return resp.text || '';
     } catch (e: any) {
       console.warn(`[${this.name}] Model call failed: ${e.message}`);
+      if (e.name === 'ProviderError' || e.constructor?.name === 'ProviderError' || e.message.includes('Provider timeout')) {
+        throw e;
+      }
       return '';
     }
   }

@@ -40,7 +40,8 @@ export class PythonParser implements LanguageParser {
         const body = node.childForFieldName('body');
         if (body) {
           for (let i = 0; i < body.childCount; i++) {
-            walk(body.child(i), name);
+            const child = body.child(i);
+            if (child) walk(child, name);
           }
         }
         return;
@@ -99,7 +100,8 @@ export class PythonParser implements LanguageParser {
       }
 
       for (let i = 0; i < node.childCount; i++) {
-        walk(node.child(i), parentClass);
+        const child = node.child(i);
+        if (child) walk(child, parentClass);
       }
     };
 

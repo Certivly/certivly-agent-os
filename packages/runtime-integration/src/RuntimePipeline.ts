@@ -1,4 +1,5 @@
 import { RuntimeServiceRegistry } from "./RuntimeServiceRegistry";
+import { OptimizationAnalyzer, OptimizationPlanner } from "@agent-os/seol";
 
 export class RuntimePipeline {
   constructor(private registry: RuntimeServiceRegistry) {}
@@ -14,7 +15,9 @@ export class RuntimePipeline {
       plan: null,
       executionResult: null,
       trustReport: null,
-      patchBundle: null
+      patchBundle: null,
+      subAgentResult: null,
+      seolPlan: null
     };
 
     // ── Stage 1: Repository Indexing ─────────────────────────────────────────
@@ -99,8 +102,10 @@ export class RuntimePipeline {
         previousResults: []
       });
     } catch (err: any) {
-      // Orchestrator failure is non-fatal; log and continue
       console.error("[Pipeline] Orchestrator failed:", err.message);
+      if (err.name === 'ProviderError' || err.constructor?.name === 'ProviderError' || err.message.includes('Provider timeout') || err.message.includes('OpenAI generation failed')) {
+        throw err;
+      }
     }
 
     // ── Stage 5b: SubAgent Swarm ─────────────────────────────────────────────
@@ -161,6 +166,26 @@ export class RuntimePipeline {
     } catch (err: any) {
       console.error("[Pipeline] Patch generation failed:", err.message);
       context.patchBundle = { planId: context.plan.id, patches: [] };
+    }
+
+    // ── Stage 8.5: SEOL Skill Optimization Analysis ─────────────────────────
+    // After each run, profile all skills that fired and identify optimization candidates
+    // for the next execution cycle (memoization, graph reuse, etc.)
+    try {
+      const seolProfiler: any = this.registry.resolve("seol-profiler");
+      const skillIds: string[] = (context.plan?.tasks ?? [])
+        .map((t: any) => t.skillId)
+        .filter((id: any): id is string => Boolean(id));
+
+      if (skillIds.length > 0) {
+        const profiles = skillIds.map((id: string) => seolProfiler.profileSkill(id, sessionId));
+        const candidates = new OptimizationAnalyzer().analyze(profiles);
+        if (candidates.length > 0) {
+          context.seolPlan = new OptimizationPlanner().createPlan(candidates);
+        }
+      }
+    } catch (err: any) {
+      // SEOL is non-fatal — never block the pipeline
     }
 
     const executionSuccess = context.executionResult?.success !== false &&
@@ -240,7 +265,9 @@ export class RuntimePipeline {
         riskScore: context.plan?.riskScore ?? 0,
         requiresSandbox: context.plan?.requiresSandbox ?? false
       },
-      impactReport: { severity: context.plan?.riskScore > 50 ? "HIGH" : context.plan?.riskScore > 20 ? "MEDIUM" : "LOW" }
+      impactReport: { severity: context.plan?.riskScore > 50 ? "HIGH" : context.plan?.riskScore > 20 ? "MEDIUM" : "LOW" },
+      seolPlan: context.seolPlan ?? null,
+      subAgentResult: context.subAgentResult ?? null
     };
   }
 }

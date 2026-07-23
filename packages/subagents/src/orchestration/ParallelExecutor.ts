@@ -27,6 +27,19 @@ export class ParallelExecutor {
         runningTasks.add(node.id);
         graph.updateNodeStatus(node.id, "running");
 
+        // Merge results from completed dependency nodes into payload
+        const upstreamResults: Record<string, any> = {};
+        for (const depId of node.dependencies) {
+          const depNode = graph.getNode(depId);
+          if (depNode?.result?.data) {
+            if (depId.includes('search')) upstreamResults.searchResults = depNode.result.data;
+            if (depId.includes('repo')) upstreamResults.repoResults = depNode.result.data;
+            if (depId.includes('memory')) upstreamResults.memoryResults = depNode.result.data;
+            if (depId.includes('patch')) upstreamResults.patchData = depNode.result.data;
+          }
+        }
+        node.task.payload = { ...node.task.payload, ...upstreamResults };
+
         const agent = this.agents.get(node.agent);
         if (!agent) throw new Error(`Agent ${node.agent} not found`);
 

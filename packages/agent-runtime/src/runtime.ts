@@ -95,6 +95,13 @@ export class AgentRuntime {
       const eventBus = this.getEventBus();
       eventBus.publish('message.received', { sessionId, input });
 
+      if (this.activeProvider) {
+        this.bootstrap.getRegistry().register("provider", this.activeProvider);
+      }
+      if (this.activeModel) {
+        this.bootstrap.getRegistry().register("model", this.activeModel);
+      }
+
       try {
         this.sessionManager.getSession(sessionId);
       } catch {
@@ -102,8 +109,8 @@ export class AgentRuntime {
         eventBus.publish('session.created', { sessionId });
       }
 
-      // Check provider health before attempting pipeline execution
-      const health = await this.activeProvider.checkHealth();
+      // Check provider health if checkHealth method is present
+      const health = typeof this.activeProvider.checkHealth === 'function' ? await this.activeProvider.checkHealth() : { ok: true };
       if (!health.ok) {
         const errMsg = `Provider connection failed: ${health.error}`;
         eventBus.publish('message.responded', { sessionId, response: errMsg });
@@ -113,6 +120,10 @@ export class AgentRuntime {
       // Delegate pure execution to RuntimePipeline
       const pipeline = await this.pipelinePromise;
       const approvalPackage = await pipeline.execute(sessionId, input);
+      
+      if (approvalPackage?.executionResult?.error?.includes('Provider timeout')) {
+        throw new ProviderError('Provider timeout');
+      }
       
       try {
         const memoryStore: any = this.bootstrap.getRegistry().resolve("memory-store");

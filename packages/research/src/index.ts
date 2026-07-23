@@ -1,1 +1,2 @@
-export * from "./ResearchAgent";
+export { ResearchAgent } from "@agent-os/orchestrator";
+

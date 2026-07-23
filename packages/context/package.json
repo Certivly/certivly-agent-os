@@ -1,0 +1,19 @@
+{
+  "name": "@agent-os/context",
+  "version": "1.0.0",
+  "description": "Context stack infrastructure — sliding window context buffer with LRU eviction, snapshot/restore, and topic-based search",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/events": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}

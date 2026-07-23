@@ -13,18 +13,14 @@ export class SessionStorm {
 
   private async cycleSession(id: number, iterations: number) {
     for (let i = 0; i < iterations; i++) {
-      const sessionId = `storm-session-${id}`;
       // Connect
-      this.coordinator.createSession(sessionId, 'storm-repo', `client-${id}`);
+      const sessId = await this.coordinator.createSession(`client-${id}`, 'storm-repo', '/ws');
       
       // Simulate quick action
-      await new Promise(r => setTimeout(r, Math.random() * 10));
+      await new Promise(r => setTimeout(r, Math.random() * 5));
       
-      // Disconnect
-      this.coordinator.endSession(sessionId);
-      
-      // Reconnect immediately
-      this.coordinator.createSession(sessionId, 'storm-repo', `client-${id}`);
+      // Disconnect & release runtime
+      this.coordinator.endSession(sessId);
     }
   }
 }

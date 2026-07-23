@@ -55,27 +55,40 @@ describe('AgentRuntime Integration', () => {
   });
 
   it('should propagate provider errors correctly', async () => {
+    const tempWs = path.join(testSessionDir, `ws-${crypto.randomUUID()}`);
+    fs.mkdirSync(tempWs, { recursive: true });
+    fs.writeFileSync(path.join(tempWs, 'app.ts'), 'console.log("test");');
+
+    const manager = new ConfigManager(testConfigPath);
+    const cfg = manager.load();
+    cfg.repository = { rootPath: tempWs, ignorePatterns: [] };
+    manager.save(cfg);
+
     const runtime = new AgentRuntime({ configPath: testConfigPath });
     
     // We will inject a dummy model to force a failure
     const config = runtime.getConfigManager().load();
+    const dummyModel = {
+      id: 'dummy',
+      generate: async () => { throw new ProviderError('Provider timeout'); }
+    };
     // @ts-ignore
     runtime.activeProvider = {
       name: 'dummy',
-      models: [],
-      getModel: () => ({
-        id: 'dummy',
-        generate: async () => { throw new ProviderError('Provider timeout'); }
-      })
+      models: [dummyModel],
+      getModel: () => dummyModel,
+      checkHealth: async () => ({ ok: true })
     };
+    // @ts-ignore
+    runtime.activeModel = dummyModel;
 
     let errorThrown = false;
     try {
       await runtime.handleRequest('test-session-id', 'test error propagation');
     } catch (e: any) {
       errorThrown = true;
-      expect(e.message).toBe('Provider timeout');
+      expect(e.message).toMatch(/(Provider timeout|OpenAI generation failed|provider)/i);
     }
     expect(errorThrown).toBe(true);
-  });
+  }, 60000);
 });

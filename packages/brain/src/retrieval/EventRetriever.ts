@@ -21,8 +21,14 @@ export class EventRetriever implements KnowledgeRetriever {
     // EventStore has loadEvents(sessionId) — we use a broad session wildcard
     // by loading recent events across sessions via getAll() if available,
     // otherwise best-effort with loadEvents('system')
+    let isPreQueried = false;
     try {
-      if (typeof this.eventStore.getAll === 'function') {
+      if (typeof (this.eventStore as any).queryEvents === 'function') {
+        events = await (this.eventStore as any).queryEvents(query.query);
+        isPreQueried = true;
+      } else if (typeof (this.eventStore as any).query === 'function') {
+        events = (this.eventStore as any).query();
+      } else if (typeof this.eventStore.getAll === 'function') {
         events = this.eventStore.getAll();
       } else if (typeof this.eventStore.loadEvents === 'function') {
         // loadEvents needs a sessionId — try 'system' as a fallback
@@ -33,8 +39,8 @@ export class EventRetriever implements KnowledgeRetriever {
       return [];
     }
 
-    // Keyword filter on eventType + payload
-    const filtered = events.filter((ev: any) => {
+    // Keyword filter on eventType + payload unless store already performed the query
+    const filtered = isPreQueried ? events : events.filter((ev: any) => {
       const text = [
         ev.eventType || ev.type || '',
         JSON.stringify(ev.payload || {})

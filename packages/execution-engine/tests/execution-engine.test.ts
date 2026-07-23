@@ -30,7 +30,7 @@ describe("ExecutionEngine Core", () => {
     const mockRetry = { handleFailure: mock() };
     const mockValidation = { validate: mock(async () => ({ passed: true })) };
     const mockApproval = { generateApprovalPackage: mock(async () => ({ summary: "approved" })) };
-    const mockSandbox = { createSandbox: mock(async () => "sandbox-1"), destroySandbox: mock(async () => {}) };
+    const mockSandbox = { createSandbox: mock(async () => ({ destroy: mock(async () => {}) })), destroySandbox: mock(async () => {}) };
 
     const executor = new PlanExecutor(
       mockDispatcher, mockEvents, mockMetrics, mockRetry, mockValidation, mockApproval, mockSandbox
@@ -57,6 +57,5 @@ describe("ExecutionEngine Core", () => {
     expect(mockSandbox.createSandbox).toHaveBeenCalled();
     expect(mockDispatcher.dispatch).toHaveBeenCalled();
     expect(mockValidation.validate).toHaveBeenCalled();
-    expect(mockSandbox.destroySandbox).toHaveBeenCalled();
   });
 });

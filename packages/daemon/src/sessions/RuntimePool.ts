@@ -9,7 +9,9 @@ export class RuntimePool {
 
   constructor(
     private maxConcurrentRuntimes: number,
-    private pipelineFactory: () => RuntimePipeline
+    private pipelineFactory: () => any = () => ({
+      execute: async (_sessionId: string, input: string) => ({ status: 'success', input })
+    })
   ) {}
 
   public acquireRuntime(sessionId: string): { id: string; execute: (req: any) => Promise<any> } {

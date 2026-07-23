@@ -24,13 +24,15 @@ const localConfigPath = path.join(process.cwd(), 'agentos.config.json');
 const globalConfigPath = path.join(os.homedir(), '.agentos', 'config.json');
 const configPath = fs.existsSync(localConfigPath) ? localConfigPath : globalConfigPath;
 
+// Log crashes to disk but DO NOT exit — the UI must stay alive so the user
+// sees the error in the chat panel on next interaction.
 process.on('uncaughtException', (err) => {
-  fs.writeFileSync('cli-error.log', err.stack || String(err));
-  process.exit(1);
+  try { fs.appendFileSync('cli-error.log', `[uncaughtException] ${new Date().toISOString()}\n${err.stack || String(err)}\n\n`); } catch {}
+  // Do not exit — surface to user on next message
 });
 process.on('unhandledRejection', (reason: any) => {
-  fs.writeFileSync('cli-error.log', reason?.stack || String(reason));
-  process.exit(1);
+  try { fs.appendFileSync('cli-error.log', `[unhandledRejection] ${new Date().toISOString()}\n${reason?.stack || String(reason)}\n\n`); } catch {}
+  // Do not exit — surface to user on next message
 });
 
 program.command('chat')
@@ -146,6 +148,46 @@ program.command('wiring-report')
     const snapshot = await auditor.audit();
     const checker = new RuntimeHealthChecker();
     console.log(checker.generateHealthReport(snapshot));
+  });
+
+program.command('daemon')
+  .description('Start AgentOS as a headless background HTTP daemon (TCP, default port 7070)')
+  .option('-p, --port <port>', 'Port to listen on', '7070')
+  .option('--host <host>', 'Host to bind to', '127.0.0.1')
+  .option('--data-dir <dir>', 'Directory for session persistence', path.join(os.homedir(), '.agentos', 'daemon'))
+  .action(async (opts) => {
+    const port = parseInt(opts.port, 10);
+    const dataDir = opts.dataDir;
+    
+    console.log(`[daemon] Starting AgentOS daemon on 127.0.0.1:${port}...`);
+    
+    try {
+      const { DaemonBootstrap } = await import('@agent-os/daemon');
+      const { daemon, lifecycle } = DaemonBootstrap.create({
+        tcpPort: port,
+        socketPath: '', // Not used — Windows uses TCP transport
+        dataDir,
+        maxConcurrentRuntimes: 4
+      });
+      
+      await lifecycle.startup();
+      // daemon.start() is called inside lifecycle.startup()
+      
+      console.log(`[daemon] AgentOS daemon running on port ${port}`);
+      console.log('[daemon] Press Ctrl+C to stop');
+      
+      process.on('SIGINT', async () => {
+        console.log('\n[daemon] Shutting down...');
+        await lifecycle.shutdown();
+        process.exit(0);
+      });
+      
+      // Keep process alive
+      await new Promise(() => {});
+    } catch (err: any) {
+      console.error('[daemon] Failed to start daemon:', err.message);
+      process.exit(1);
+    }
   });
 
 program.parse();

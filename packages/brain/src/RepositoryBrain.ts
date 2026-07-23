@@ -5,13 +5,17 @@ import { HybridRetriever } from './retrieval/HybridRetriever';
 import { KnowledgeScorer } from './KnowledgeScorer';
 import { KnowledgeRanker } from './KnowledgeRanker';
 
+export interface EventEmitter {
+  emit(event: string, payload: any): void;
+}
+
 export class RepositoryBrain {
   private queryClassifier = new QueryClassifier();
   private retrievalPlanner = new RetrievalPlanner();
   private knowledgeScorer = new KnowledgeScorer();
   private knowledgeRanker = new KnowledgeRanker();
 
-  constructor(private hybridRetriever: HybridRetriever) {}
+  constructor(private hybridRetriever: HybridRetriever, private eventEmitter?: EventEmitter) {}
 
   /**
    * Main entry point: given a goal string, retrieve + rank all relevant knowledge
@@ -21,6 +25,10 @@ export class RepositoryBrain {
     const query: BrainQuery = typeof goalOrQuery === 'string'
       ? { query: goalOrQuery, intent: QueryType.UNKNOWN, limit: 15 }
       : goalOrQuery;
+
+    if (this.eventEmitter) {
+      this.eventEmitter.emit("brain.query.started", { query });
+    }
 
     // 1. Classify
     query.intent = this.queryClassifier.classify(query.query);
@@ -47,8 +55,13 @@ export class RepositoryBrain {
       score: coverage,
       assembledText
     };
+    const response: BrainResponse = { context, assembledText };
 
-    return { context, assembledText };
+    if (this.eventEmitter) {
+      this.eventEmitter.emit("brain.answer.generated", response);
+    }
+
+    return response;
   }
 
   private buildSystemPrompt(query: BrainQuery, ranked: RankedKnowledge[]): string {
@@ -57,7 +70,8 @@ export class RepositoryBrain {
     sections.push(
       `You are the AgentOS Core reasoning agent. You are pair programming in a workspace.\n` +
       `Your code modifications must adhere strictly to existing repository architecture, pattern constraints, and conventions.\n` +
-      `Goal classification: ${query.intent}.`
+      `Goal classification: ${query.intent}.\n` +
+      `User Goal/Query: "${query.query}"`
     );
 
     const graphItems = ranked.filter(k => k.type === 'graph').slice(0, 5);
@@ -103,6 +117,11 @@ export class RepositoryBrain {
           return `- [${e.eventType || e.type}] ${JSON.stringify(e.payload || {}).slice(0, 100)}`;
         }).join('\n')
       );
+    }
+
+    const hasTraceable = ranked.some(k => k.confidence?.traceable);
+    if (hasTraceable) {
+      sections.push(`### Evidence Metadata\n- Traceable: true`);
     }
 
     return sections.join('\n\n');

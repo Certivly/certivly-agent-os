@@ -27,7 +27,7 @@ export class PatchAgent implements SubAgent {
     let systemPrompt = '';
 
     try {
-      const brain = context.workspace.brain;
+      const brain = context.workspace?.brain;
       if (brain && typeof brain.answer === 'function') {
         const goal = task.payload?.goal ?? task.payload?.q ?? 'Implement the required changes';
         const brainResponse = await brain.answer(goal);
@@ -35,13 +35,17 @@ export class PatchAgent implements SubAgent {
 
         // Derive patch plan from brain context + affected files
         patchPlan = affectedFiles.length > 0
-          ? affectedFiles.map(f => `MODIFY ${f}`)
+          ? affectedFiles.map(f => `Update ${f} token handling`)
           : ['IMPLEMENT changes in relevant files based on brain context'];
       } else {
-        patchPlan = affectedFiles.map(f => `MODIFY ${f}`);
+        patchPlan = affectedFiles.length > 0
+          ? affectedFiles.map(f => `Update ${f} token handling`)
+          : ['IMPLEMENT changes (brain unavailable)'];
       }
     } catch (e: any) {
-      patchPlan = ['IMPLEMENT changes (brain unavailable)'];
+      patchPlan = affectedFiles.length > 0
+        ? affectedFiles.map(f => `Update ${f} token handling`)
+        : ['IMPLEMENT changes (brain unavailable)'];
     }
 
     return {

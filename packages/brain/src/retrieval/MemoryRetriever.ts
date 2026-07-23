@@ -16,8 +16,9 @@ export class MemoryRetriever implements KnowledgeRetriever {
 
     let memories: any[] = [];
 
-    // Prefer the search() method we added to MemoryStore
-    if (typeof this.memoryStore.search === 'function') {
+    if (typeof (this.memoryStore as any).searchMemories === 'function') {
+      memories = await (this.memoryStore as any).searchMemories(query.query);
+    } else if (typeof this.memoryStore.search === 'function') {
       memories = this.memoryStore.search(query.query, query.limit ?? 10);
     } else if (typeof this.memoryStore.getMemoriesByType === 'function') {
       // Fallback: load all types and keyword filter
@@ -31,7 +32,7 @@ export class MemoryRetriever implements KnowledgeRetriever {
       ];
       memories = all.filter(m => {
         const text = ((m.topic || '') + ' ' + (m.content || '')).toLowerCase();
-        return words.some(w => text.includes(w));
+        return words.length === 0 || words.some(w => text.includes(w));
       }).slice(0, query.limit ?? 10);
     }
 

@@ -46,7 +46,8 @@ export class RustParser implements LanguageParser {
         const structName = typeNode ? typeNode.text : undefined;
         
         for (let i = 0; i < node.childCount; i++) {
-          walk(node.child(i), structName);
+          const child = node.child(i);
+          if (child) walk(child, structName);
         }
         return; // Handled children with context
       }
@@ -103,7 +104,8 @@ export class RustParser implements LanguageParser {
       }
 
       for (let i = 0; i < node.childCount; i++) {
-        walk(node.child(i), parentStruct);
+        const child = node.child(i);
+        if (child) walk(child, parentStruct);
       }
     };
 

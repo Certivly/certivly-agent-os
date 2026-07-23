@@ -24,7 +24,11 @@
     "@agent-os/mcp": "workspace:*",
     "@agent-os/parser": "workspace:*",
     "@agent-os/brain": "workspace:*",
-    "@agent-os/subagents": "workspace:*"
+    "@agent-os/subagents": "workspace:*",
+    "@agent-os/seol": "workspace:*",
+    "@agent-os/context": "workspace:*",
+    "@agent-os/research": "workspace:*",
+    "@agent-os/hardening": "workspace:*"
   },
   "devDependencies": {
     "bun-types": "latest",

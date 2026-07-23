@@ -4,7 +4,8 @@ export enum AgentRole {
   TESTER = "TESTER",
   REVIEWER = "REVIEWER",
   SECURITY = "SECURITY",
-  DOCS = "DOCS"
+  DOCS = "DOCS",
+  RESEARCHER = "RESEARCHER"
 }
 
 export interface AgentResult {

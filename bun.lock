@@ -18,11 +18,15 @@
       "dependencies": {
         "@agent-os/agent-runtime": "workspace:*",
         "@agent-os/config": "workspace:*",
+        "@agent-os/context": "workspace:*",
+        "@agent-os/daemon": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/runtime-audit": "workspace:*",
         "@agent-os/runtime-integration": "workspace:*",
+        "@agent-os/seol": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
+        "@agent-os/subagents": "workspace:*",
         "@types/react": "^19.2.17",
         "chalk": "^5.6.2",
         "commander": "^12.0.0",
@@ -78,6 +82,19 @@
         "zod": "^3.22.4",
       },
     },
+    "packages/context": {
+      "name": "@agent-os/context",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
     "packages/daemon": {
       "name": "@agent-os/daemon",
       "version": "1.0.0",
@@ -120,6 +137,7 @@
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/brain": "workspace:*",
+        "@agent-os/context": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -362,8 +380,10 @@
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/brain": "workspace:*",
+        "@agent-os/context": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/execution-engine": "workspace:*",
+        "@agent-os/hardening": "workspace:*",
         "@agent-os/mcp": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
@@ -373,7 +393,9 @@
         "@agent-os/pattern-intelligence": "workspace:*",
         "@agent-os/planner": "workspace:*",
         "@agent-os/repository": "workspace:*",
+        "@agent-os/research": "workspace:*",
         "@agent-os/sandbox": "workspace:*",
+        "@agent-os/seol": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@agent-os/skills": "workspace:*",
         "@agent-os/subagents": "workspace:*",
@@ -392,6 +414,22 @@
         "@agent-os/events": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "bun-types": "latest",
+        "typescript": "^5.0.0",
+      },
+    },
+    "packages/seol": {
+      "name": "@agent-os/seol",
+      "version": "1.0.0",
+      "dependencies": {
+        "@agent-os/events": "workspace:*",
+        "@agent-os/metrics": "workspace:*",
+        "@agent-os/repository": "workspace:*",
+        "@agent-os/shared": "workspace:*",
+        "@agent-os/skills": "workspace:*",
+        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "bun-types": "latest",
@@ -432,10 +470,10 @@
       "name": "@agent-os/subagents",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/brain": "workspace:*",
         "@agent-os/events": "workspace:*",
         "@agent-os/memory": "workspace:*",
         "@agent-os/repository": "workspace:*",
+        "@agent-os/skills": "workspace:*",
         "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
@@ -487,6 +525,8 @@
 
     "@agent-os/config": ["@agent-os/config@workspace:packages/config"],
 
+    "@agent-os/context": ["@agent-os/context@workspace:packages/context"],
+
     "@agent-os/daemon": ["@agent-os/daemon@workspace:packages/daemon"],
 
     "@agent-os/events": ["@agent-os/events@workspace:packages/events"],
@@ -524,6 +564,8 @@
     "@agent-os/runtime-integration": ["@agent-os/runtime-integration@workspace:packages/runtime-integration"],
 
     "@agent-os/sandbox": ["@agent-os/sandbox@workspace:packages/sandbox"],
+
+    "@agent-os/seol": ["@agent-os/seol@workspace:packages/seol"],
 
     "@agent-os/sessions": ["@agent-os/sessions@workspace:packages/sessions"],
 

@@ -8,11 +8,11 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@agent-os/brain": "workspace:*",
     "@agent-os/events": "workspace:*",
     "@agent-os/memory": "workspace:*",
     "@agent-os/repository": "workspace:*",
-    "@agent-os/wicer": "workspace:*"
+    "@agent-os/wicer": "workspace:*",
+    "@agent-os/skills": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",
@@ -20,3 +20,4 @@
     "bun-types": "latest"
   }
 }
+

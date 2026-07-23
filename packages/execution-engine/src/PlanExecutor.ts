@@ -7,6 +7,7 @@ import { TaskLifecycleManager } from "./TaskLifecycleManager";
 import { ExecutionEvents } from "./ExecutionEvents";
 import { ExecutionMetrics } from "./ExecutionMetrics";
 import { ApprovalPackage } from "./models";
+import { ContextStack } from "@agent-os/context";
 
 export class PlanExecutor {
   constructor(
@@ -37,6 +38,8 @@ export class PlanExecutor {
     const scheduler = new TaskScheduler(plan);
 
     context.sandbox = await this.sandboxManager.createSandbox('local');
+    // Create a sliding-window context buffer for this execution
+    context.contextStack = new ContextStack({ maxEntries: 100 });
 
     try {
       while (!scheduler.isComplete()) {
@@ -57,6 +60,17 @@ export class PlanExecutor {
             scheduler.markTaskCompleted(task.id);
             lifecycleManager.transitionToCompleted(task.id);
             this.metrics.recordTaskCompleted();
+            // Record task completion into context stack for downstream observers
+            context.contextStack?.push({
+              id: crypto.randomUUID(),
+              type: 'TaskContext',
+              content: `Task ${task.id} (${task.type}) completed`,
+              timestamp: new Date().toISOString(),
+              sourceEventIds: [],
+              sourceRequestIds: [context.requestId],
+              sourceSessionIds: [context.sessionId],
+              metadata: { taskId: task.id, taskType: task.type }
+            });
             return result;
           } catch (error: any) {
             require('fs').appendFileSync('d:/Work/Personal/agent-os/error.log', `[PlanExecutor] Task ${task.id} (${task.type}) failed:\n${error.stack || error.message || error}\n\n`);
@@ -94,15 +108,15 @@ export class PlanExecutor {
       this.metrics.recordExecutionCompleted();
       this.metrics.recordExecutionDuration(Date.now() - startTime);
 
-      if (context.sandbox) await context.sandbox.destroy();
+      if (context.sandbox && typeof context.sandbox.destroy === 'function') await context.sandbox.destroy();
 
       return approvalPackage;
 
     } catch (err: any) {
       state.status = "failed";
-      this.events.emitExecutionFailed(context.executionId, err.message);
-      this.metrics.recordExecutionFailed();
-      if (context.sandbox) {
+      this.events?.emitExecutionFailed?.(context.executionId, err.message);
+      this.metrics?.recordExecutionFailed?.();
+      if (context.sandbox && typeof context.sandbox.destroy === 'function') {
         await context.sandbox.destroy();
       }
       throw err;

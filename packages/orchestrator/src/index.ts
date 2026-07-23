@@ -19,3 +19,4 @@ export * from "./AgentMetrics";
 export * from "./agents/BaseAgent";
 export * from "./agents/ArchitectAgent";
 export * from "./agents/CoderAgent";
+export * from "./agents/ResearchAgent";

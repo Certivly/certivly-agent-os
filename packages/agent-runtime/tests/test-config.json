@@ -1,0 +1,9 @@
+{
+  "activeProvider": "lmstudio",
+  "activeModel": "local-model",
+  "runtime": {
+    "logLevel": "info",
+    "sessionDir": ".agentos/sessions"
+  },
+  "providers": {}
+}

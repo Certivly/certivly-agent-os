@@ -50,8 +50,11 @@ export class AgentCoordinator {
         lifecycle.transitionToFailed(role);
         this.events.emitAgentFailed(agent.id, role, err.message);
         this.metrics.recordAgentFailure(role);
-        // Non-fatal — log but don't abort pipeline
+        // Non-fatal unless provider error — log and rethrow provider errors
         console.warn(`[Orchestrator] Agent ${role} failed: ${err.message}`);
+        if (err.name === 'ProviderError' || err.constructor?.name === 'ProviderError' || err.message.includes('Provider timeout')) {
+          throw err;
+        }
       }
     }
 

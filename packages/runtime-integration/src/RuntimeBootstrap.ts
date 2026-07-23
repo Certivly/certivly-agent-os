@@ -44,7 +44,7 @@ import {
   AgentCoordinator, AgentRouter, AgentRegistry, 
   AgentLifecycle, AgentEvents, AgentMetrics, 
   AgentConversation, AgentReplay, AgentConsensus,
-  ArchitectAgent, CoderAgent
+  ArchitectAgent, CoderAgent, ResearchAgent
 } from "@agent-os/orchestrator";
 import { ExecutionEngine, PlanExecutor, TaskDispatcher, ExecutionEvents, ExecutionMetrics } from "@agent-os/execution-engine";
 import { SkillRegistry } from "@agent-os/skills";
@@ -63,6 +63,8 @@ import { PatchStore } from "@agent-os/patch-engine/src/store/PatchStore";
 import { PatchLineageTracker } from "@agent-os/patch-engine/src/lineage/PatchLineage";
 import { LearningEngine } from "@agent-os/brain";
 import { SubAgentRuntime } from "@agent-os/subagents";
+import { ExecutionProfiler, OptimizationAnalyzer, OptimizationPlanner, CacheManager } from "@agent-os/seol";
+import { WorkspaceConsistencyValidator } from "@agent-os/hardening";
 
 export class RuntimeBootstrap {
   private tracer = new RuntimeExecutionTracer();
@@ -120,6 +122,7 @@ export class RuntimeBootstrap {
     try { agentModel = this.registry.resolve("model"); } catch {}
     agentRegistry.register(new ArchitectAgent(agentModel));
     agentRegistry.register(new CoderAgent(agentModel));
+    agentRegistry.register(new ResearchAgent(agentModel));
 
     const orchestrator = new AgentCoordinator(
       agentRegistry,
@@ -233,6 +236,15 @@ export class RuntimeBootstrap {
       eventStore,
       metrics: this.metricRegistry
     }));
+
+    // 15. SEOL — Skill Execution Optimization Layer
+    const seolProfiler = new ExecutionProfiler(eventStore);
+    const seolCache = new CacheManager();
+    this.registry.register("seol-profiler", seolProfiler);
+    this.registry.register("seol-cache", seolCache);
+    
+    // 16. Hardening Diagnostics
+    this.registry.register("hardening-validator", new WorkspaceConsistencyValidator());
 
     return new RuntimePipeline(this.registry);
   }

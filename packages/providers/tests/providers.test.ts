@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import { OpenAIProvider } from '../src/adapters/openai';
-import { AnthropicProvider } from '../src/adapters/placeholders';
+import { AnthropicProvider } from '../src/adapters/anthropic';
 
 describe('Providers', () => {
   it('should initialize OpenAI provider and find model', () => {
@@ -16,8 +16,9 @@ describe('Providers', () => {
     expect(model.id).toBe('unknown');
   });
 
-  it('should throw when executing a placeholder provider', async () => {
-    const model = AnthropicProvider.getModel('claude-3-opus');
-    expect(model.generate({ messages: [] })).rejects.toThrow(/placeholder and not implemented/);
+  it('should initialize Anthropic provider and find model', async () => {
+    const provider = new AnthropicProvider('dummy-key');
+    const model = provider.getModel('claude-3-opus-20240229');
+    expect(model.id).toBe('claude-3-opus-20240229');
   });
 });

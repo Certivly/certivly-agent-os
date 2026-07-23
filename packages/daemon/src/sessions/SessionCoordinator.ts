@@ -16,8 +16,8 @@ export class SessionCoordinator {
     private repositoryCache: RepositoryCache
   ) {}
 
-  public async createSession(clientId: string, repositoryId: string, rootPath: string): Promise<string> {
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  public async createSession(clientId: string, repositoryId: string, rootPath: string, customSessionId?: string): Promise<string> {
+    const sessionId = customSessionId ?? `session_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
     // Ensure repository workspace is loaded
     await this.repositoryCache.getWorkspace(repositoryId, rootPath);
