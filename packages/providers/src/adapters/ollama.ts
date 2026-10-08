@@ -45,6 +45,25 @@ export class OllamaModel implements Model {
     for (const msg of request.messages) {
       if (msg.role === 'tool') {
         messages.push({ role: 'tool', content: msg.content, tool_name: msg.name });
+      } else if (msg.role === 'assistant') {
+        const assistantMsg: any = { role: 'assistant', content: msg.content };
+        if (msg.toolCalls && msg.toolCalls.length > 0) {
+          assistantMsg.tool_calls = msg.toolCalls.map((tc) => {
+            let parsedArgs: unknown = {};
+            try {
+              parsedArgs = JSON.parse(tc.args || '{}');
+            } catch {
+              parsedArgs = {};
+            }
+            return {
+              function: {
+                name: tc.name,
+                arguments: parsedArgs,
+              },
+            };
+          });
+        }
+        messages.push(assistantMsg);
       } else {
         messages.push({ role: msg.role, content: msg.content });
       }
@@ -75,6 +94,7 @@ export class OllamaModel implements Model {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
+        signal: request.signal,
       });
     } catch (e: any) {
       throw new ProviderError(`Ollama unreachable at ${this.baseUrl}: ${e.message}`);

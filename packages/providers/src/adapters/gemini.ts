@@ -2,6 +2,8 @@ import { Provider, Model, GenerationRequest, GenerationResponse } from '../inter
 import { ProviderError } from '@agent-os/shared';
 import OpenAI from 'openai';
 
+import { toOpenAIMessages } from '../serialize/openaiMessages';
+
 export class GeminiModel implements Model {
   id: string;
   private client: OpenAI;
@@ -12,32 +14,27 @@ export class GeminiModel implements Model {
   }
 
   async *stream(request: GenerationRequest): AsyncIterable<any> {
-    const sourceMessages: any[] = request.systemPrompt
-      ? [{ role: 'system', content: request.systemPrompt }, ...request.messages]
-      : [...request.messages];
-    const formattedMessages = sourceMessages.map((m) => {
-      if (m.role === 'tool') {
-        return { role: 'tool', tool_call_id: m.toolCallId || '', content: m.content };
-      }
-      return { role: m.role, content: m.content };
-    });
+    const formattedMessages = toOpenAIMessages(request);
 
-    const response = await this.client.chat.completions.create({
-      model: this.id,
-      messages: formattedMessages as any,
-      stream: true,
-      stream_options: { include_usage: true },
-      tools: request.tools?.length
-        ? request.tools.map((t) => ({
-            type: 'function' as const,
-            function: {
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters || { type: 'object', properties: {} },
-            },
-          }))
-        : undefined,
-    });
+    const response = await this.client.chat.completions.create(
+      {
+        model: this.id,
+        messages: formattedMessages as any,
+        stream: true,
+        stream_options: { include_usage: true },
+        tools: request.tools?.length
+          ? request.tools.map((t) => ({
+              type: 'function' as const,
+              function: {
+                name: t.name,
+                description: t.description,
+                parameters: t.parameters || { type: 'object', properties: {} },
+              },
+            }))
+          : undefined,
+      },
+      request.signal ? { signal: request.signal } : undefined
+    );
 
     const { parseOpenAIStream } = await import('../streaming/StreamParsers');
     yield* parseOpenAIStream(response as any);
@@ -55,18 +52,7 @@ export class GeminiModel implements Model {
 
   async generate(request: GenerationRequest): Promise<GenerationResponse> {
     try {
-      const messages: any[] = [];
-      if (request.systemPrompt) {
-        messages.push({ role: 'system', content: request.systemPrompt });
-      }
-
-      for (const msg of request.messages) {
-        if (msg.role === 'tool') {
-          messages.push({ role: 'tool', content: msg.content, tool_call_id: msg.toolCallId || '' });
-        } else {
-          messages.push({ role: msg.role, content: msg.content });
-        }
-      }
+      const messages = toOpenAIMessages(request);
 
       const tools = request.tools?.map((t) => ({
         type: 'function' as const,
@@ -78,11 +64,14 @@ export class GeminiModel implements Model {
       }));
 
       const startTime = Date.now();
-      const response = await this.client.chat.completions.create({
-        model: this.id,
-        messages,
-        tools: tools && tools.length > 0 ? tools : undefined,
-      });
+      const response = await this.client.chat.completions.create(
+        {
+          model: this.id,
+          messages: messages as any,
+          tools: tools && tools.length > 0 ? tools : undefined,
+        },
+        request.signal ? { signal: request.signal } : undefined
+      );
       const latencyMs = Date.now() - startTime;
 
       const message = response.choices[0].message;
