@@ -6,7 +6,8 @@
   "types": "index.ts",
 
   "dependencies": {
-    "@agent-os/parser": "workspace:*"
+    "@agent-os/parser": "workspace:*",
+    "@agent-os/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.0.0",

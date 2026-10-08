@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { WorkspaceManager, workspaceManager } from '../workspace';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
+import { generateUnifiedDiff, computeSha256 } from '@agent-os/shared';
 
 export interface FilePatchPlan {
   targetPath: string;
@@ -89,11 +90,29 @@ export const applyPatchTool: WorkspaceTool & Tool = {
         throw new Error(`Disk write failed during patch application, all changes rolled back: ${writeErr.message}`);
       }
 
+      const changes = plan.map(p => {
+        const kind = p.isDelete ? 'delete' : p.isNewFile ? 'add' : 'modify';
+        const beforeContent = p.originalContent;
+        const afterContent = p.isDelete ? undefined : p.newContent;
+        const diff = generateUnifiedDiff(beforeContent ?? '', afterContent ?? '', p.relPath);
+        return {
+          path: p.relPath,
+          kind,
+          diff,
+          before: beforeContent ? computeSha256(beforeContent) : undefined,
+          after: afterContent !== undefined ? computeSha256(afterContent) : undefined,
+          beforeContent,
+          afterContent,
+        };
+      });
+
       return {
         content: `Successfully applied patch to ${plan.length} file(s): ${plan.map(p => p.relPath).join(', ')}`,
         metadata: {
           filesModified: plan.map(p => p.relPath),
           count: plan.length,
+          changes,
+          diff: changes.map(c => c.diff).filter(Boolean).join('\n'),
           plans: plan.map(p => ({
             path: p.relPath,
             isNewFile: p.isNewFile,

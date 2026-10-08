@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { ChangeSet, ChangeSetFile } from '../models/ChangeSet';
 
+import { generateUnifiedDiff } from '@agent-os/shared';
+
 export class ChangeSetStore {
   constructor(private outputDir: string = '.agentos/changesets') {}
 
@@ -59,15 +61,14 @@ export class ChangeSetStore {
         chunks.push(file.diff.trim());
       } else if (file.kind === 'add' || (file.kind as string) === 'create') {
         const content = file.afterContent || '';
-        const lines = content.split('\n');
-        chunks.push(
-          `--- /dev/null\n+++ b/${file.path}\n@@ -0,0 +1,${lines.length} @@\n` +
-            lines.map(l => `+${l}`).join('\n')
-        );
+        const diff = generateUnifiedDiff('', content, file.path);
+        if (diff) chunks.push(diff.trim());
       } else if (file.kind === 'delete') {
-        chunks.push(`--- a/${file.path}\n+++ /dev/null\n@@ -1,1 +0,0 @@\n-deleted`);
+        const diff = generateUnifiedDiff(file.before || '', '', file.path);
+        if (diff) chunks.push(diff.trim());
       } else {
-        chunks.push(`--- a/${file.path}\n+++ b/${file.path}\n@@ -1 +1 @@\n# modified ${file.path}`);
+        const diff = generateUnifiedDiff(file.before || '', file.afterContent || '', file.path);
+        if (diff) chunks.push(diff.trim());
       }
     }
 

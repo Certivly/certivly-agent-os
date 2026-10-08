@@ -3,6 +3,7 @@ import * as path from 'path';
 import { Tool } from '../interface';
 import { WorkspaceManager, workspaceManager } from '../workspace';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
+import { generateUnifiedDiff, computeSha256 } from '@agent-os/shared';
 
 export const writeFileTool: WorkspaceTool & Tool = {
   name: 'write_file',
@@ -49,10 +50,13 @@ export const writeFileTool: WorkspaceTool & Tool = {
       return { content: 'Error: Security Violation: Writing inside .git is prohibited', isError: true };
     }
 
-    if (fs.existsSync(targetPath)) {
+    const existed = fs.existsSync(targetPath);
+    let originalContent = '';
+    if (existed) {
       if (!overwrite) {
         return { content: `Error: File '${rawPath}' already exists and overwrite is false`, isError: true };
       }
+      originalContent = fs.readFileSync(targetPath, 'utf8');
     } else {
       const parentDir = path.dirname(targetPath);
       if (!ws.isWithinWorkspace(parentDir)) {
@@ -65,9 +69,20 @@ export const writeFileTool: WorkspaceTool & Tool = {
 
     try {
       fs.writeFileSync(targetPath, content, 'utf8');
+      const kind = existed ? 'modify' : 'add';
+      const diff = generateUnifiedDiff(existed ? originalContent : '', content, rawPath);
       return {
         content: `Successfully wrote to ${rawPath}`,
-        metadata: { path: rawPath, bytesWritten: Buffer.byteLength(content, 'utf8') },
+        metadata: {
+          path: rawPath,
+          bytesWritten: Buffer.byteLength(content, 'utf8'),
+          kind,
+          diff,
+          before: existed ? computeSha256(originalContent) : undefined,
+          after: computeSha256(content),
+          beforeContent: existed ? originalContent : undefined,
+          afterContent: content,
+        },
         isError: false,
       };
     } catch (e: any) {

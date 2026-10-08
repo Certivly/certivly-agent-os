@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { WorkspaceManager, workspaceManager } from '../workspace';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
+import { generateUnifiedDiff, computeSha256 } from '@agent-os/shared';
 
 export const editFileTool: WorkspaceTool & Tool = {
   name: 'edit_file',
@@ -97,9 +98,19 @@ export const editFileTool: WorkspaceTool & Tool = {
 
     try {
       fs.writeFileSync(targetPath, updatedContent, 'utf8');
+      const diff = generateUnifiedDiff(originalContent, updatedContent, rawPath);
       return {
         content: `Successfully replaced ${replaceAll ? occurrences : 1} occurrence(s) in ${rawPath}`,
-        metadata: { path: rawPath, replacementCount: replaceAll ? occurrences : 1 },
+        metadata: {
+          path: rawPath,
+          replacementCount: replaceAll ? occurrences : 1,
+          kind: 'modify',
+          diff,
+          before: computeSha256(originalContent),
+          after: computeSha256(updatedContent),
+          beforeContent: originalContent,
+          afterContent: updatedContent,
+        },
         isError: false,
       };
     } catch (e: any) {

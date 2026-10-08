@@ -34,6 +34,7 @@ export interface LoopState {
   lastVerificationOutput?: string;
   loadedInstructionDirs?: Set<string>;
   searchSubagentResult?: { rankedFiles: string[]; reason: string; turnsUsed: number };
+  fileBaselines?: Map<string, { initialExists: boolean; initialContent: string }>;
 }
 
 export type PermissionMode = 'plan' | 'manual' | 'acceptEdits' | 'auto';

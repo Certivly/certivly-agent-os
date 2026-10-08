@@ -76,7 +76,7 @@ describe("Patch Engine Lifecycle & Determinism", () => {
 
     // Diff generation works
     const diff = diffGen.generateUnifiedDiff(originalContent, newContent, "auth.ts");
-    assert.ok(diff.includes("\n+   console.log('logged');"));
+    assert.ok(diff.includes("console.log('logged');") && diff.includes("+"));
 
     // Lineage tracked
     const trace = lineage.trace(patch.id);

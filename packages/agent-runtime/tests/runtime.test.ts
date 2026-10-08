@@ -75,6 +75,7 @@ describe('AgentRuntime', () => {
     const config = manager.load();
     config.activeProvider = 'openai';
     config.activeModel = 'gpt-4o';
+    config.agent = { ...config.agent, maxTurns: 10 };
     manager.save(config);
 
     try {

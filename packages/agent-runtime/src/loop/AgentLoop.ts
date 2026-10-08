@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import type { Model, GenerationRequest } from '@agent-os/providers';
-import type { LoggingEventBus } from '@agent-os/shared';
+import { generateUnifiedDiff, computeSha256, type LoggingEventBus } from '@agent-os/shared';
 import type { SessionHistory } from './SessionHistory';
 import { validateToolArguments, type LoopTool, type ToolExecutionResult } from './LoopTool';
 import { compactHistory, estimateTokenCount } from './compactHistory';
@@ -1220,40 +1220,15 @@ export class AgentLoop {
     }
 
     // Permission Mode & Security Policy (Action 6-06)
-    const guard = new PermissionGuard(this.options.permissionMode ?? 'manual');
     const isEditTool = tc.name === 'edit_file' || tc.name === 'write_file' || tc.name === 'apply_patch';
     const isCommandTool = tc.name === 'run_command';
 
-    let requiresApproval = false;
-
-    if (isEditTool) {
-      const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
-      const editDecision = guard.checkEdit(filePathStr);
-      if (editDecision === 'block') {
-        const denialMsg = `[PermissionDenied] Mode '${this.options.permissionMode ?? 'manual'}' does not allow file edits. Use plan mode to review, then switch to acceptEdits to apply.`;
-        toolCallRecords?.push({
-          id: tc.id,
-          name: tc.name,
-          args: argsObj,
-          success: false,
-          error: denialMsg,
-        });
-        return {
-          toolCallId: tc.id,
-          name: tc.name,
-          content: denialMsg,
-          isError: true,
-        };
-      }
-      requiresApproval = editDecision === 'ask';
-    } else if (isCommandTool) {
+    // Hard-deny is strictly enforced in all modes and configurations
+    if (isCommandTool) {
       const commandStr = (argsObj.command || argsObj.cmd || '') as string;
-      const cmdDecision = guard.checkCommand(commandStr);
-      if (cmdDecision === 'block') {
-        const hardDeny = isHardDeniedCommand(commandStr);
-        const denialMsg = hardDeny.denied
-          ? `[PermissionDenied] Command blocked by security policy: ${hardDeny.reason || 'prohibited command'}`
-          : `[PermissionDenied] Mode '${this.options.permissionMode ?? 'manual'}' does not allow running commands.`;
+      const hardDeny = isHardDeniedCommand(commandStr);
+      if (hardDeny.denied) {
+        const denialMsg = `[PermissionDenied] Command blocked by security policy: ${hardDeny.reason || 'prohibited command'}`;
         toolCallRecords?.push({
           id: tc.id,
           name: tc.name,
@@ -1268,7 +1243,60 @@ export class AgentLoop {
           isError: true,
         };
       }
-      requiresApproval = cmdDecision === 'ask';
+    }
+
+    let requiresApproval = false;
+    const hasExplicitMode = Boolean(this.options.permissionMode);
+
+    if (hasExplicitMode) {
+      const guard = new PermissionGuard(this.options.permissionMode!);
+      if (isEditTool) {
+        const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
+        const editDecision = guard.checkEdit(filePathStr);
+        if (editDecision === 'block') {
+          const denialMsg = `[PermissionDenied] Mode '${this.options.permissionMode}' does not allow file edits. Use plan mode to review, then switch to acceptEdits to apply.`;
+          toolCallRecords?.push({
+            id: tc.id,
+            name: tc.name,
+            args: argsObj,
+            success: false,
+            error: denialMsg,
+          });
+          return {
+            toolCallId: tc.id,
+            name: tc.name,
+            content: denialMsg,
+            isError: true,
+          };
+        }
+        requiresApproval = editDecision === 'ask';
+      } else if (isCommandTool) {
+        const commandStr = (argsObj.command || argsObj.cmd || '') as string;
+        const cmdDecision = guard.checkCommand(commandStr);
+        if (cmdDecision === 'block') {
+          const denialMsg = `[PermissionDenied] Mode '${this.options.permissionMode}' does not allow running commands.`;
+          toolCallRecords?.push({
+            id: tc.id,
+            name: tc.name,
+            args: argsObj,
+            success: false,
+            error: denialMsg,
+          });
+          return {
+            toolCallId: tc.id,
+            name: tc.name,
+            content: denialMsg,
+            isError: true,
+          };
+        }
+        requiresApproval = cmdDecision === 'ask';
+      } else {
+        try {
+          requiresApproval = await tool.requiresApproval(argsObj);
+        } catch {
+          requiresApproval = false;
+        }
+      }
     } else {
       try {
         requiresApproval = await tool.requiresApproval(argsObj);
@@ -1489,55 +1517,43 @@ export class AgentLoop {
         });
       }
 
-      // Track changed files
+      // Track changed files and update merged ChangeSet truthfully
       if (tc.name === 'edit_file' || tc.name === 'write_file' || tc.name === 'apply_patch') {
         if (!result.isError) {
-          const targetPath = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
-          if (targetPath) {
-            const resolvedPath = path.resolve(this.workspaceRoot, targetPath);
-            loopState?.filesEdited.add(resolvedPath);
-          }
-          if (targetPath && filesChanged && !filesChanged.includes(targetPath)) {
-            filesChanged.push(targetPath);
-          }
-          if (changeSetFiles && targetPath) {
-            const diff = (result.metadata?.diff as string) || (argsObj.content ? `--- a/${targetPath}\n+++ b/${targetPath}\n@@ -1 +1 @@\n+${String(argsObj.content).slice(0, 500)}` : '');
-            changeSetFiles.push({
-              path: targetPath,
-              kind: tc.name === 'write_file' ? 'modify' : 'modify',
-              diff: diff || `--- a/${targetPath}\n+++ b/${targetPath}\n@@ -1 +1 @@\n# modified ${targetPath}`,
-              afterContent: typeof argsObj.content === 'string' ? argsObj.content : undefined,
-            });
-          }
-          if (tc.name === 'apply_patch') {
-            const patchedFiles = result.metadata?.filesModified as string[] | undefined;
-            if (Array.isArray(patchedFiles) && filesChanged) {
-              for (const f of patchedFiles) {
-                if (!filesChanged.includes(f)) {
-                  filesChanged.push(f);
-                }
-              }
-            }
-          }
+          this.syncChangeSetFiles(
+            loopState,
+            changeSetFiles,
+            filesChanged,
+            tc.name,
+            result,
+            argsObj
+          );
 
           // Lifecycle Hook: after_edit (Action 5-03)
-          if (hooksConfig?.after_edit && targetPath) {
-            const hookResult = await HookRunner.run(
-              hooksConfig.after_edit,
-              {
-                EDITED_FILE: targetPath,
-                WORKSPACE_ROOT: this.workspaceRoot,
-              },
-              effectiveSandboxRoot
-            );
-            if (!hookResult.ok && hooksConfig.after_edit.blocking !== false) {
-              const errMsg = `[HookFailed after_edit] ${hookResult.output}`.trim();
-              return {
-                toolCallId: tc.id,
-                name: tc.name,
-                content: `${result.content}\n\n${errMsg}`,
-                isError: true,
-              };
+          const targetPath = (result.metadata?.path || argsObj.path || argsObj.file || argsObj.filePath || '') as string;
+          const editedPaths = tc.name === 'apply_patch'
+            ? ((result.metadata?.filesModified as string[]) || [])
+            : (targetPath ? [targetPath] : []);
+
+          for (const editPath of editedPaths) {
+            if (hooksConfig?.after_edit && editPath) {
+              const hookResult = await HookRunner.run(
+                hooksConfig.after_edit,
+                {
+                  EDITED_FILE: editPath,
+                  WORKSPACE_ROOT: this.workspaceRoot,
+                },
+                effectiveSandboxRoot
+              );
+              if (!hookResult.ok && hooksConfig.after_edit.blocking !== false) {
+                const errMsg = `[HookFailed after_edit] ${hookResult.output}`.trim();
+                return {
+                  toolCallId: tc.id,
+                  name: tc.name,
+                  content: `${result.content}\n\n${errMsg}`,
+                  isError: true,
+                };
+              }
             }
           }
         }
@@ -1570,6 +1586,117 @@ export class AgentLoop {
         content: errorMsg,
         isError: true,
       };
+    }
+  }
+
+  private syncChangeSetFiles(
+    loopState: LoopState | undefined,
+    changeSetFiles: any[] | undefined,
+    filesChanged: string[] | undefined,
+    toolName: string,
+    result: any,
+    argsObj: Record<string, unknown>
+  ): void {
+    if (!loopState) return;
+    if (!loopState.fileBaselines) {
+      loopState.fileBaselines = new Map();
+    }
+
+    let touchedFiles: Array<{ path: string; beforeContent?: string; isAdd?: boolean }> = [];
+    if (toolName === 'apply_patch') {
+      const changes = result.metadata?.changes as Array<{ path: string; beforeContent?: string; kind: string }> | undefined;
+      if (Array.isArray(changes) && changes.length > 0) {
+        touchedFiles = changes.map(c => ({
+          path: c.path,
+          beforeContent: c.beforeContent,
+          isAdd: c.kind === 'add',
+        }));
+      } else {
+        const files = (result.metadata?.filesModified as string[]) || [];
+        touchedFiles = files.map(f => ({ path: f }));
+      }
+    } else {
+      const targetPath = (result.metadata?.path || argsObj.path || argsObj.file || argsObj.filePath || '') as string;
+      if (targetPath) {
+        touchedFiles = [{
+          path: targetPath,
+          beforeContent: result.metadata?.beforeContent as string | undefined,
+          isAdd: result.metadata?.kind === 'add',
+        }];
+      }
+    }
+
+    for (const item of touchedFiles) {
+      if (!item.path) continue;
+      const relPath = item.path.replace(/\\/g, '/');
+      const resolvedPath = path.resolve(this.workspaceRoot, relPath);
+
+      loopState.filesEdited.add(resolvedPath);
+      if (filesChanged && !filesChanged.includes(relPath)) {
+        filesChanged.push(relPath);
+      }
+
+      if (!loopState.fileBaselines.has(relPath)) {
+        let initialExists: boolean;
+        let initialContent: string;
+
+        if (item.isAdd) {
+          initialExists = false;
+          initialContent = '';
+        } else if (item.beforeContent !== undefined) {
+          initialExists = true;
+          initialContent = item.beforeContent;
+        } else {
+          initialExists = fs.existsSync(resolvedPath);
+          initialContent = initialExists ? fs.readFileSync(resolvedPath, 'utf8') : '';
+        }
+
+        loopState.fileBaselines.set(relPath, { initialExists, initialContent });
+      }
+    }
+
+    if (changeSetFiles) {
+      changeSetFiles.length = 0;
+      for (const [relPath, baseline] of loopState.fileBaselines.entries()) {
+        const resolvedPath = path.resolve(this.workspaceRoot, relPath);
+        const finalExists = fs.existsSync(resolvedPath);
+        const finalContent = finalExists ? fs.readFileSync(resolvedPath, 'utf8') : '';
+
+        if (!baseline.initialExists && !finalExists) {
+          continue;
+        }
+
+        if (baseline.initialExists && finalExists && baseline.initialContent === finalContent) {
+          continue;
+        }
+
+        if (!baseline.initialExists && finalExists) {
+          changeSetFiles.push({
+            path: relPath,
+            kind: 'add',
+            after: computeSha256(finalContent),
+            diff: generateUnifiedDiff('', finalContent, relPath),
+            afterContent: finalContent,
+          });
+        } else if (baseline.initialExists && !finalExists) {
+          changeSetFiles.push({
+            path: relPath,
+            kind: 'delete',
+            before: computeSha256(baseline.initialContent),
+            diff: generateUnifiedDiff(baseline.initialContent, '', relPath),
+            afterContent: undefined,
+          });
+        } else {
+          changeSetFiles.push({
+            path: relPath,
+            kind: 'modify',
+            before: computeSha256(baseline.initialContent),
+            after: computeSha256(finalContent),
+            diff: generateUnifiedDiff(baseline.initialContent, finalContent, relPath),
+            afterContent: finalContent,
+          });
+        }
+      }
     }
   }
 
