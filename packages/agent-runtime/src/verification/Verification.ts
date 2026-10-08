@@ -44,6 +44,9 @@ export interface VerificationOptions {
   executor?: VerificationExecutor;
   checks?: VerificationCheckName[];
   stopOnFirstFailure?: boolean;
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+  env?: NodeJS.ProcessEnv;
 }
 
 export function findNearestPackageJson(startDir: string): string | null {
@@ -76,35 +79,113 @@ export function detectPackageManager(dir: string): string {
   return 'npm';
 }
 
-const defaultExecutor: VerificationExecutor = async (command: string, cwd: string) => {
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    const child = spawn(command, {
-      shell: true,
-      cwd,
-      env: process.env,
-      windowsHide: true,
-    });
+export interface VerificationExecutorOptions {
+  timeoutMs?: number;
+  maxOutputBytes?: number;
+  env?: NodeJS.ProcessEnv;
+}
 
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
-    });
+export const DEFAULT_VERIFICATION_TIMEOUT_MS = 60_000;
+export const DEFAULT_MAX_OUTPUT_BYTES = 512 * 1024; // 512 KB
 
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-    });
+export function createDefaultExecutor(options?: VerificationExecutorOptions): VerificationExecutor {
+  const timeoutMs = options?.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS;
+  const maxOutputBytes = options?.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    CI: 'true',
+    DEBIAN_FRONTEND: 'noninteractive',
+    GIT_TERMINAL_PROMPT: '0',
+    npm_config_yes: 'true',
+    ...(options?.env ?? {}),
+  };
 
-    child.on('error', (err) => {
-      stderr += `\n${err.message}`;
-      resolve({ exitCode: 1, stdout, stderr });
-    });
+  return async (command: string, cwd: string) => {
+    return new Promise((resolve) => {
+      let stdout = '';
+      let stderr = '';
+      let stdoutTruncated = false;
+      let stderrTruncated = false;
+      let timedOut = false;
+      let settled = false;
 
-    child.on('close', (code) => {
-      resolve({ exitCode: code, stdout, stderr });
+      const finish = (result: { exitCode: number | null; stdout: string; stderr: string }) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(result);
+      };
+
+      const child = spawn(command, {
+        shell: true,
+        cwd,
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      const timer = timeoutMs > 0 ? setTimeout(() => {
+        timedOut = true;
+        try {
+          if (child.pid) {
+            if (process.platform === 'win32') {
+              spawn('taskkill', ['/pid', child.pid.toString(), '/T', '/F'], { windowsHide: true });
+            } else {
+              child.kill('SIGKILL');
+            }
+          }
+        } catch {
+          // best-effort process termination
+          try { child.kill(); } catch {}
+        }
+
+        const timeoutMsg = `\n[Verification command timed out after ${timeoutMs}ms]`;
+        finish({
+          exitCode: 124,
+          stdout,
+          stderr: (stderr ? stderr + timeoutMsg : timeoutMsg).trim(),
+        });
+      }, timeoutMs) : null;
+
+      child.stdout?.on('data', (data) => {
+        if (settled) return;
+        const chunk = data.toString();
+        if (stdout.length + chunk.length <= maxOutputBytes) {
+          stdout += chunk;
+        } else if (!stdoutTruncated) {
+          const remaining = Math.max(0, maxOutputBytes - stdout.length);
+          stdout += chunk.slice(0, remaining) + `\n[output truncated to ${maxOutputBytes} bytes]`;
+          stdoutTruncated = true;
+        }
+      });
+
+      child.stderr?.on('data', (data) => {
+        if (settled) return;
+        const chunk = data.toString();
+        if (stderr.length + chunk.length <= maxOutputBytes) {
+          stderr += chunk;
+        } else if (!stderrTruncated) {
+          const remaining = Math.max(0, maxOutputBytes - stderr.length);
+          stderr += chunk.slice(0, remaining) + `\n[output truncated to ${maxOutputBytes} bytes]`;
+          stderrTruncated = true;
+        }
+      });
+
+      child.on('error', (err) => {
+        if (settled) return;
+        stderr += `\n${err.message}`;
+        finish({ exitCode: 1, stdout, stderr });
+      });
+
+      child.on('close', (code) => {
+        if (settled) return;
+        finish({ exitCode: timedOut ? 124 : code, stdout, stderr });
+      });
     });
-  });
-};
+  };
+}
+
+export const defaultExecutor: VerificationExecutor = createDefaultExecutor();
 
 export function getOutputTail(output: string, maxLength: number = 2000): string {
   const trimmed = output.trim();
@@ -166,7 +247,9 @@ export class Verification {
     }
 
     const pm = options.packageManager || detectPackageManager(pkgDir);
-    const executor = options.executor || defaultExecutor;
+    const executor = options.executor || (options.timeoutMs !== undefined || options.maxOutputBytes !== undefined || options.env !== undefined
+      ? createDefaultExecutor({ timeoutMs: options.timeoutMs, maxOutputBytes: options.maxOutputBytes, env: options.env })
+      : defaultExecutor);
     const checks: VerificationCheck[] = [];
 
     for (const name of checksToEvaluate) {
@@ -258,11 +341,12 @@ export interface ProjectVerifierRunResult {
 export class ProjectVerifier {
   constructor(
     private workspaceRoot: string,
-    private executor?: VerificationExecutor
+    private executor?: VerificationExecutor,
+    private executorOptions?: VerificationExecutorOptions
   ) {}
 
   public async run(customCommands?: string[]): Promise<ProjectVerifierRunResult> {
-    const exec = this.executor || defaultExecutor;
+    const exec = this.executor || (this.executorOptions ? createDefaultExecutor(this.executorOptions) : defaultExecutor);
 
     if (customCommands && customCommands.length > 0) {
       let allPassed = true;
@@ -313,7 +397,7 @@ export class ProjectVerifier {
 
     const vResult = await Verification.run({
       workspaceRoot: this.workspaceRoot,
-      executor: this.executor,
+      executor: exec,
     });
 
     const passed = vResult.verdict === 'verified';
