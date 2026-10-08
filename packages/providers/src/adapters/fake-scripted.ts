@@ -78,6 +78,33 @@ export class FakeScriptedModel implements Model {
     if (allContent.includes('math.ts') || allContent.includes('vertical-slice-add-function')) {
       return 'vertical-slice-add-function';
     }
+    if (allContent.includes('reverse.ts') || allContent.includes('ts-string-reverse')) {
+      return 'ts-string-reverse';
+    }
+    if (allContent.includes('dedupe.ts') || allContent.includes('ts-array-dedupe')) {
+      return 'ts-array-dedupe';
+    }
+    if (allContent.includes('tree.ts') || allContent.includes('ts-flatten-tree')) {
+      return 'ts-flatten-tree';
+    }
+    if (allContent.includes('retry.ts') || allContent.includes('ts-retry-wrapper')) {
+      return 'ts-retry-wrapper';
+    }
+    if (allContent.includes('lru.ts') || allContent.includes('ts-lru-cache')) {
+      return 'ts-lru-cache';
+    }
+    if (allContent.includes('csv.ts') || allContent.includes('ts-csv-parser')) {
+      return 'ts-csv-parser';
+    }
+    if (allContent.includes('repo-map-query-rank')) {
+      return 'repo-map-query-rank';
+    }
+    if (allContent.includes('repo-map-stack-trace')) {
+      return 'repo-map-stack-trace';
+    }
+    if (allContent.includes('repo-map-symbol-lookup')) {
+      return 'repo-map-symbol-lookup';
+    }
 
     const match = allContent.match(/task[:\s]+([a-z0-9-]+)/i);
     if (match) {
