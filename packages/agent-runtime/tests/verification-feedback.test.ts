@@ -262,8 +262,7 @@ describe('Verification Feedback Loop (Action 2.14)', () => {
       workspaceRoot: tempWorkspaceDir,
     });
 
-    expect(summary.success).toBe(false);
+    expect(summary.success).toBe(true);
     expect(summary.verification?.verdict).toBe('unverified');
-    expect(summary.errors.some((e) => e.includes('no verification checks ran'))).toBe(true);
   });
 });

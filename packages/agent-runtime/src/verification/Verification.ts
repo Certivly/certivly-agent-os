@@ -13,6 +13,7 @@ export interface VerificationCheck {
   durationMs?: number;
   outputTail?: string;
   reason?: string;
+  preExisting?: boolean;
 }
 
 export interface VerificationResult {
@@ -47,6 +48,7 @@ export interface VerificationOptions {
   timeoutMs?: number;
   maxOutputBytes?: number;
   env?: NodeJS.ProcessEnv;
+  baseline?: VerificationResult;
 }
 
 export function findNearestPackageJson(startDir: string): string | null {
@@ -310,14 +312,30 @@ export class Verification {
       }
     }
 
-    const failedCount = checks.filter((c) => c.status === 'failed').length;
+    if (options.baseline) {
+      for (const check of checks) {
+        if (check.status === 'failed') {
+          const baseCheck = options.baseline.checks.find(
+            (bc) => (bc.name === check.name || (bc.command && check.command && bc.command === check.command)) && bc.status === 'failed'
+          );
+          if (baseCheck) {
+            check.preExisting = true;
+          }
+        }
+      }
+    }
+
+    const failedChecks = checks.filter((c) => c.status === 'failed');
+    const newFailures = failedChecks.filter((c) => !c.preExisting);
     const passedCount = checks.filter((c) => c.status === 'passed').length;
 
     let verdict: VerificationVerdict;
-    if (failedCount > 0) {
+    if (newFailures.length > 0) {
       verdict = 'failed';
     } else if (passedCount > 0) {
       verdict = 'verified';
+    } else if (failedChecks.length > 0) {
+      verdict = 'failed';
     } else {
       verdict = 'unverified';
     }
@@ -339,11 +357,55 @@ export interface ProjectVerifierRunResult {
 }
 
 export class ProjectVerifier {
+  private baseline?: VerificationResult;
+
   constructor(
     private workspaceRoot: string,
     private executor?: VerificationExecutor,
     private executorOptions?: VerificationExecutorOptions
   ) {}
+
+  public async captureBaseline(customCommands?: string[]): Promise<VerificationResult | null> {
+    const exec = this.executor || (this.executorOptions ? createDefaultExecutor(this.executorOptions) : defaultExecutor);
+    if (customCommands && customCommands.length > 0) {
+      const checks: VerificationCheck[] = [];
+      for (const cmd of customCommands) {
+        if (!cmd || !cmd.trim()) continue;
+        const startTime = Date.now();
+        const res = await exec(cmd, this.workspaceRoot);
+        const durationMs = Date.now() - startTime;
+        const out = [res.stdout, res.stderr].filter(Boolean).join('\n');
+        checks.push({
+          name: cmd,
+          command: cmd,
+          status: res.exitCode === 0 ? 'passed' : 'failed',
+          exitCode: res.exitCode ?? 1,
+          durationMs,
+          outputTail: getOutputTail(out),
+        });
+      }
+      const hasFailed = checks.some((c) => c.status === 'failed');
+      this.baseline = {
+        verdict: hasFailed ? 'failed' : 'verified',
+        checks,
+      };
+      return this.baseline;
+    }
+
+    this.baseline = await Verification.run({
+      workspaceRoot: this.workspaceRoot,
+      executor: exec,
+    });
+    return this.baseline;
+  }
+
+  public setBaseline(baseline: VerificationResult): void {
+    this.baseline = baseline;
+  }
+
+  public getBaseline(): VerificationResult | undefined {
+    return this.baseline;
+  }
 
   public async run(customCommands?: string[]): Promise<ProjectVerifierRunResult> {
     const exec = this.executor || (this.executorOptions ? createDefaultExecutor(this.executorOptions) : defaultExecutor);
@@ -363,7 +425,18 @@ export class ProjectVerifier {
         outputs.push(out);
         lastExitCode = res.exitCode ?? 0;
 
-        if (res.exitCode === 0) {
+        const isFailed = res.exitCode !== 0;
+        let preExisting = false;
+        if (isFailed && this.baseline) {
+          const baseCheck = this.baseline.checks.find(
+            (c) => (c.name === cmd || c.command === cmd) && c.status === 'failed'
+          );
+          if (baseCheck) {
+            preExisting = true;
+          }
+        }
+
+        if (!isFailed) {
           checks.push({
             name: cmd,
             command: cmd,
@@ -373,7 +446,6 @@ export class ProjectVerifier {
             outputTail: getOutputTail(out),
           });
         } else {
-          allPassed = false;
           checks.push({
             name: cmd,
             command: cmd,
@@ -381,8 +453,12 @@ export class ProjectVerifier {
             exitCode: res.exitCode ?? 1,
             durationMs,
             outputTail: getOutputTail(out),
+            preExisting,
           });
-          break;
+          if (!preExisting) {
+            allPassed = false;
+            break;
+          }
         }
       }
 
@@ -398,6 +474,7 @@ export class ProjectVerifier {
     const vResult = await Verification.run({
       workspaceRoot: this.workspaceRoot,
       executor: exec,
+      baseline: this.baseline,
     });
 
     const passed = vResult.verdict === 'verified';

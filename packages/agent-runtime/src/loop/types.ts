@@ -59,6 +59,7 @@ export interface AgentLoopOptions {
   maxVerificationFixAttempts?: number;
   verificationExecutor?: VerificationExecutor;
   skipVerification?: boolean;
+  baselineVerification?: boolean;
   workflowMemoryStore?: WorkflowMemoryStore;
   selfReview?: boolean;
   maxSelfReviewAttempts?: number;
