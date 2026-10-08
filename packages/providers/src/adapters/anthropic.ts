@@ -1,59 +1,33 @@
 import { Provider, Model, GenerationRequest, GenerationResponse } from '../interface';
 import { ProviderError } from '@agent-os/shared';
+import { toAnthropicMessages } from '../serialize/anthropicMessages';
 
-class AnthropicModel implements Model {
+export class AnthropicModel implements Model {
   id: string;
   private apiKey: string;
+  private baseUrl: string;
 
-  constructor(id: string, apiKey: string) {
+  constructor(id: string, apiKey: string, baseUrl: string = 'https://api.anthropic.com') {
     this.id = id;
     this.apiKey = apiKey;
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResponse> {
     try {
       const system = request.systemPrompt;
-      const messages: any[] = [];
+      const messages = toAnthropicMessages(request.messages);
 
-      // Map roles to Anthropic Messages API format
-      for (const msg of request.messages) {
-        if (msg.role === 'system') {
-          // In Anthropic Messages API, system prompt is a top-level parameter
-          continue;
-        }
-
-        if (msg.role === 'tool') {
-          // Anthropic represents tool results as a user message with a tool_result block
-          messages.push({
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                tool_use_id: msg.toolCallId || '',
-                content: msg.content
-              }
-            ]
-          });
-        } else {
-          // Standard user or assistant message
-          messages.push({
-            role: msg.role,
-            content: msg.content
-          });
-        }
-      }
-
-      // Map tools to Anthropic format
-      const tools = request.tools?.map(t => ({
+      const tools = request.tools?.map((t) => ({
         name: t.name,
         description: t.description,
-        input_schema: t.parameters || { type: 'object', properties: {} }
+        input_schema: t.parameters || { type: 'object', properties: {} },
       }));
 
       const body: any = {
         model: this.id,
         messages,
-        max_tokens: 4096
+        max_tokens: request.maxOutputTokens || 8192,
       };
 
       if (system) {
@@ -65,14 +39,15 @@ class AnthropicModel implements Model {
       }
 
       const startTime = Date.now();
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch(`${this.baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {
           'x-api-key': this.apiKey,
           'anthropic-version': '2023-06-01',
-          'content-type': 'application/json'
+          'content-type': 'application/json',
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: request.signal,
       });
       const latencyMs = Date.now() - startTime;
 
@@ -81,7 +56,7 @@ class AnthropicModel implements Model {
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
 
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
       let text = '';
       const toolCalls: any[] = [];
 
@@ -93,7 +68,7 @@ class AnthropicModel implements Model {
             toolCalls.push({
               id: block.id,
               name: block.name,
-              args: JSON.stringify(block.input)
+              args: JSON.stringify(block.input),
             });
           }
         }
@@ -120,52 +95,32 @@ class AnthropicModel implements Model {
 
   async *stream(request: GenerationRequest): AsyncIterable<any> {
     const system = request.systemPrompt;
-    const messages: any[] = [];
+    const messages = toAnthropicMessages(request.messages);
 
-    for (const msg of request.messages) {
-      if (msg.role === 'system') continue;
-      if (msg.role === 'tool') {
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: msg.toolCallId || '',
-              content: msg.content
-            }
-          ]
-        });
-      } else {
-        messages.push({
-          role: msg.role,
-          content: msg.content
-        });
-      }
-    }
-
-    const tools = request.tools?.map(t => ({
+    const tools = request.tools?.map((t) => ({
       name: t.name,
       description: t.description,
-      input_schema: t.parameters || { type: 'object', properties: {} }
+      input_schema: t.parameters || { type: 'object', properties: {} },
     }));
 
     const body: any = {
       model: this.id,
       messages,
-      max_tokens: 4096,
+      max_tokens: request.maxOutputTokens || 8192,
       stream: true,
     };
     if (system) body.system = system;
     if (tools && tools.length > 0) body.tools = tools;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(`${this.baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'x-api-key': this.apiKey,
         'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
+        'content-type': 'application/json',
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: request.signal,
     });
 
     if (!response.ok) {
@@ -212,24 +167,26 @@ export class AnthropicProvider implements Provider {
   name = 'anthropic';
   models: Model[];
   private apiKey: string;
+  private baseUrl: string;
 
-  constructor(apiKey?: string) {
+  constructor(apiKey?: string, baseUrl?: string) {
     this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY || 'dummy-key';
+    this.baseUrl = (baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
     if (!apiKey && !process.env.ANTHROPIC_API_KEY) {
-      console.warn("Warning: ANTHROPIC_API_KEY is missing. Anthropic API calls will fail.");
+      console.warn('Warning: ANTHROPIC_API_KEY is missing. Anthropic API calls will fail.');
     }
     this.models = [
-      new AnthropicModel('claude-3-5-sonnet-20241022', this.apiKey),
-      new AnthropicModel('claude-3-opus-20240229', this.apiKey),
-      new AnthropicModel('claude-3-sonnet-20240229', this.apiKey),
-      new AnthropicModel('claude-3-haiku-20240307', this.apiKey),
+      new AnthropicModel('claude-3-5-sonnet-20241022', this.apiKey, this.baseUrl),
+      new AnthropicModel('claude-3-opus-20240229', this.apiKey, this.baseUrl),
+      new AnthropicModel('claude-3-sonnet-20240229', this.apiKey, this.baseUrl),
+      new AnthropicModel('claude-3-haiku-20240307', this.apiKey, this.baseUrl),
     ];
   }
 
   getModel(id: string): Model {
-    let model = this.models.find(m => m.id === id);
+    let model = this.models.find((m) => m.id === id);
     if (!model) {
-      model = new AnthropicModel(id, this.apiKey);
+      model = new AnthropicModel(id, this.apiKey, this.baseUrl);
       this.models.push(model);
     }
     return model;

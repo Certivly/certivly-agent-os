@@ -9,3 +9,4 @@ export * from './adapters/deepseek';
 export * from './pricing';
 export * from './streaming/StreamParsers';
 export * from './serialize/openaiMessages';
+export * from './serialize/anthropicMessages';
