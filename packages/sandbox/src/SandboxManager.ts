@@ -1,10 +1,13 @@
 import { Sandbox } from './models';
 import { LocalWorkspaceSandbox } from './local';
-import { GitWorktreeSandbox } from './worktree';
+import { GitWorktreeSandbox, isGitRepository } from './worktree';
 import { SandboxEvents } from './SandboxEvents';
 import { EventStore } from '@agent-os/events';
 import { metrics } from '@agent-os/metrics';
 import * as crypto from 'crypto';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 
 export class SandboxManager {
   private activeSandboxes: Map<string, Sandbox> = new Map();
@@ -19,7 +22,16 @@ export class SandboxManager {
     const id = crypto.randomUUID();
     let sandbox: Sandbox;
 
+    // Check if git repo when worktree strategy is requested
+    let effectiveType = type;
     if (type === 'worktree') {
+      const isGit = await isGitRepository(this.defaultWorkspaceDir);
+      if (!isGit) {
+        effectiveType = 'local';
+      }
+    }
+
+    if (effectiveType === 'worktree') {
       sandbox = new GitWorktreeSandbox(id, this.defaultWorkspaceDir);
     } else {
       sandbox = new LocalWorkspaceSandbox(id, this.defaultWorkspaceDir);
@@ -40,7 +52,7 @@ export class SandboxManager {
         requestId: 'internal',
         sessionId: 'internal',
         source: 'SandboxManager',
-        payload: { sandboxId: id, type },
+        payload: { sandboxId: id, type: effectiveType },
         version: '1.0'
       });
 
@@ -62,8 +74,11 @@ export class SandboxManager {
     const sandbox = this.activeSandboxes.get(id);
     if (!sandbox) return;
 
-    await sandbox.destroy();
-    this.activeSandboxes.delete(id);
+    try {
+      await sandbox.destroy();
+    } finally {
+      this.activeSandboxes.delete(id);
+    }
 
     metrics.counter('sandboxes_destroyed').inc();
 
@@ -79,8 +94,46 @@ export class SandboxManager {
     });
   }
 
+  public async withSandbox<T>(
+    fn: (sandbox: Sandbox) => Promise<T>,
+    type: 'local' | 'worktree' = 'worktree'
+  ): Promise<T> {
+    const sandbox = await this.createSandbox(type);
+    try {
+      return await fn(sandbox);
+    } finally {
+      await this.destroySandbox(sandbox.id);
+    }
+  }
+
+  public async gcStaleSandboxes(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<string[]> {
+    const cleanedIds: string[] = [];
+    const sandboxesDir = path.join(this.defaultWorkspaceDir, '.agentos', 'sandboxes');
+    if (!fsSync.existsSync(sandboxesDir)) {
+      return cleanedIds;
+    }
+
+    const entries = await fs.readdir(sandboxesDir);
+    const now = Date.now();
+
+    for (const entry of entries) {
+      const fullPath = path.join(sandboxesDir, entry);
+      try {
+        const stats = await fs.stat(fullPath);
+        if (now - stats.mtimeMs > maxAgeMs) {
+          await this.destroySandbox(entry);
+          if (fsSync.existsSync(fullPath)) {
+            await fs.rm(fullPath, { recursive: true, force: true });
+          }
+          cleanedIds.push(entry);
+        }
+      } catch {}
+    }
+
+    return cleanedIds;
+  }
+
   public async cleanupExpired(): Promise<void> {
-    // In a real system, we'd check timestamps. For now, we clean all.
     const ids = Array.from(this.activeSandboxes.keys());
     for (const id of ids) {
       await this.destroySandbox(id);

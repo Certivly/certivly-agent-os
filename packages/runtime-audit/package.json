@@ -8,7 +8,6 @@
   },
   "dependencies": {
     "@agent-os/events": "workspace:*",
-    "@agent-os/runtime-integration": "workspace:*",
     "@agent-os/shared": "workspace:*"
   },
   "devDependencies": {

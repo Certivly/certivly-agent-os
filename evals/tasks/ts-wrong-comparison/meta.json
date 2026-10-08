@@ -1,0 +1,6 @@
+{
+  "id": "ts-wrong-comparison",
+  "difficulty": "easy",
+  "tags": ["bugfix", "logic", "typescript"],
+  "language": "typescript"
+}

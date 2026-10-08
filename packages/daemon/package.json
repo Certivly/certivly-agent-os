@@ -12,14 +12,11 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@agent-os/brain": "workspace:*",
     "@agent-os/events": "workspace:*",
-    "@agent-os/memory": "workspace:*",
     "@agent-os/metrics": "workspace:*",
     "@agent-os/repository": "workspace:*",
-    "@agent-os/runtime-integration": "workspace:*",
+    "@agent-os/agent-runtime": "workspace:*",
     "@agent-os/shared": "workspace:*",
-    "@agent-os/wicer": "workspace:*",
     "chokidar": "^5.0.0",
     "uuid": "^10.0.0"
   },

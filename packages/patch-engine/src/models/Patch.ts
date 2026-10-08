@@ -33,3 +33,10 @@ export interface Patch {
   explanation: string;
   createdAt: number;
 }
+
+export interface PatchBundle {
+  id: string;
+  patches: Patch[];
+  summary?: string;
+  createdAt?: number;
+}

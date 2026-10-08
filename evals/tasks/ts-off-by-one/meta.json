@@ -1,0 +1,6 @@
+{
+  "id": "ts-off-by-one",
+  "difficulty": "easy",
+  "tags": ["bugfix", "typescript", "smoke"],
+  "language": "typescript"
+}

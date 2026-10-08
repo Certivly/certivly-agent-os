@@ -11,11 +11,13 @@ class OpenAIModel implements Model {
     this.client = client;
   }
 
-  async *generateStream(options: { messages: any[], tools?: any[] }): AsyncIterable<string> {
-    const formattedMessages = options.messages.map(m => {
-      // Map back to OpenAI roles
+  async *stream(request: GenerationRequest): AsyncIterable<any> {
+    const sourceMessages: any[] = request.systemPrompt
+      ? [{ role: 'system', content: request.systemPrompt }, ...request.messages]
+      : [...request.messages];
+    const formattedMessages = sourceMessages.map(m => {
       if (m.role === 'tool') {
-        return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+        return { role: 'tool', tool_call_id: m.name || '', content: m.content };
       }
       return { role: m.role, content: m.content };
     });
@@ -24,29 +26,27 @@ class OpenAIModel implements Model {
       model: this.id,
       messages: formattedMessages as any,
       stream: true,
-      // For phase 1.1 we don't stream tools to simplify, so we omit tools here unless requested.
-      // OpenAI streaming with tools is complex because chunks contain partial JSON.
-      // But we will pass tools if present.
-      tools: options.tools?.length ? options.tools.map(t => ({
-        type: 'function',
+      stream_options: { include_usage: true },
+      tools: request.tools?.length ? request.tools.map(t => ({
+        type: 'function' as const,
         function: {
           name: t.name,
           description: t.description,
-          parameters: t.parameters
+          parameters: t.parameters || { type: 'object', properties: {} }
         }
       })) : undefined,
     });
 
-    for await (const chunk of response) {
-      const delta = chunk.choices[0]?.delta;
-      if (delta?.content) {
-        yield delta.content;
-      }
-      if (delta?.tool_calls) {
-        // We will just yield a string indicating a tool call since parsing tool stream chunks is out of scope for Phase 1.1 simplistic stream.
-        // Actually, returning raw JSON could be fine, but the pipeline expects string for text stream.
-        // For Phase 1.1, we will yield a stringified tool call notification.
-        yield `\n[Tool requested: ${delta.tool_calls[0].function?.name}]\n`;
+    const { parseOpenAIStream } = await import('../streaming/StreamParsers');
+    yield* parseOpenAIStream(response as any);
+  }
+
+  async *generateStream(request: GenerationRequest): AsyncIterableIterator<any> {
+    for await (const event of this.stream(request)) {
+      if (event.type === 'text_delta') {
+        yield event.text;
+      } else if (event.type === 'tool_call_start') {
+        yield `\n[Tool requested: ${event.name}]\n`;
       }
     }
   }
@@ -75,20 +75,32 @@ class OpenAIModel implements Model {
         }
       }));
 
+      const startTime = Date.now();
       const response = await this.client.chat.completions.create({
         model: this.id,
         messages,
         tools: tools && tools.length > 0 ? tools : undefined,
       });
+      const latencyMs = Date.now() - startTime;
 
       const message = response.choices[0].message;
+      const usage = response.usage
+        ? {
+            inputTokens: response.usage.prompt_tokens,
+            outputTokens: response.usage.completion_tokens,
+            totalTokens: response.usage.total_tokens,
+          }
+        : undefined;
+
       return {
         text: message.content || '',
         toolCalls: message.tool_calls?.map(tc => ({
           id: tc.id,
           name: tc.function.name,
           args: tc.function.arguments
-        }))
+        })),
+        usage,
+        latencyMs,
       };
     } catch (e: any) {
       throw new ProviderError(`OpenAI generation failed: ${e.message}`);
@@ -115,7 +127,7 @@ export class OpenAIProvider implements Provider {
   }
 
   getModel(id: string): Model {
-    let model = this.models.find(m => m.id === id);
+    let model: Model | undefined = this.models.find(m => m.id === id);
     if (!model) {
       model = new OpenAIModel(id, this.client);
       this.models.push(model);

@@ -1,0 +1,6 @@
+{
+  "id": "ts-null-handling",
+  "difficulty": "easy",
+  "tags": ["bugfix", "null-safety", "typescript"],
+  "language": "typescript"
+}

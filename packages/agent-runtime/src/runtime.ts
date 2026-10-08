@@ -1,25 +1,44 @@
 import { ConfigManager, AgentConfig } from '@agent-os/config';
 import { SessionManager } from '@agent-os/sessions';
-import { ToolRegistry, readFileTool, writeFileTool, listFilesTool, searchFilesTool, runCommandTool } from '@agent-os/tools';
-import { Provider, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OpenRouterProvider, OllamaProvider } from '@agent-os/providers';
-import { RuntimeError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
-import { RuntimeBootstrap, RuntimePipeline } from '@agent-os/runtime-integration';
+import {
+  ToolRegistry,
+  readFileTool,
+  writeFileTool,
+  editFileTool,
+  applyPatchTool,
+  grepTool,
+  listDirTool,
+  runCommandTool,
+  listFilesTool,
+  searchFilesTool,
+  repoMapTool,
+} from '@agent-os/tools';
+import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider } from '@agent-os/providers';
+import { RuntimeError, ProviderError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
 import * as path from 'path';
+
+import { AgentLoop } from './loop/AgentLoop';
+import { LoopTool, AdaptedLoopTool } from './loop/LoopTool';
+import { SessionHistory } from './loop/SessionHistory';
+import type { RunSummary, PermissionMode } from './loop/types';
 
 export interface RuntimeOptions {
   configPath: string;
+  permissionMode?: PermissionMode;
 }
 
 export class AgentRuntime {
+  private options: RuntimeOptions;
   private configManager: ConfigManager;
   private sessionManager: SessionManager;
   private toolRegistry: ToolRegistry;
   private activeProvider: Provider;
-  
-  private bootstrap: RuntimeBootstrap;
-  private pipelinePromise: Promise<RuntimePipeline>;
+  private activeModel: Model;
+  private eventBus: LoggingEventBus;
+  private lastRunSummary?: RunSummary;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
+    this.options = options;
     this.configManager = new ConfigManager(options.configPath);
     const config = this.configManager.load();
 
@@ -31,75 +50,94 @@ export class AgentRuntime {
 
     this.registerStandardTools();
 
-    // The entire architectural intelligence payload and infrastructure dependencies
-    // (events, memory, sandbox, planner, pattern-intelligence, etc)
-    // are now isolated in the RuntimeContainer via RuntimeBootstrap.
-    this.bootstrap = new RuntimeBootstrap();
-    const activeModel = this.activeProvider.getModel(config.activeModel);
-    this.pipelinePromise = this.bootstrap.bootstrap(this.activeProvider, activeModel);
-    
-    // Wire up Narrative Engine
-    const NarrativeEngine = require('@agent-os/narrative').NarrativeEngine;
-    new NarrativeEngine(this.bootstrap.getEventBus(), sessionId);
+    this.eventBus = new LoggingEventBus();
+    this.activeModel = this.activeProvider.getModel(config.activeModel);
 
     // Check provider health at startup and publish event
-    this.pipelinePromise.then(async () => {
-      const health = await this.activeProvider.checkHealth();
-      const bus = this.bootstrap.getEventBus();
-      if (!health.ok) {
-        bus.publish('provider.health.failed', { sessionId: 'system', error: health.error });
-      } else {
-        bus.publish('provider.health.ok', { sessionId: 'system' });
-      }
-    }).catch(() => {});
+    if (typeof this.activeProvider.checkHealth === 'function') {
+      this.activeProvider.checkHealth().then(health => {
+        if (!health.ok) {
+          this.eventBus.publish('provider.health.failed', { sessionId: 'system', error: health.error });
+        } else {
+          this.eventBus.publish('provider.health.ok', { sessionId: 'system' });
+        }
+      }).catch(() => {});
+    }
   }
 
   private registerStandardTools() {
     this.toolRegistry.register(readFileTool);
+    this.toolRegistry.register(grepTool);
+    this.toolRegistry.register(listDirTool);
+    this.toolRegistry.register(editFileTool);
     this.toolRegistry.register(writeFileTool);
-    this.toolRegistry.register(listFilesTool);
-    this.toolRegistry.register(searchFilesTool);
+    this.toolRegistry.register(applyPatchTool);
     this.toolRegistry.register(runCommandTool);
+    this.toolRegistry.register(repoMapTool);
   }
 
   private initializeProvider(config: AgentConfig): Provider {
     switch (config.activeProvider) {
       case 'openai': return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl);
       case 'lmstudio': return new LMStudioProvider(config.providers['lmstudio']?.apiKey, config.providers['lmstudio']?.baseUrl);
-      case 'anthropic': return AnthropicProvider;
-      case 'gemini': return GeminiProvider;
-      case 'deepseek': return DeepSeekProvider;
-      case 'openrouter': return OpenRouterProvider;
-      case 'ollama': return OllamaProvider;
+      case 'anthropic': return new AnthropicProvider(config.providers['anthropic']?.apiKey);
+      case 'gemini':
+        return new GeminiProvider(
+          config.providers['gemini']?.apiKey ?? process.env.GEMINI_API_KEY ?? '',
+          config.providers['gemini']?.baseUrl
+        );
+      case 'deepseek':
+        return new DeepSeekProvider(
+          config.providers['deepseek']?.apiKey ?? process.env.DEEPSEEK_API_KEY ?? '',
+          config.providers['deepseek']?.baseUrl
+        );
+      case 'ollama':
+        return new OllamaProvider(
+          config.providers['ollama']?.apiKey ?? '',
+          config.providers['ollama']?.baseUrl ?? 'http://127.0.0.1:11434'
+        );
+      case 'openrouter':
+        throw new RuntimeError(`${config.activeProvider} provider is not implemented yet`);
       default: throw new RuntimeError(`Unsupported provider: ${config.activeProvider}`);
     }
   }
 
   public getSessionManager() { return this.sessionManager; }
   public getConfigManager() { return this.configManager; }
+  public getToolRegistry() { return this.toolRegistry; }
   
-  // To satisfy external UI streams, we fetch the centralized event bus from the container bootstrap
   public getEventBus(): LoggingEventBus {
-    return this.bootstrap.getEventBus();
+    return this.eventBus;
   }
 
-  public getBootstrap(): RuntimeBootstrap {
-    return this.bootstrap;
+  public getLastRunSummary(): RunSummary | undefined {
+    return this.lastRunSummary;
+  }
+
+  public getLoopTools(workspaceRoot: string = process.cwd()): LoopTool[] {
+    const tools: LoopTool[] = [];
+
+    for (const tool of this.toolRegistry.list()) {
+      tools.push(
+        new AdaptedLoopTool(tool, {
+          workspaceRoot,
+        })
+      );
+    }
+
+    return tools;
   }
 
   public async handleRequest(sessionId: string, input: string, stream = false): Promise<AsyncIterable<string> | string> {
     const requestId = crypto.randomUUID();
     
     return runWithContext({ requestId, sessionId }, async () => {
-      logger.info('runtime', 'message.received', `Handling request via autonomous production pipeline for session ${sessionId}`);
+      logger.info('runtime', 'message.received', `Handling request via AgentLoop for session ${sessionId}`);
       const eventBus = this.getEventBus();
       eventBus.publish('message.received', { sessionId, input });
 
-      if (this.activeProvider) {
-        this.bootstrap.getRegistry().register("provider", this.activeProvider);
-      }
-      if (this.activeModel) {
-        this.bootstrap.getRegistry().register("model", this.activeModel);
+      if (!this.activeProvider || !this.activeModel) {
+        throw new RuntimeError('No active provider or model configured');
       }
 
       try {
@@ -117,42 +155,80 @@ export class AgentRuntime {
         return errMsg;
       }
 
-      // Delegate pure execution to RuntimePipeline
-      const pipeline = await this.pipelinePromise;
-      const approvalPackage = await pipeline.execute(sessionId, input);
-      
-      if (approvalPackage?.executionResult?.error?.includes('Provider timeout')) {
-        throw new ProviderError('Provider timeout');
-      }
-      
-      try {
-        const memoryStore: any = this.bootstrap.getRegistry().resolve("memory-store");
-        if (memoryStore) {
-          memoryStore.save({
-            id: crypto.randomUUID(),
-            type: 'FactMemory',
-            topic: input.slice(0, 50),
-            content: `Goal: "${input}". Risk score: ${approvalPackage.planSummary?.riskScore ?? 0}. Success: ${approvalPackage.executionResult?.success ?? false}.`,
-            confidence: 0.9,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            sourceEventIds: [],
-            sourceSessionIds: [sessionId],
-            sourceRequestIds: [requestId],
-            sourceContextIds: [],
-            tags: ['execution_result'],
-            version: 1
-          });
-        }
-      } catch (err: any) {
-        logger.error('runtime', 'memory.save.error', `Failed to save execution to memory: ${err.message}`);
-      }
-      
-      const response = JSON.stringify(approvalPackage, null, 2);
+      const config = this.configManager.load();
+      const workspaceRoot = config.repository?.rootPath || process.cwd();
+      const history = new SessionHistory(this.sessionManager);
 
+      const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
+
+      const loop = new AgentLoop({
+        model: this.activeModel,
+        tools: this.getLoopTools(workspaceRoot),
+        toolRegistry: this.toolRegistry,
+        history,
+        eventBus,
+        workspaceRoot,
+        options: {
+          permissionMode,
+          hooks: config.hooks,
+        },
+      });
+
+      const summary = await loop.run({
+        sessionId,
+        userInput: input,
+        workspaceRoot,
+      });
+
+      this.lastRunSummary = summary;
+
+      if (!summary.success) {
+        const errorText = summary.errors.join('; ') || 'Execution failed';
+        if (summary.errors.some(e => /provider/i.test(e) || /timeout/i.test(e))) {
+          throw new ProviderError(errorText);
+        }
+        const errorResponse = summary.finalText
+          ? `${summary.finalText}\n\n[Error: ${errorText}]`
+          : `Error: ${errorText}`;
+        eventBus.publish('message.responded', { sessionId, response: errorResponse });
+        return errorResponse;
+      }
+
+      const response = summary.finalText;
       eventBus.publish('message.responded', { sessionId, response });
       
       return response;
     });
   }
+
+  public async resume(sessionId: string, runId?: string): Promise<RunSummary> {
+
+    const config = this.configManager.load();
+    const workspaceRoot = config.repository?.rootPath || process.cwd();
+    const history = new SessionHistory(this.sessionManager);
+    const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
+
+    const loop = new AgentLoop({
+      model: this.activeModel,
+      tools: this.getLoopTools(workspaceRoot),
+      toolRegistry: this.toolRegistry,
+      history,
+      eventBus: this.eventBus,
+      workspaceRoot,
+      options: {
+        permissionMode,
+        hooks: config.hooks,
+      },
+    });
+
+    const summary = await loop.resume({
+      sessionId,
+      runId,
+      workspaceRoot,
+    });
+
+    this.lastRunSummary = summary;
+    return summary;
+  }
 }
+

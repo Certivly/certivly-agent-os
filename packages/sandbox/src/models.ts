@@ -2,12 +2,15 @@ export interface ExecutionOptions {
   timeoutMs?: number;
   cwd?: string;
   env?: Record<string, string>;
+  signal?: AbortSignal;
+  shell?: boolean | string;
 }
 
 export interface ExecutionResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  timedOut?: boolean;
 }
 
 export type FilePatch = {

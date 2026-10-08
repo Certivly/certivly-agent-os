@@ -7,7 +7,8 @@ export const mountInkApp = (
   sessionId: string, 
   batcher: EventBatcher, 
   onInput: (input: string, mode: string) => void,
-  onApprove?: (patchBundle: any) => Promise<void>
+  onApprove?: (changeSetId: string) => Promise<void>,
+  onReject?: (changeSetId: string) => Promise<void>
 ) => {
-  return render(<App sessionId={sessionId} batcher={batcher} onInput={onInput} onApprove={onApprove} />);
+  return render(<App sessionId={sessionId} batcher={batcher} onInput={onInput} onApprove={onApprove} onReject={onReject} />);
 };

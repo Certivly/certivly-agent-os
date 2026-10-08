@@ -4,8 +4,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { ASTPatchBuilder } from "../src/ast/ASTPatchBuilder";
 import { ASTPatchValidator } from "../src/ast/ASTPatchValidator";
-import { ConventionEngine } from "../../brain/src/conventions/ConventionEngine";
-import { PatchValidator } from "../src/patch/PatchValidator";
+import { PatchValidator, IConventionEngine } from "../src/patch/PatchValidator";
 import { PatchExecutor } from "../src/patch/PatchExecutor";
 import { PatchRollback } from "../src/patch/PatchRollback";
 import { PatchStore } from "../src/store/PatchStore";
@@ -48,7 +47,7 @@ describe("Patch Engine Lifecycle & Determinism", () => {
 
     // 3. Setup Engine
     const astValidator = new ASTPatchValidator(parserRegistry);
-    const conventionEngine = new ConventionEngine();
+    const conventionEngine: IConventionEngine = { discover: () => [] };
     const validator = new PatchValidator(astValidator, conventionEngine);
     const executor = new PatchExecutor();
     const rollback = new PatchRollback(new Map());

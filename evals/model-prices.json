@@ -1,0 +1,38 @@
+{
+  "fake:scripted": {
+    "inputPerMillion": 0.0,
+    "outputPerMillion": 0.0
+  },
+  "openai:gpt-4.1": {
+    "inputPerMillion": 2.50,
+    "outputPerMillion": 10.00
+  },
+  "openai:gpt-4o": {
+    "inputPerMillion": 2.50,
+    "outputPerMillion": 10.00
+  },
+  "openai:gpt-4o-mini": {
+    "inputPerMillion": 0.15,
+    "outputPerMillion": 0.60
+  },
+  "anthropic:claude-sonnet": {
+    "inputPerMillion": 3.00,
+    "outputPerMillion": 15.00
+  },
+  "anthropic:claude-3-5-sonnet-20241022": {
+    "inputPerMillion": 3.00,
+    "outputPerMillion": 15.00
+  },
+  "anthropic:claude-3-haiku-20240307": {
+    "inputPerMillion": 0.25,
+    "outputPerMillion": 1.25
+  },
+  "lmstudio:local": {
+    "inputPerMillion": 0.0,
+    "outputPerMillion": 0.0
+  },
+  "ollama:local": {
+    "inputPerMillion": 0.0,
+    "outputPerMillion": 0.0
+  }
+}

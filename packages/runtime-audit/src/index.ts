@@ -10,3 +10,4 @@ export * from "./WiringRecommendationEngine";
 export * from "./PackageUsageReport";
 export * from "./RuntimeHealthChecker";
 export * from "./RuntimeAuditor";
+export * from "./BoundaryImportScanner";

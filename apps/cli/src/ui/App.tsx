@@ -11,8 +11,9 @@ export const App: React.FC<{
   sessionId: string;
   batcher: EventBatcher; 
   onInput: (input: string, mode: string) => void;
-  onApprove?: (patchBundle: any) => Promise<void>;
-}> = ({ sessionId, batcher, onInput, onApprove }) => {
+  onApprove?: (changeSetId: string) => Promise<void>;
+  onReject?: (changeSetId: string) => Promise<void>;
+}> = ({ sessionId, batcher, onInput, onApprove, onReject }) => {
   const { state, setMode, setFocus } = useAgentSession(sessionId);
   const projection = useEventStream(batcher);
   const { stdout } = useStdout();
@@ -23,11 +24,26 @@ export const App: React.FC<{
     if (!msg) return;
     try {
       const data = JSON.parse(msg.content);
-      if (data.patchBundle && onApprove) {
-        await onApprove(data.patchBundle);
+      const changeSetId = data.changeSetId || data.patchBundle?.id || data.id;
+      if (changeSetId && onApprove) {
+        await onApprove(changeSetId);
       }
     } catch (err) {
-      console.error("[App] Failed to approve patch bundle:", err);
+      console.error("[App] Failed to approve changeSet:", err);
+    }
+  };
+
+  const handleReject = async (msgId: string) => {
+    const msg = projection.chatHistory.find(m => m.id === msgId);
+    if (!msg) return;
+    try {
+      const data = JSON.parse(msg.content);
+      const changeSetId = data.changeSetId || data.patchBundle?.id || data.id;
+      if (changeSetId && onReject) {
+        await onReject(changeSetId);
+      }
+    } catch (err) {
+      console.error("[App] Failed to reject changeSet:", err);
     }
   };
 
@@ -83,7 +99,7 @@ export const App: React.FC<{
             narrativeState={projection.narrativeState}
             narrativeSummary={projection.narrativeSummary}
             onApprove={handleApprove}
-            onReject={() => {}}
+            onReject={handleReject}
           />
         </Box>
 

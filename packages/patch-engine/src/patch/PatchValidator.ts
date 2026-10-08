@@ -1,12 +1,14 @@
 import * as fs from "fs";
 import { Patch } from "../models/Patch";
 import { ASTPatchValidator } from "../ast/ASTPatchValidator";
-import { ConventionEngine } from "@agent-os/brain/src/conventions/ConventionEngine";
+export interface IConventionEngine {
+  discover(files: string[]): Array<{ pattern: string; evidenceCount?: number }>;
+}
 
 export class PatchValidator {
   constructor(
     private astValidator: ASTPatchValidator,
-    private conventionEngine: ConventionEngine
+    private conventionEngine: IConventionEngine
   ) {}
 
   public validate(patch: Patch): { valid: boolean; reason?: string } {

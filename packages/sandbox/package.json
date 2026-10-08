@@ -6,6 +6,7 @@
   "dependencies": {
     "@agent-os/events": "workspace:*",
     "@agent-os/metrics": "workspace:*",
+    "@agent-os/tools": "workspace:*",
     "@agent-os/shared": "workspace:*"
   },
   "devDependencies": {

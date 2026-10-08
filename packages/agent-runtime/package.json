@@ -10,12 +10,10 @@
     "@agent-os/shared": "workspace:*",
     "@agent-os/tools": "workspace:*",
     "@agent-os/events": "workspace:*",
-    "@agent-os/memory": "workspace:*",
     "@agent-os/metrics": "workspace:*",
     "@agent-os/sandbox": "workspace:*",
-    "@agent-os/narrative": "workspace:*",
-    "@agent-os/runtime-integration": "workspace:*",
     "@agent-os/daemon": "workspace:*",
-    "@agent-os/subagents": "workspace:*"
+    "@agent-os/patch-engine": "workspace:*"
   }
 }
+

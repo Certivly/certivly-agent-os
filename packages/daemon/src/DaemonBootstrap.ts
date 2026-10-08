@@ -25,7 +25,6 @@ import { StateStore } from './persistence/StateStore';
 import { SessionSnapshotStore } from './persistence/SessionSnapshotStore';
 import { SessionRecovery } from './sessions/SessionRecovery';
 import { DaemonLifecycle } from './DaemonLifecycle';
-import { RuntimeBootstrap } from '@agent-os/runtime-integration';
 import { IncrementalUpdatePipeline } from './watchers/IncrementalUpdatePipeline';
 
 export class DaemonBootstrap {
@@ -52,30 +51,20 @@ export class DaemonBootstrap {
     const updatePipeline = new IncrementalUpdatePipeline(repositoryCache, bus);
     const repositoryManager = new RepositoryManager(repositoryRegistry, repositoryCache, repositoryWatcher);
 
-    // RuntimePool backed by real RuntimePipeline instances
+    // RuntimePool backed by real AgentRuntime instances
     const runtimePool = new RuntimePool(
       config.maxConcurrentRuntimes,
       () => {
-        // Each session gets its own bootstrap → pipeline
-        const bootstrap = new RuntimeBootstrap();
-        // bootstrap() is async so we wrap it; the pipeline is resolved lazily on first execute()
-        let pipeline: any = null;
-        let bootstrapPromise: Promise<any> | null = null;
-
-        const ensurePipeline = async () => {
-          if (pipeline) return pipeline;
-          if (!bootstrapPromise) bootstrapPromise = bootstrap.bootstrap();
-          pipeline = await bootstrapPromise;
-          return pipeline;
-        };
-
-        // Return a proxy RuntimePipeline that defers bootstrap to first call
+        let runtimeInstance: any = null;
         return {
           execute: async (sessionId: string, input: string) => {
-            const p = await ensurePipeline();
-            return await p.execute(sessionId, input);
+            if (!runtimeInstance) {
+              const { AgentRuntime } = await import('@agent-os/agent-runtime');
+              runtimeInstance = new AgentRuntime({ configPath: '' }, sessionId);
+            }
+            return await runtimeInstance.handleRequest(sessionId, input);
           }
-        } as any;
+        };
       }
     );
 

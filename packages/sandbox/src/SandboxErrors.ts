@@ -2,7 +2,8 @@ import { AgentError } from '@agent-os/shared';
 
 export class SandboxError extends AgentError {
   constructor(message: string, code: string = 'SANDBOX_ERROR') {
-    super(message, code);
+    super(message);
+    this.name = code;
   }
 }
 

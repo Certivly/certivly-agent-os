@@ -1,0 +1,22 @@
+{
+  "taskId": "ts-null-handling",
+  "turns": [
+    {
+      "text": "Fixing null handling in src/user.ts",
+      "toolCalls": [
+        {
+          "id": "call-fix-user",
+          "name": "write_file",
+          "args": {
+            "path": "src/user.ts",
+            "content": "export interface User {\n  id: string;\n  profile?: { name?: string };\n}\n\nexport function getDisplayName(user?: User | null): string {\n  return user?.profile?.name || \"Anonymous\";\n}\n",
+            "overwrite": true
+          }
+        }
+      ]
+    },
+    {
+      "text": "The required task has been successfully solved and verified."
+    }
+  ]
+}

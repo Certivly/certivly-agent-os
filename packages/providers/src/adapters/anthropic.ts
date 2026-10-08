@@ -54,7 +54,7 @@ class AnthropicModel implements Model {
         } else {
           // Standard user or assistant message
           messages.push({
-            role: msg.role === 'system' ? 'user' : msg.role,
+            role: msg.role,
             content: msg.content
           });
         }
@@ -81,6 +81,7 @@ class AnthropicModel implements Model {
         body.tools = tools;
       }
 
+      const startTime = Date.now();
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -90,6 +91,7 @@ class AnthropicModel implements Model {
         },
         body: JSON.stringify(body)
       });
+      const latencyMs = Date.now() - startTime;
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -114,19 +116,120 @@ class AnthropicModel implements Model {
         }
       }
 
+      const usage = data.usage
+        ? {
+            inputTokens: data.usage.input_tokens ?? 0,
+            outputTokens: data.usage.output_tokens ?? 0,
+            totalTokens: (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
+          }
+        : undefined;
+
       return {
         text,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        usage,
+        latencyMs,
       };
     } catch (e: any) {
       throw new ProviderError(`Anthropic generation failed: ${e.message}`);
     }
   }
 
-  // Simplistic stream generator that yields text chunks
+  async *stream(request: GenerationRequest): AsyncIterable<any> {
+    const system = request.systemPrompt;
+    const messages: any[] = [];
+
+    for (const msg of request.messages) {
+      if (msg.role === 'system') continue;
+      if (msg.role === 'tool') {
+        messages.push({
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: msg.name || '',
+              content: msg.content
+            }
+          ]
+        });
+      } else if (msg.role === 'assistant' && msg.name) {
+        messages.push({
+          role: 'assistant',
+          content: [
+            { type: 'text', text: msg.content || '' },
+            { type: 'tool_use', id: msg.name, name: msg.name, input: {} }
+          ]
+        });
+      } else {
+        messages.push({
+          role: msg.role,
+          content: msg.content
+        });
+      }
+    }
+
+    const tools = request.tools?.map(t => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.parameters || { type: 'object', properties: {} }
+    }));
+
+    const body: any = {
+      model: this.id,
+      messages,
+      max_tokens: 4096,
+      stream: true,
+    };
+    if (system) body.system = system;
+    if (tools && tools.length > 0) body.tools = tools;
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ProviderError(`Anthropic streaming failed HTTP ${response.status}: ${errorText}`);
+    }
+
+    async function* responseToLines(res: Response): AsyncIterable<string> {
+      const reader = res.body?.getReader();
+      if (!reader) return;
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          yield line;
+        }
+      }
+      if (buffer) {
+        yield buffer;
+      }
+    }
+
+    const { parseAnthropicSSEStream } = await import('../streaming/StreamParsers');
+    yield* parseAnthropicSSEStream(responseToLines(response));
+  }
+
   async *generateStream?(request: GenerationRequest): AsyncIterableIterator<any> {
-    const response = await this.generate(request);
-    yield response.text;
+    for await (const event of this.stream(request)) {
+      if (event.type === 'text_delta') {
+        yield event.text;
+      } else if (event.type === 'tool_call_start') {
+        yield `\n[Tool requested: ${event.name}]\n`;
+      }
+    }
   }
 }
 

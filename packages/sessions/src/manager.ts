@@ -20,12 +20,24 @@ export interface ToolCallData {
 
 export class SessionManager {
   private db: BunSQLiteDatabase<typeof schema>;
+  private sqlite: import('bun:sqlite').Database;
 
   constructor(dbPath: string) {
-    this.db = getDb(dbPath);
+    const { db, sqlite } = getDb(dbPath);
+    this.db = db;
+    this.sqlite = sqlite;
   }
 
+  public close(): void {
+    try {
+      this.sqlite.close();
+    } catch {}
+  }
+
+
+
   public createSession(id: string): void {
+
     try {
       this.db.insert(schema.sessions).values({ id }).run();
     } catch (e: any) {
@@ -84,4 +96,72 @@ export class SessionManager {
       .where(eq(schema.messages.sessionId, sessionId))
       .all();
   }
+
+  public createRun(run: {
+    id: string;
+    sessionId: string;
+    status?: schema.RunStatus;
+    userInput?: string;
+    tracePath?: string;
+  }): void {
+    try {
+      this.db.insert(schema.runs).values({
+        id: run.id,
+        sessionId: run.sessionId,
+        status: run.status ?? 'running',
+        userInput: run.userInput,
+        tracePath: run.tracePath,
+      }).run();
+    } catch (e: any) {
+      throw new SessionError(`Failed to create run: ${e.message}`);
+    }
+  }
+
+  public updateRun(id: string, updates: Partial<{
+    status: schema.RunStatus;
+    userInput?: string;
+    finalText?: string;
+    verification?: string;
+    approvalDecisions?: string;
+    tracePath?: string;
+  }>): void {
+    try {
+      this.db.update(schema.runs)
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.runs.id, id))
+        .run();
+    } catch (e: any) {
+      throw new SessionError(`Failed to update run: ${e.message}`);
+    }
+  }
+
+  public getRun(id: string) {
+    const run = this.db.select().from(schema.runs).where(eq(schema.runs.id, id)).get();
+    return run ?? null;
+  }
+
+  public getRuns(sessionId: string) {
+    return this.db.select().from(schema.runs)
+      .where(eq(schema.runs.sessionId, sessionId))
+      .all();
+  }
+
+  public getIncompleteRun(sessionId: string) {
+    const run = this.db.select().from(schema.runs)
+      .where(eq(schema.runs.sessionId, sessionId))
+      .all()
+      .find(r => r.status === 'running');
+    return run ?? null;
+  }
+
+  public getToolCallsForSession(sessionId: string) {
+    const msgs = this.getMessages(sessionId);
+    if (msgs.length === 0) return [];
+    const msgIds = new Set(msgs.map(m => m.id));
+    return this.db.select().from(schema.toolCalls).all().filter(tc => msgIds.has(tc.messageId));
+  }
 }
+

@@ -1,12 +1,11 @@
 import { Sandbox, ExecutionResult, ExecutionOptions, FilePatch, WorkspaceSnapshot } from './models';
 import { PatchEngine } from './PatchEngine';
 import { WorkspaceSnapshotBuilder } from './WorkspaceSnapshot';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { executeInDir } from './exec-helper';
+import { SKIP_DIRS } from './worktree';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
-
-const execAsync = promisify(exec);
 
 export class LocalWorkspaceSandbox implements Sandbox {
   public readonly id: string;
@@ -16,42 +15,59 @@ export class LocalWorkspaceSandbox implements Sandbox {
 
   constructor(id: string, sourceWorkspaceDir: string) {
     this.id = id;
-    this.sourceWorkspaceDir = sourceWorkspaceDir;
-    this.sandboxDir = path.join(sourceWorkspaceDir, '.agentos', 'sandboxes', id);
+    this.sourceWorkspaceDir = path.resolve(sourceWorkspaceDir);
+    this.sandboxDir = path.join(this.sourceWorkspaceDir, '.agentos', 'sandboxes', id);
+  }
+
+  public getSandboxDir(): string {
+    return this.sandboxDir;
   }
 
   public async create(): Promise<void> {
     await fs.mkdir(this.sandboxDir, { recursive: true });
 
-    const entries = await fs.readdir(this.sourceWorkspaceDir, { withFileTypes: true });
-    
-    for (const entry of entries) {
-      if (entry.name === '.git' || entry.name === 'node_modules' || entry.name === '.agentos') {
-        continue;
-      }
-      
-      const sourcePath = path.join(this.sourceWorkspaceDir, entry.name);
-      const destPath = path.join(this.sandboxDir, entry.name);
-      
-      await fs.cp(sourcePath, destPath, { recursive: true });
+    // Copy non-ignored files
+    await this.copyWorkspaceFiles(this.sourceWorkspaceDir, this.sandboxDir);
+
+    // Link node_modules if present in source
+    const srcNodeModules = path.join(this.sourceWorkspaceDir, 'node_modules');
+    const destNodeModules = path.join(this.sandboxDir, 'node_modules');
+    if (fsSync.existsSync(srcNodeModules) && !fsSync.existsSync(destNodeModules)) {
+      try {
+        if (process.platform === 'win32') {
+          await fs.symlink(srcNodeModules, destNodeModules, 'junction');
+        } else {
+          await fs.symlink(srcNodeModules, destNodeModules, 'dir');
+        }
+      } catch {}
     }
 
     this.initialSnapshot = await WorkspaceSnapshotBuilder.capture(this.sandboxDir);
   }
 
-  public async execute(command: string, options?: ExecutionOptions): Promise<ExecutionResult> {
-    try {
-      const cwd = options?.cwd ? path.join(this.sandboxDir, options.cwd) : this.sandboxDir;
-      const env = { ...process.env, ...options?.env };
-      const { stdout, stderr } = await execAsync(command, { cwd, env, timeout: options?.timeoutMs });
-      return { stdout, stderr, exitCode: 0 };
-    } catch (error: any) {
-      return {
-        stdout: error.stdout || '',
-        stderr: error.stderr || error.message || '',
-        exitCode: error.code || 1
-      };
+  private async copyWorkspaceFiles(srcDir: string, destDir: string): Promise<void> {
+    const entries = await fs.readdir(srcDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (SKIP_DIRS.includes(entry.name)) {
+        continue;
+      }
+
+      const srcPath = path.join(srcDir, entry.name);
+      const destPath = path.join(destDir, entry.name);
+
+      if (entry.isDirectory()) {
+        await fs.mkdir(destPath, { recursive: true });
+        await this.copyWorkspaceFiles(srcPath, destPath);
+      } else if (entry.isFile()) {
+        await fs.mkdir(path.dirname(destPath), { recursive: true });
+        await fs.copyFile(srcPath, destPath);
+      }
     }
+  }
+
+  public async execute(command: string, options?: ExecutionOptions): Promise<ExecutionResult> {
+    return executeInDir(command, this.sandboxDir, options);
   }
 
   public async readFile(filePath: string): Promise<string> {
@@ -96,4 +112,3 @@ export class LocalWorkspaceSandbox implements Sandbox {
     await fs.rm(this.sandboxDir, { recursive: true, force: true });
   }
 }
-

@@ -1,0 +1,22 @@
+{
+  "taskId": "repo-map-stack-trace",
+  "turns": [
+    {
+      "text": "Fixing null handling in parser.ts",
+      "toolCalls": [
+        {
+          "id": "call-parser-fix",
+          "name": "write_file",
+          "args": {
+            "path": "src/parser.ts",
+            "content": "export function parseCsvLine(line?: string | null): string[] {\n  if (!line) return [];\n  return line.split(',').map((s) => s.trim());\n}\n",
+            "overwrite": true
+          }
+        }
+      ]
+    },
+    {
+      "text": "The required task has been successfully solved and verified."
+    }
+  ]
+}

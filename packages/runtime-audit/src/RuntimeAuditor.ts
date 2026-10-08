@@ -15,11 +15,11 @@ export class RuntimeAuditor {
   ) { }
 
   public async audit(): Promise<ArchitectureSnapshot> {
-    this.eventBus.publish({ type: "runtime.audit.started", payload: {} });
+    this.eventBus.publish("runtime.audit.started", {});
 
     const scanner = new PackageScanner(this.workspaceRoot);
     const packages = await scanner.scanPackages();
-    packages.forEach(p => this.eventBus.publish({ type: "runtime.package.discovered", payload: { name: p.name } }));
+    packages.forEach(p => this.eventBus.publish("runtime.package.discovered", { name: p.name }));
 
     const graphBuilder = new DependencyGraphBuilder();
     const graph = graphBuilder.build(packages);
@@ -50,8 +50,8 @@ export class RuntimeAuditor {
       else if (testOnly.has(pkg.name)) status = 'TEST_ONLY';
       else if (!productionReachable.has(pkg.name)) status = 'DISCONNECTED';
 
-      if (status === 'DEAD') this.eventBus.publish({ type: "runtime.package.dead", payload: { name: pkg.name } });
-      if (status === 'STUBBED') this.eventBus.publish({ type: "runtime.package.stubbed", payload: { name: pkg.name } });
+      if (status === 'DEAD') this.eventBus.publish("runtime.package.dead", { name: pkg.name });
+      if (status === 'STUBBED') this.eventBus.publish("runtime.package.stubbed", { name: pkg.name });
 
       return {
         name: pkg.name,
@@ -79,7 +79,7 @@ export class RuntimeAuditor {
       disconnectedPackages
     };
 
-    this.eventBus.publish({ type: "runtime.audit.completed", payload: { snapshot } });
+    this.eventBus.publish("runtime.audit.completed", { snapshot });
     return snapshot;
   }
 }

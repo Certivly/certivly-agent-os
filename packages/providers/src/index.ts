@@ -2,6 +2,12 @@ export * from './interface';
 export * from './adapters/openai';
 export * from './adapters/anthropic';
 export * from './adapters/lmstudio';
-export * from './adapters/placeholders';
+export * from './adapters/fake-scripted';
+export * from './adapters/ollama';
+export * from './adapters/gemini';
+export * from './adapters/deepseek';
+export * from './pricing';
+export * from './streaming/StreamParsers';
+
 
 

@@ -1,0 +1,6 @@
+{
+  "id": "repo-map-stack-trace",
+  "difficulty": "easy",
+  "tags": ["repo-map", "stacktrace"],
+  "language": "typescript"
+}

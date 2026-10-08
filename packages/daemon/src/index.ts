@@ -14,7 +14,7 @@ export * from './clients/DaemonClient';
 // API
 export * from './api/DaemonRouter';
 export * from './api/RequestHandler';
-export * from './api/ResponseHandler';
+export { ResponseHandler } from './api/ResponseHandler';
 export * from './api/Transport';
 export * from './api/UnixSocketTransport';
 export * from './api/TcpTransport';

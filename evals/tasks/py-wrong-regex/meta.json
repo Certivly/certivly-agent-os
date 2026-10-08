@@ -1,0 +1,6 @@
+{
+  "id": "py-wrong-regex",
+  "difficulty": "easy",
+  "tags": ["bugfix", "regex", "python"],
+  "language": "python"
+}

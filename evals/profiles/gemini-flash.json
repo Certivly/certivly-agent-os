@@ -1,0 +1,10 @@
+{
+  "id": "gemini-flash",
+  "provider": "gemini",
+  "model": "gemini-2.0-flash",
+  "configOverrides": {
+    "activeProvider": "gemini",
+    "activeModel": "gemini-2.0-flash"
+  },
+  "description": "Gemini 2.0 Flash — baseline eval profile"
+}

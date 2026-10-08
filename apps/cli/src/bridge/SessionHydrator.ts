@@ -5,12 +5,12 @@ export class SessionHydrator {
   constructor(private eventStore: EventStore) {}
 
   public async hydrate(sessionId: string): Promise<UIEvent[]> {
-    const rawEvents = await this.eventStore.getEvents(sessionId);
-    return rawEvents.map((raw: any) => ({
-      id: raw.id || Date.now().toString(),
-      type: raw.type,
-      timestamp: raw.timestamp || Date.now(),
-      payload: raw.payload
+    const envelopes = this.eventStore.loadEvents(sessionId);
+    return envelopes.map((envelope: any) => ({
+      id: envelope.event.id || Date.now().toString(),
+      type: envelope.event.eventType,
+      timestamp: envelope.event.timestamp || Date.now(),
+      payload: envelope.event.payload
     }));
   }
 }

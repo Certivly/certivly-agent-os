@@ -1,0 +1,8 @@
+{
+  "id": "vertical-slice-add-function",
+  "description": "Add an exported function multiply(a, b) to src/math.ts and a test for it.",
+  "tags": ["smoke", "vertical-slice"],
+  "timeoutMs": 60000,
+  "requiresChanges": true,
+  "verificationCommand": "bun test"
+}

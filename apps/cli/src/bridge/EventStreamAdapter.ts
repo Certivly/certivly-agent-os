@@ -80,8 +80,11 @@ export class EventStreamAdapter {
            'provider.request.started',
            'provider.request.completed',
            'provider.health.ok',
-           'provider.health.failed'
+           'provider.health.failed',
+           'approval.requested',
+           'approval.decided'
          ].includes(rawEvent.type);
+
          
          const isNarrativeEvent = rawEvent.type.startsWith('narrative.');
          
@@ -96,6 +99,13 @@ export class EventStreamAdapter {
         timestamp: rawEvent.timestamp || Date.now(),
         payload: rawEvent.payload
       };
+
+      if (rawEvent.type === 'agent.loop.completed') {
+        const summary = rawEvent.payload?.summary;
+        if (summary?.hasChanges && summary?.changeSetId) {
+          console.log(`\n[Changes recorded] Run: agentos patch show ${summary.changeSetId}`);
+        }
+      }
 
       this.ringBuffer.push(uiEvent);
       this.batcher.add(uiEvent);

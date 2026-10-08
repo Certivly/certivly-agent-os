@@ -1,12 +1,25 @@
 import { Sandbox, ExecutionResult, ExecutionOptions, FilePatch, WorkspaceSnapshot } from './models';
 import { PatchEngine } from './PatchEngine';
 import { WorkspaceSnapshotBuilder } from './WorkspaceSnapshot';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { execFileAsync, executeInDir } from './exec-helper';
 import * as fs from 'fs/promises';
+import * as fsSync from 'fs';
 import * as path from 'path';
 
-const execAsync = promisify(exec);
+export const SKIP_DIRS = ['.git', 'node_modules', '.agentos', 'dist', 'build', '.idea'];
+
+export async function isGitRepository(dir: string): Promise<boolean> {
+  try {
+    const gitDir = path.join(dir, '.git');
+    if (fsSync.existsSync(gitDir)) {
+      return true;
+    }
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: dir });
+    return path.resolve(stdout.trim()) === path.resolve(dir);
+  } catch {
+    return false;
+  }
+}
 
 export class GitWorktreeSandbox implements Sandbox {
   public readonly id: string;
@@ -17,34 +30,103 @@ export class GitWorktreeSandbox implements Sandbox {
 
   constructor(id: string, sourceWorkspaceDir: string) {
     this.id = id;
-    this.sourceWorkspaceDir = sourceWorkspaceDir;
-    this.sandboxDir = path.join(sourceWorkspaceDir, '.agentos', 'sandboxes', id);
+    this.sourceWorkspaceDir = path.resolve(sourceWorkspaceDir);
+    this.sandboxDir = path.join(this.sourceWorkspaceDir, '.agentos', 'sandboxes', id);
     this.branchName = `sandbox-${id}`;
+  }
+
+  public getSandboxDir(): string {
+    return this.sandboxDir;
   }
 
   public async create(): Promise<void> {
     await fs.mkdir(path.dirname(this.sandboxDir), { recursive: true });
 
-    await execAsync(`git worktree add -b "${this.branchName}" "${this.sandboxDir}"`, {
-      cwd: this.sourceWorkspaceDir
+    // 1. Create worktree from HEAD
+    // If branch already exists, remove it first
+    try {
+      await execFileAsync('git', ['branch', '-D', this.branchName], { cwd: this.sourceWorkspaceDir });
+    } catch {}
+
+    await execFileAsync('git', ['worktree', 'add', '-b', this.branchName, this.sandboxDir, 'HEAD'], {
+      cwd: this.sourceWorkspaceDir,
     });
+
+    // 2. Synchronize working tree edits (both uncommitted tracked edits and untracked files)
+    await this.syncWorkingTreeState();
+
+    // 3. Link node_modules if present in source
+    await this.linkNodeModules();
 
     this.initialSnapshot = await WorkspaceSnapshotBuilder.capture(this.sandboxDir);
   }
 
-  public async execute(command: string, options?: ExecutionOptions): Promise<ExecutionResult> {
+  private async syncWorkingTreeState(): Promise<void> {
     try {
-      const cwd = options?.cwd ? path.join(this.sandboxDir, options.cwd) : this.sandboxDir;
-      const env = { ...process.env, ...options?.env };
-      const { stdout, stderr } = await execAsync(command, { cwd, env, timeout: options?.timeoutMs });
-      return { stdout, stderr, exitCode: 0 };
-    } catch (error: any) {
-      return {
-        stdout: error.stdout || '',
-        stderr: error.stderr || error.message || '',
-        exitCode: error.code || 1
-      };
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain=v1', '-u'], {
+        cwd: this.sourceWorkspaceDir,
+      });
+
+      const lines = stdout.split(/\r?\n/).filter(l => l.trim().length > 0);
+
+      for (const line of lines) {
+        const status = line.slice(0, 2);
+        let relPath = line.slice(3).trim();
+        // Remove surrounding quotes if git printed them
+        if (relPath.startsWith('"') && relPath.endsWith('"')) {
+          relPath = relPath.slice(1, -1);
+        }
+        relPath = relPath.replace(/\\/g, '/');
+
+        // Skip ignored directories
+        const firstSegment = relPath.split('/')[0];
+        if (SKIP_DIRS.includes(firstSegment)) {
+          continue;
+        }
+
+        const srcPath = path.join(this.sourceWorkspaceDir, relPath);
+        const destPath = path.join(this.sandboxDir, relPath);
+
+        if (status.includes('D')) {
+          // Tracked file deleted in working tree
+          if (fsSync.existsSync(destPath)) {
+            await fs.rm(destPath, { force: true, recursive: true });
+          }
+        } else {
+          // Tracked edit or untracked non-ignored file
+          if (fsSync.existsSync(srcPath)) {
+            const stats = await fs.stat(srcPath);
+            if (stats.isFile()) {
+              await fs.mkdir(path.dirname(destPath), { recursive: true });
+              await fs.copyFile(srcPath, destPath);
+            }
+          }
+        }
+      }
+    } catch {
+      // If git status fails, continue with worktree as created
     }
+  }
+
+  private async linkNodeModules(): Promise<void> {
+    const srcNodeModules = path.join(this.sourceWorkspaceDir, 'node_modules');
+    const destNodeModules = path.join(this.sandboxDir, 'node_modules');
+
+    if (fsSync.existsSync(srcNodeModules) && !fsSync.existsSync(destNodeModules)) {
+      try {
+        if (process.platform === 'win32') {
+          await fs.symlink(srcNodeModules, destNodeModules, 'junction');
+        } else {
+          await fs.symlink(srcNodeModules, destNodeModules, 'dir');
+        }
+      } catch {
+        // Symlinking node_modules is best-effort
+      }
+    }
+  }
+
+  public async execute(command: string, options?: ExecutionOptions): Promise<ExecutionResult> {
+    return executeInDir(command, this.sandboxDir, options);
   }
 
   public async readFile(filePath: string): Promise<string> {
@@ -75,7 +157,14 @@ export class GitWorktreeSandbox implements Sandbox {
 
   public async getDiff(): Promise<string> {
     try {
-      const { stdout } = await execAsync('git diff', { cwd: this.sandboxDir });
+      // Mark all untracked files as intent-to-add so git diff includes them
+      try {
+        await execFileAsync('git', ['add', '-A', '--intent-to-add'], { cwd: this.sandboxDir });
+      } catch {}
+
+      const { stdout } = await execFileAsync('git', ['diff', '--binary'], {
+        cwd: this.sandboxDir,
+      });
       return stdout;
     } catch (e: any) {
       return e.stdout || '';
@@ -90,13 +179,28 @@ export class GitWorktreeSandbox implements Sandbox {
   }
 
   public async destroy(): Promise<void> {
-    await execAsync(`git worktree remove --force "${this.sandboxDir}"`, {
-      cwd: this.sourceWorkspaceDir
-    });
+    // 1. Remove worktree
+    try {
+      await execFileAsync('git', ['worktree', 'remove', '--force', this.sandboxDir], {
+        cwd: this.sourceWorkspaceDir,
+      });
+    } catch {
+      // If git worktree remove fails, remove directory manually
+      try {
+        await fs.rm(this.sandboxDir, { recursive: true, force: true });
+      } catch {}
+    }
 
-    await execAsync(`git branch -D "${this.branchName}"`, {
-      cwd: this.sourceWorkspaceDir
-    });
+    // 2. Remove sandbox branch even if worktree remove had issues
+    try {
+      await execFileAsync('git', ['branch', '-D', this.branchName], {
+        cwd: this.sourceWorkspaceDir,
+      });
+    } catch {}
+
+    // 3. Prune worktrees
+    try {
+      await execFileAsync('git', ['worktree', 'prune'], { cwd: this.sourceWorkspaceDir });
+    } catch {}
   }
 }
-

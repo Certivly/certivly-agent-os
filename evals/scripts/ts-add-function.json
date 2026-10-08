@@ -1,0 +1,22 @@
+{
+  "taskId": "ts-add-function",
+  "turns": [
+    {
+      "text": "Adding capitalize function in src/string-utils.ts",
+      "toolCalls": [
+        {
+          "id": "call-add-capitalize",
+          "name": "write_file",
+          "args": {
+            "path": "src/string-utils.ts",
+            "content": "export function capitalize(str: string): string {\n  if (!str) return str;\n  return str.charAt(0).toUpperCase() + str.slice(1);\n}\n",
+            "overwrite": true
+          }
+        }
+      ]
+    },
+    {
+      "text": "The required task has been successfully solved and verified."
+    }
+  ]
+}

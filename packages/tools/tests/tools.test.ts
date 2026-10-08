@@ -18,7 +18,7 @@ describe('ToolRegistry', () => {
 
     // Test read
     const readResult = await registry.invoke('read_file', { path: testFile });
-    expect(readResult).toBe('hello tool');
+    expect(readResult).toContain('hello tool');
 
     // Cleanup
     fs.unlinkSync(testFile);

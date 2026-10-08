@@ -1,0 +1,38 @@
+{
+  "name": "@agent-os/runtime-integration",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agent-os/events": "workspace:*",
+    "@agent-os/sandbox": "workspace:*",
+    "@agent-os/execution-engine": "workspace:*",
+    "@agent-os/memory": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/orchestrator": "workspace:*",
+    "@agent-os/planner": "workspace:*",
+    "@agent-os/repository": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/wicer": "workspace:*",
+    "@agent-os/pattern-intelligence": "workspace:*",
+    "@agent-os/skills": "workspace:*",
+    "@agent-os/trust-runtime": "workspace:*",
+    "@agent-os/patch-engine": "workspace:*",
+    "@agent-os/mcp": "workspace:*",
+    "@agent-os/parser": "workspace:*",
+    "@agent-os/brain": "workspace:*",
+    "@agent-os/subagents": "workspace:*",
+    "@agent-os/seol": "workspace:*",
+    "@agent-os/context": "workspace:*",
+    "@agent-os/research": "workspace:*",
+    "@agent-os/hardening": "workspace:*",
+    "@agent-os/providers": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}

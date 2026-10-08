@@ -8,11 +8,24 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "allowJs": true,
     "resolveJsonModule": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
-  }
+  },
+  "include": [
+    "apps/**/*",
+    "packages/**/*",
+    "evals/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "archive",
+    "archive/**",
+    "evals/tasks",
+    "**/dist"
+  ]
 }

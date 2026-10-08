@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { UIEvent, EventBatcher } from '../../bridge/EventStreamAdapter';
 import { ReplayAdapter } from '../../bridge/ReplayAdapter';
+import { projectApprovalState, type ApprovalRequestData } from '../approval/ApprovalHelper';
+
 
 export type AgentState = 'idle' | 'thinking' | 'executing_tools' | 'streaming_response' | 'complete';
 
@@ -32,7 +34,9 @@ export type UIProjection = {
   narrativeSummary?: any;
   providerStatus: 'unknown' | 'ok' | 'error';
   providerError?: string;
+  pendingApproval?: ApprovalRequestData | null;
 };
+
 
 export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection => {
   const newState = { 
@@ -152,7 +156,12 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
     } else if (event.type === 'provider.health.failed') {
       newState.providerStatus = 'error';
       newState.providerError = event.payload?.error;
+    } else if (event.type === 'approval.requested') {
+      newState.pendingApproval = projectApprovalState(event.payload || {});
+    } else if (event.type === 'approval.decided') {
+      newState.pendingApproval = null;
     }
+
     
     // Developer mode filtered logs
     if (event.type !== 'llm.token.stream') {

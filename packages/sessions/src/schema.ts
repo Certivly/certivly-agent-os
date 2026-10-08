@@ -22,3 +22,18 @@ export const toolCalls = sqliteTable('tool_calls', {
   result: text('result'), // JSON string, nullable initially
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
+
+export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+
+export const runs = sqliteTable('runs', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id),
+  status: text('status').$type<RunStatus>().notNull().default('running'),
+  userInput: text('user_input'),
+  finalText: text('final_text'),
+  verification: text('verification'),
+  approvalDecisions: text('approval_decisions'),
+  tracePath: text('trace_path'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});

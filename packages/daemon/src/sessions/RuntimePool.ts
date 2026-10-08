@@ -1,4 +1,6 @@
-import { RuntimePipeline } from '@agent-os/runtime-integration';
+export interface RuntimePipeline {
+  execute: (sessionId: string, input: string) => Promise<any>;
+}
 
 /**
  * RuntimePool manages one RuntimePipeline per session.

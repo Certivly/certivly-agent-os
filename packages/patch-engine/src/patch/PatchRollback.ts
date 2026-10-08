@@ -1,7 +1,10 @@
 import { WorkspaceSnapshot } from "../workspace/WorkspaceSnapshot";
+import { ChangeSetApplier } from "./ChangeSetApplier";
 
 export class PatchRollback {
-  constructor(private snapshots: Map<string, WorkspaceSnapshot>) {}
+  private applier = new ChangeSetApplier();
+
+  constructor(private snapshots: Map<string, WorkspaceSnapshot> = new Map()) {}
 
   public registerSnapshot(patchId: string, snapshot: WorkspaceSnapshot): void {
     this.snapshots.set(patchId, snapshot);
@@ -13,5 +16,9 @@ export class PatchRollback {
 
     await snapshot.restore();
     return true;
+  }
+
+  public async rollbackChangeSet(workspaceRoot: string, backupId: string): Promise<boolean> {
+    return this.applier.rollback(workspaceRoot, backupId);
   }
 }

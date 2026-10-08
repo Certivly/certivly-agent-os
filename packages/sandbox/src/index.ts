@@ -1,5 +1,5 @@
 export * from './models';
-export * from './models';
+export * from './exec-helper';
 export * from './local';
 export * from './worktree';
 export * from './PatchEngine';

@@ -1,6 +1,6 @@
 import { EventStore } from '../packages/events/src/store';
-import { ContextStack, ContextBuilder } from '../packages/context/src';
-import { MemoryEngine, MemoryStore, MemoryExtractor } from '../packages/memory/src';
+import { ContextStack } from '../packages/context/src';
+import { MemoryStore, MemoryExtractor } from '../packages/memory/src';
 import { metrics } from '../packages/metrics/src';
 
 const NUM_EVENTS = 10000;
@@ -27,7 +27,7 @@ async function runBenchmark() {
       sessionId: 'session-1',
       source: 'benchmark',
       payload: { data: 'test' },
-      version: 1
+      version: "1.0"
     });
   }
   const eventEnd = performance.now();

@@ -11,7 +11,8 @@ test('reduceBatch processes events into projection correctly', () => {
     streamingBuffer: '',
     activeStreamingMessageId: null,
     activeMcpCount: 0,
-    agentState: 'idle'
+    agentState: 'idle',
+    providerStatus: 'unknown'
   };
 
   const batch = [

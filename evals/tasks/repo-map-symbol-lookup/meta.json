@@ -1,0 +1,6 @@
+{
+  "id": "repo-map-symbol-lookup",
+  "difficulty": "easy",
+  "tags": ["repo-map", "symbol"],
+  "language": "typescript"
+}

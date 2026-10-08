@@ -26,9 +26,9 @@ export const ChatRenderer = memo(({
     try {
       const data = JSON.parse(msg.content);
 
-      // Has real file patches — show approval view
-      const patches = data.patchBundle?.patches || [];
-      if (patches.length > 0) {
+      // Has real file patches or changeset — show approval view
+      const patches = data.patchBundle?.patches || (data.files ? data.files : []);
+      if (data.changeSetId || patches.length > 0) {
         return (
           <ApprovalView
             data={data}

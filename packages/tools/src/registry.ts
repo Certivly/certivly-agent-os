@@ -1,32 +1,64 @@
 import { Tool } from './interface';
 import { ToolError } from '@agent-os/shared';
+import type { WorkspaceTool, ToolSpec, ToolContext, ToolResult } from './types';
+
+function adaptLegacyTool(legacy: Tool): WorkspaceTool {
+  const readOnlyNames = new Set(['read_file', 'list_files', 'search_files']);
+  return {
+    spec: {
+      name: legacy.name,
+      description: legacy.description,
+      parameters: {},
+      readOnly: readOnlyNames.has(legacy.name),
+    },
+    requiresApproval: () => !readOnlyNames.has(legacy.name),
+    execute: async (args: Record<string, unknown>, context: ToolContext): Promise<ToolResult> => {
+      try {
+        const content = await legacy.execute(args as any);
+        return { content, isError: false };
+      } catch (e: any) {
+        return { content: e?.message || String(e), isError: true };
+      }
+    },
+  };
+}
 
 export class ToolRegistry {
-  private tools: Map<string, Tool> = new Map();
+  private tools: Map<string, WorkspaceTool> = new Map();
 
-  public register(tool: Tool): void {
-    if (this.tools.has(tool.name)) {
-      throw new ToolError(`Tool ${tool.name} is already registered`);
+  public register(tool: WorkspaceTool | Tool): void {
+    const wsTool: WorkspaceTool = 'spec' in tool ? tool : adaptLegacyTool(tool);
+    if (this.tools.has(wsTool.spec.name)) {
+      throw new ToolError(`Tool ${wsTool.spec.name} is already registered`);
     }
-    this.tools.set(tool.name, tool);
+    this.tools.set(wsTool.spec.name, wsTool);
   }
 
-  public get(name: string): Tool {
-    const tool = this.tools.get(name);
+  public get(name: string): WorkspaceTool | undefined {
+    return this.tools.get(name);
+  }
+
+  public list(): WorkspaceTool[] {
+    return Array.from(this.tools.values()).sort((a, b) =>
+      a.spec.name.localeCompare(b.spec.name)
+    );
+  }
+
+  public toProviderToolSpecs(): ToolSpec[] {
+    return this.list().map(t => t.spec);
+  }
+
+  public async invoke(name: string, args: Record<string, unknown>, context?: ToolContext): Promise<string> {
+    const tool = this.get(name);
     if (!tool) {
       throw new ToolError(`Tool ${name} not found`);
     }
-    return tool;
-  }
-
-  public list(): Tool[] {
-    return Array.from(this.tools.values());
-  }
-
-  public async invoke(name: string, args: Record<string, unknown>): Promise<string> {
-    const tool = this.get(name);
     try {
-      return await tool.execute(args);
+      const result = await tool.execute(args, context ?? { workspaceRoot: process.cwd() });
+      if (result.isError) {
+        throw new Error(result.content);
+      }
+      return result.content;
     } catch (e: any) {
       throw new ToolError(`Tool execution failed for ${name}: ${e.message}`);
     }

@@ -18,15 +18,15 @@
       "dependencies": {
         "@agent-os/agent-runtime": "workspace:*",
         "@agent-os/config": "workspace:*",
-        "@agent-os/context": "workspace:*",
         "@agent-os/daemon": "workspace:*",
         "@agent-os/events": "workspace:*",
+        "@agent-os/patch-engine": "workspace:*",
+        "@agent-os/providers": "workspace:*",
+        "@agent-os/repository": "workspace:*",
         "@agent-os/runtime-audit": "workspace:*",
-        "@agent-os/runtime-integration": "workspace:*",
-        "@agent-os/seol": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
-        "@agent-os/subagents": "workspace:*",
+        "@agent-os/tools": "workspace:*",
         "@types/react": "^19.2.17",
         "chalk": "^5.6.2",
         "commander": "^12.0.0",
@@ -44,34 +44,13 @@
         "@agent-os/config": "workspace:*",
         "@agent-os/daemon": "workspace:*",
         "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
-        "@agent-os/narrative": "workspace:*",
+        "@agent-os/patch-engine": "workspace:*",
         "@agent-os/providers": "workspace:*",
-        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/sandbox": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
-        "@agent-os/subagents": "workspace:*",
         "@agent-os/tools": "workspace:*",
-      },
-    },
-    "packages/brain": {
-      "name": "@agent-os/brain",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^20.0.0",
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
       },
     },
     "packages/config": {
@@ -82,19 +61,6 @@
         "zod": "^3.22.4",
       },
     },
-    "packages/context": {
-      "name": "@agent-os/context",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
     "packages/daemon": {
       "name": "@agent-os/daemon",
       "version": "1.0.0",
@@ -102,14 +68,11 @@
         "agent-daemon": "./src/bin/agent-daemon.ts",
       },
       "dependencies": {
-        "@agent-os/brain": "workspace:*",
+        "@agent-os/agent-runtime": "workspace:*",
         "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/repository": "workspace:*",
-        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/shared": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
         "chokidar": "^5.0.0",
         "uuid": "^10.0.0",
       },
@@ -132,79 +95,6 @@
         "drizzle-kit": "^0.20.14",
       },
     },
-    "packages/execution-engine": {
-      "name": "@agent-os/execution-engine",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/brain": "workspace:*",
-        "@agent-os/context": "workspace:*",
-        "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/patch-engine": "workspace:*",
-        "@agent-os/planner": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/sandbox": "workspace:*",
-        "@agent-os/sessions": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/trust-runtime": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-        "uuid": "^9.0.1",
-      },
-      "devDependencies": {
-        "@types/uuid": "^9.0.8",
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/hardening": {
-      "name": "@agent-os/hardening",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/brain": "workspace:*",
-        "@agent-os/daemon": "workspace:*",
-        "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/mcp": {
-      "name": "@agent-os/mcp",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/memory": {
-      "name": "@agent-os/memory",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/brain": "workspace:*",
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "drizzle-orm": "^0.30.0",
-      },
-      "devDependencies": {
-        "drizzle-kit": "^0.20.14",
-      },
-    },
     "packages/metrics": {
       "name": "@agent-os/metrics",
       "version": "1.0.0",
@@ -213,42 +103,6 @@
       },
       "devDependencies": {
         "bun-types": "latest",
-      },
-    },
-    "packages/narrative": {
-      "name": "@agent-os/narrative",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/orchestrator": {
-      "name": "@agent-os/orchestrator",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/execution-engine": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/patch-engine": "workspace:*",
-        "@agent-os/planner": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/sandbox": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/trust-runtime": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-        "uuid": "^9.0.1",
-      },
-      "devDependencies": {
-        "@types/uuid": "^9.0.8",
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
       },
     },
     "packages/parser": {
@@ -270,56 +124,10 @@
       "name": "@agent-os/patch-engine",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/brain": "workspace:*",
         "@agent-os/parser": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^20.0.0",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/pattern-intelligence": {
-      "name": "@agent-os/pattern-intelligence",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/execution-engine": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/orchestrator": "workspace:*",
-        "@agent-os/planner": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-        "uuid": "^9.0.1",
-      },
-      "devDependencies": {
-        "@types/uuid": "^9.0.8",
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/planner": {
-      "name": "@agent-os/planner",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/agent-runtime": "workspace:*",
-        "@agent-os/brain": "workspace:*",
-        "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/patch-engine": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/sandbox": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/trust-runtime": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-        "uuid": "^9.0.1",
-      },
-      "devDependencies": {
-        "@types/uuid": "^9.0.8",
-        "bun-types": "latest",
         "typescript": "^5.0.0",
       },
     },
@@ -348,59 +156,12 @@
         "typescript": "^5.0.0",
       },
     },
-    "packages/research": {
-      "name": "@agent-os/research",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/mcp": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
     "packages/runtime-audit": {
       "name": "@agent-os/runtime-audit",
       "version": "1.0.0",
       "dependencies": {
         "@agent-os/events": "workspace:*",
-        "@agent-os/runtime-integration": "workspace:*",
         "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/runtime-integration": {
-      "name": "@agent-os/runtime-integration",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/brain": "workspace:*",
-        "@agent-os/context": "workspace:*",
-        "@agent-os/events": "workspace:*",
-        "@agent-os/execution-engine": "workspace:*",
-        "@agent-os/hardening": "workspace:*",
-        "@agent-os/mcp": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/orchestrator": "workspace:*",
-        "@agent-os/parser": "workspace:*",
-        "@agent-os/patch-engine": "workspace:*",
-        "@agent-os/pattern-intelligence": "workspace:*",
-        "@agent-os/planner": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/research": "workspace:*",
-        "@agent-os/sandbox": "workspace:*",
-        "@agent-os/seol": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/subagents": "workspace:*",
-        "@agent-os/trust-runtime": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
       },
       "devDependencies": {
         "bun-types": "latest",
@@ -414,22 +175,7 @@
         "@agent-os/events": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/seol": {
-      "name": "@agent-os/seol",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
+        "@agent-os/tools": "workspace:*",
       },
       "devDependencies": {
         "bun-types": "latest",
@@ -451,135 +197,45 @@
       "name": "@agent-os/shared",
       "version": "1.0.0",
     },
-    "packages/skills": {
-      "name": "@agent-os/skills",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/shared": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/subagents": {
-      "name": "@agent-os/subagents",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/memory": "workspace:*",
-        "@agent-os/repository": "workspace:*",
-        "@agent-os/skills": "workspace:*",
-        "@agent-os/wicer": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^20.0.0",
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
-      },
-    },
     "packages/tools": {
       "name": "@agent-os/tools",
       "version": "1.0.0",
       "dependencies": {
-        "@agent-os/shared": "workspace:*",
-      },
-    },
-    "packages/trust-runtime": {
-      "name": "@agent-os/trust-runtime",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/agent-runtime": "workspace:*",
-        "@agent-os/subagents": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^20.0.0",
-        "typescript": "^5.0.0",
-      },
-    },
-    "packages/wicer": {
-      "name": "@agent-os/wicer",
-      "version": "1.0.0",
-      "dependencies": {
-        "@agent-os/events": "workspace:*",
-        "@agent-os/metrics": "workspace:*",
         "@agent-os/repository": "workspace:*",
         "@agent-os/shared": "workspace:*",
-      },
-      "devDependencies": {
-        "bun-types": "latest",
-        "typescript": "^5.0.0",
       },
     },
   },
   "packages": {
     "@agent-os/agent-runtime": ["@agent-os/agent-runtime@workspace:packages/agent-runtime"],
 
-    "@agent-os/brain": ["@agent-os/brain@workspace:packages/brain"],
-
     "@agent-os/cli": ["@agent-os/cli@workspace:apps/cli"],
 
     "@agent-os/config": ["@agent-os/config@workspace:packages/config"],
-
-    "@agent-os/context": ["@agent-os/context@workspace:packages/context"],
 
     "@agent-os/daemon": ["@agent-os/daemon@workspace:packages/daemon"],
 
     "@agent-os/events": ["@agent-os/events@workspace:packages/events"],
 
-    "@agent-os/execution-engine": ["@agent-os/execution-engine@workspace:packages/execution-engine"],
-
-    "@agent-os/hardening": ["@agent-os/hardening@workspace:packages/hardening"],
-
-    "@agent-os/mcp": ["@agent-os/mcp@workspace:packages/mcp"],
-
-    "@agent-os/memory": ["@agent-os/memory@workspace:packages/memory"],
-
     "@agent-os/metrics": ["@agent-os/metrics@workspace:packages/metrics"],
-
-    "@agent-os/narrative": ["@agent-os/narrative@workspace:packages/narrative"],
-
-    "@agent-os/orchestrator": ["@agent-os/orchestrator@workspace:packages/orchestrator"],
 
     "@agent-os/parser": ["@agent-os/parser@workspace:packages/parser"],
 
     "@agent-os/patch-engine": ["@agent-os/patch-engine@workspace:packages/patch-engine"],
 
-    "@agent-os/pattern-intelligence": ["@agent-os/pattern-intelligence@workspace:packages/pattern-intelligence"],
-
-    "@agent-os/planner": ["@agent-os/planner@workspace:packages/planner"],
-
     "@agent-os/providers": ["@agent-os/providers@workspace:packages/providers"],
 
     "@agent-os/repository": ["@agent-os/repository@workspace:packages/repository"],
 
-    "@agent-os/research": ["@agent-os/research@workspace:packages/research"],
-
     "@agent-os/runtime-audit": ["@agent-os/runtime-audit@workspace:packages/runtime-audit"],
 
-    "@agent-os/runtime-integration": ["@agent-os/runtime-integration@workspace:packages/runtime-integration"],
-
     "@agent-os/sandbox": ["@agent-os/sandbox@workspace:packages/sandbox"],
-
-    "@agent-os/seol": ["@agent-os/seol@workspace:packages/seol"],
 
     "@agent-os/sessions": ["@agent-os/sessions@workspace:packages/sessions"],
 
     "@agent-os/shared": ["@agent-os/shared@workspace:packages/shared"],
 
-    "@agent-os/skills": ["@agent-os/skills@workspace:packages/skills"],
-
-    "@agent-os/subagents": ["@agent-os/subagents@workspace:packages/subagents"],
-
     "@agent-os/tools": ["@agent-os/tools@workspace:packages/tools"],
-
-    "@agent-os/trust-runtime": ["@agent-os/trust-runtime@workspace:packages/trust-runtime"],
-
-    "@agent-os/wicer": ["@agent-os/wicer@workspace:packages/wicer"],
 
     "@alcalzone/ansi-tokenize": ["@alcalzone/ansi-tokenize@0.3.0", "", { "dependencies": { "ansi-styles": "^6.2.1", "is-fullwidth-code-point": "^5.0.0" } }, "sha512-p+CMKJ93HFmLkjXKlXiVGlMQEuRb6H0MokBSwUsX+S6BRX8eV5naFZpQJFfJHjRZY0Hmnqy1/r6UWl3x+19zYA=="],
 
@@ -939,23 +595,19 @@
 
     "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
-    "@agent-os/execution-engine/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
+    "@agent-os/daemon/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "@agent-os/execution-engine/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
+    "@agent-os/metrics/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "@agent-os/orchestrator/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
+    "@agent-os/parser/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
-    "@agent-os/orchestrator/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
-
-    "@agent-os/pattern-intelligence/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
-
-    "@agent-os/pattern-intelligence/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
-
-    "@agent-os/planner/@types/uuid": ["@types/uuid@9.0.8", "", {}, "sha512-jg+97EGIcY9AGHJJRaaPVgetKDsrTgbRjQ5Msgjh/DQKEFl0DtyRr/VCOyD1T2R1MNeWPK/u7JoGhlDZnKBAfA=="],
-
-    "@agent-os/planner/uuid": ["uuid@9.0.1", "", { "bin": { "uuid": "dist/bin/uuid" } }, "sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA=="],
+    "@agent-os/repository/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "@agent-os/repository/chokidar": ["chokidar@3.6.0", "", { "dependencies": { "anymatch": "~3.1.2", "braces": "~3.0.2", "glob-parent": "~5.1.2", "is-binary-path": "~2.1.0", "is-glob": "~4.0.1", "normalize-path": "~3.0.0", "readdirp": "~3.6.0" }, "optionalDependencies": { "fsevents": "~2.3.2" } }, "sha512-7VT13fmjotKpGipCW9JEQAusEPE+Ei8nl6/g4FBAmIm0GOOLMua9NDDo/DWp0ZAxCr3cPq5ZpBqmPAQgDda2Pw=="],
+
+    "@agent-os/runtime-audit/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
+
+    "@agent-os/sandbox/bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "@anthropic-ai/sdk/@types/node": ["@types/node@18.19.130", "", { "dependencies": { "undici-types": "~5.26.4" } }, "sha512-GRaXQx6jGfL8sKfaIDD6OupbIHBr9jv7Jnaml9tB7l4v068PAOXqfcujMMo5PhbIs6ggR1XODELqahT2R8v0fg=="],
 
@@ -977,7 +629,19 @@
 
     "openai/ws": ["ws@8.21.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-Vsp28b7DRcimFQvrqu2Wek3z1iYxDCWqHYB8Qsnk/S4RfaCQzPGPyBNuVjJV3cd6UiKtUtp6sNM77gWvzcCH+g=="],
 
+    "@agent-os/daemon/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+
+    "@agent-os/metrics/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+
+    "@agent-os/parser/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+
+    "@agent-os/repository/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+
     "@agent-os/repository/chokidar/readdirp": ["readdirp@3.6.0", "", { "dependencies": { "picomatch": "^2.2.1" } }, "sha512-hOS089on8RduqdbhvQ5Z37A0ESjsqz6qnRcffsMU3495FuTdqSm+7bhJ29JvIOsBDEEnan5DPu9t3To9VRlMzA=="],
+
+    "@agent-os/runtime-audit/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
+
+    "@agent-os/sandbox/bun-types/@types/node": ["@types/node@25.9.3", "", { "dependencies": { "undici-types": ">=7.24.0 <7.24.7" } }, "sha512-603BddQMv3pUcr4U2dhujk83N2tTDVr/34wII2B6bJy6g+8WD6yUb11jszNs0gdi4PesVWl7ABt8nYMVpnLUcg=="],
 
     "@anthropic-ai/sdk/@types/node/undici-types": ["undici-types@5.26.5", "", {}, "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA=="],
 
@@ -1030,5 +694,17 @@
     "bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
 
     "openai/@types/node/undici-types": ["undici-types@5.26.5", "", {}, "sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA=="],
+
+    "@agent-os/daemon/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@agent-os/metrics/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@agent-os/parser/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@agent-os/repository/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@agent-os/runtime-audit/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
+
+    "@agent-os/sandbox/bun-types/@types/node/undici-types": ["undici-types@7.24.6", "", {}, "sha512-WRNW+sJgj5OBN4/0JpHFqtqzhpbnV0GuB+OozA9gCL7a993SmU+1JBZCzLNxYsbMfIeDL+lTsphD5jN5N+n0zg=="],
   }
 }

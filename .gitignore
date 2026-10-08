@@ -153,4 +153,5 @@ Thumbs.db
 prompts
 
 .test-*
+.tmp-*
 reports

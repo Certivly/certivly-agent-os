@@ -4,7 +4,7 @@ import * as schema from './schema';
 import * as fs from 'fs';
 import * as path from 'path';
 
-export function getDb(dbPath: string): BunSQLiteDatabase<typeof schema> {
+export function getDb(dbPath: string): { db: BunSQLiteDatabase<typeof schema>; sqlite: Database } {
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -40,6 +40,24 @@ export function getDb(dbPath: string): BunSQLiteDatabase<typeof schema> {
       FOREIGN KEY (message_id) REFERENCES messages(id)
     );
   `);
+  sqlite.run(`
+    CREATE TABLE IF NOT EXISTS runs (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running',
+      user_input TEXT,
+      final_text TEXT,
+      verification TEXT,
+      approval_decisions TEXT,
+      trace_path TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+  `);
 
-  return drizzle(sqlite, { schema });
+  return { db: drizzle(sqlite, { schema }), sqlite };
 }
+
+
+
