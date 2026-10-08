@@ -26,6 +26,10 @@ export const ConfigSchema = z.object({
   }).default({}),
   permissionMode: z.enum(['plan', 'manual', 'acceptEdits', 'auto']).default('manual').optional(),
   agent: z.object({
+    maxTurns: z.number().default(40),
+    maxWallTimeMs: z.number().default(300_000),
+    maxApproxTokens: z.number().default(100_000),
+    maxVerificationFixAttempts: z.number().default(3),
     selfReview: z.boolean().default(false),
     parallelExploration: z.boolean().default(false),
     planningMode: z.enum(['off', 'auto', 'always']).default('auto'),

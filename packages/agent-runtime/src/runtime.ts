@@ -163,6 +163,7 @@ export class AgentRuntime {
 
       const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
 
+      const agentConfig = config.agent ?? {};
       const loop = new AgentLoop({
         model: this.activeModel,
         tools: this.getLoopTools(workspaceRoot),
@@ -171,6 +172,13 @@ export class AgentRuntime {
         eventBus,
         workspaceRoot,
         options: {
+          maxTurns: agentConfig.maxTurns,
+          maxWallTimeMs: agentConfig.maxWallTimeMs,
+          maxApproxTokens: agentConfig.maxApproxTokens,
+          maxVerificationFixAttempts: agentConfig.maxVerificationFixAttempts,
+          selfReview: agentConfig.selfReview,
+          parallelExploration: agentConfig.parallelExploration,
+          planningMode: agentConfig.planningMode,
           permissionMode,
           hooks: config.hooks,
         },
@@ -215,6 +223,7 @@ export class AgentRuntime {
     const history = new SessionHistory(this.sessionManager);
     const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
 
+    const agentConfig = config.agent ?? {};
     const loop = new AgentLoop({
       model: this.activeModel,
       tools: this.getLoopTools(workspaceRoot),
@@ -223,6 +232,13 @@ export class AgentRuntime {
       eventBus: this.eventBus,
       workspaceRoot,
       options: {
+        maxTurns: agentConfig.maxTurns,
+        maxWallTimeMs: agentConfig.maxWallTimeMs,
+        maxApproxTokens: agentConfig.maxApproxTokens,
+        maxVerificationFixAttempts: agentConfig.maxVerificationFixAttempts,
+        selfReview: agentConfig.selfReview,
+        parallelExploration: agentConfig.parallelExploration,
+        planningMode: agentConfig.planningMode,
         permissionMode,
         hooks: config.hooks,
       },

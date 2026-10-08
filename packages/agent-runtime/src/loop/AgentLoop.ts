@@ -37,9 +37,9 @@ import { ToolRegistry } from '@agent-os/tools';
 
 
 const DEFAULT_OPTIONS: AgentLoopOptions = {
-  maxTurns: 10,
-  maxWallTimeMs: 120000,
-  maxApproxTokens: 8000,
+  maxTurns: 40,
+  maxWallTimeMs: 300_000,
+  maxApproxTokens: 100_000,
   maxVerificationFixAttempts: 3,
 };
 

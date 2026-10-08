@@ -9,7 +9,7 @@ describe('Provider Doctor', () => {
       activeModel: 'local-model',
       evalModels: [],
       runtime: { logLevel: 'info', sessionDir: '.agentos/sessions' },
-      agent: { selfReview: false, parallelExploration: false, planningMode: 'auto' },
+      agent: { maxTurns: 40, maxWallTimeMs: 300_000, maxApproxTokens: 100_000, maxVerificationFixAttempts: 3, selfReview: false, parallelExploration: false, planningMode: 'auto' },
       providers: {
         lmstudio: {
           baseUrl: 'http://localhost:1234/v1',
@@ -78,7 +78,7 @@ describe('Provider Doctor', () => {
         activeModel: 'mock-local-model',
         evalModels: [],
         runtime: { logLevel: 'info', sessionDir: '.agentos/sessions' },
-        agent: { selfReview: false, parallelExploration: false, planningMode: 'auto' },
+        agent: { maxTurns: 40, maxWallTimeMs: 300_000, maxApproxTokens: 100_000, maxVerificationFixAttempts: 3, selfReview: false, parallelExploration: false, planningMode: 'auto' },
         providers: {
           lmstudio: {
             baseUrl: `http://127.0.0.1:${server.port}/v1`,
