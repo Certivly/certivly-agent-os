@@ -25,6 +25,7 @@ import type {
   LightweightPlan,
   PipelineStage,
   LoopState,
+  ApprovalHandler,
 } from './types';
 import { LightweightPlanner } from '../planning/LightweightPlanner';
 import { SandboxDiffCollector } from './SandboxDiffCollector';
@@ -51,12 +52,7 @@ export interface AgentLoopDeps {
   workspaceRoot: string;
   sandboxRoot?: string;
   options?: Partial<AgentLoopOptions>;
-  requestApproval?: (input: {
-    sessionId: string;
-    toolName: string;
-    args: Record<string, unknown>;
-    reason: string;
-  }) => Promise<{ approved: boolean; reason?: string }>;
+  requestApproval?: ApprovalHandler;
 }
 
 export class AgentLoop {
@@ -67,12 +63,7 @@ export class AgentLoop {
   private workspaceRoot: string;
   private sandboxRoot?: string;
   private options: AgentLoopOptions;
-  private requestApprovalFn?: (input: {
-    sessionId: string;
-    toolName: string;
-    args: Record<string, unknown>;
-    reason: string;
-  }) => Promise<{ approved: boolean; reason?: string }>;
+  private requestApprovalFn?: ApprovalHandler;
   private toolRegistry?: ToolRegistry;
 
   constructor(deps: AgentLoopDeps) {
@@ -1333,17 +1324,29 @@ export class AgentLoop {
     }
 
     if (requiresApproval) {
+      const diffPreview = (argsObj.diff || argsObj.content || argsObj.patch || '') as string;
+      const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || argsObj.targetFile || '') as string;
+      const filesList = filePathStr ? [{ path: filePathStr, kind: tc.name === 'write_file' ? 'modify' : 'modify' }] : [];
+
       this.eventBus.publish('approval.requested', {
+        id: `appr-${tc.id}`,
         sessionId,
         toolName: tc.name,
         args: argsObj as any,
+        toolCallId: tc.id,
+        files: filesList,
+        diff: diffPreview,
       });
 
       if (isEditTool) {
         this.eventBus.publish('approval.requested.edit' as any, {
+          id: `appr-${tc.id}`,
           sessionId,
           toolName: tc.name,
           args: argsObj as any,
+          toolCallId: tc.id,
+          files: filesList,
+          diff: diffPreview,
         });
       }
 
@@ -1353,6 +1356,8 @@ export class AgentLoop {
           toolName: tc.name,
           args: argsObj,
           reason: 'Tool requires confirmation',
+          toolCallId: tc.id,
+          diff: diffPreview,
         });
 
         approvalDecisions?.push({

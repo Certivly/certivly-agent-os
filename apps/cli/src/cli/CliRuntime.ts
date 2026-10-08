@@ -1,10 +1,11 @@
-import { AgentRuntime, type PermissionMode } from '@agent-os/agent-runtime';
+import { AgentRuntime, type PermissionMode, type ApprovalHandler } from '@agent-os/agent-runtime';
 import { SessionStateManager } from '../state/CliSessionState';
 
 export interface CliRuntimeOptions {
   configPath: string;
   debug?: boolean;
   permissionMode?: PermissionMode;
+  requestApproval?: ApprovalHandler;
 }
 
 export class CliRuntime {
@@ -16,6 +17,7 @@ export class CliRuntime {
     this.agentRuntime = new AgentRuntime({
       configPath: options.configPath,
       permissionMode: options.permissionMode,
+      requestApproval: options.requestApproval,
     }, sessionId);
     this.stateManager = new SessionStateManager(sessionId);
     this.debug = options.debug || false;

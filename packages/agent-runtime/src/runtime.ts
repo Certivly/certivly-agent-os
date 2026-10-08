@@ -20,15 +20,20 @@ import * as path from 'path';
 import { AgentLoop } from './loop/AgentLoop';
 import { LoopTool, AdaptedLoopTool } from './loop/LoopTool';
 import { SessionHistory } from './loop/SessionHistory';
-import type { RunSummary, PermissionMode } from './loop/types';
+import type { RunSummary, PermissionMode, ApprovalRequest, ApprovalHandler } from './loop/types';
+
+export type { ApprovalRequest, ApprovalHandler };
 
 export interface RuntimeOptions {
   configPath: string;
+  workspaceRoot?: string;
   permissionMode?: PermissionMode;
+  requestApproval?: ApprovalHandler;
 }
 
 export class AgentRuntime {
   private options: RuntimeOptions;
+  private approvalHandler?: ApprovalHandler;
   private configManager: ConfigManager;
   private sessionManager: SessionManager;
   private toolRegistry: ToolRegistry;
@@ -39,10 +44,11 @@ export class AgentRuntime {
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.options = options;
+    this.approvalHandler = options.requestApproval;
     this.configManager = new ConfigManager(options.configPath);
     const config = this.configManager.load();
 
-    const dbPath = path.join(process.cwd(), config.runtime.sessionDir, 'sessions.db');
+    const dbPath = path.resolve(process.cwd(), config.runtime.sessionDir, 'sessions.db');
     this.sessionManager = new SessionManager(dbPath);
 
     this.toolRegistry = new ToolRegistry();
@@ -110,6 +116,10 @@ export class AgentRuntime {
     return this.eventBus;
   }
 
+  public close(): void {
+    this.sessionManager.close();
+  }
+
   public getLastRunSummary(): RunSummary | undefined {
     return this.lastRunSummary;
   }
@@ -148,7 +158,7 @@ export class AgentRuntime {
       }
 
       const config = this.configManager.load();
-      const workspaceRoot = config.repository?.rootPath || process.cwd();
+      const workspaceRoot = this.options.workspaceRoot || config.repository?.rootPath || process.cwd();
       const history = new SessionHistory(this.sessionManager);
 
       const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
@@ -164,6 +174,7 @@ export class AgentRuntime {
           permissionMode,
           hooks: config.hooks,
         },
+        requestApproval: this.approvalHandler ?? this.options.requestApproval,
       });
 
       const summary = await loop.run({
@@ -193,10 +204,14 @@ export class AgentRuntime {
     });
   }
 
+  public setRequestApprovalHandler(handler: ApprovalHandler): void {
+    this.approvalHandler = handler;
+  }
+
   public async resume(sessionId: string, runId?: string): Promise<RunSummary> {
 
     const config = this.configManager.load();
-    const workspaceRoot = config.repository?.rootPath || process.cwd();
+    const workspaceRoot = this.options.workspaceRoot || config.repository?.rootPath || process.cwd();
     const history = new SessionHistory(this.sessionManager);
     const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
 
@@ -211,6 +226,7 @@ export class AgentRuntime {
         permissionMode,
         hooks: config.hooks,
       },
+      requestApproval: this.approvalHandler ?? this.options.requestApproval,
     });
 
     const summary = await loop.resume({

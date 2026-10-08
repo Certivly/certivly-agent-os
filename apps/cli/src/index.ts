@@ -12,7 +12,9 @@ import { mountInkApp } from './ui/render';
 import { InputParser } from './cli/InputParser';
 import { RuntimeAuditor, PackageUsageReport, RuntimeHealthChecker } from '@agent-os/runtime-audit';
 import { handleApprove, handleReject } from './bridge/ApprovalHandler';
+import { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
 export { handleApprove, handleReject } from './bridge/ApprovalHandler';
+export { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
 
 const program = new Command();
 
@@ -45,7 +47,13 @@ program.command('chat')
     const options = program.opts();
     const mode = (cmdOptions?.mode || 'manual');
     const sessionId = `session_${Date.now()}`;
-    const runtime = new CliRuntime({ configPath, debug: options.debug, permissionMode: mode }, sessionId);
+    const approvalBridge = new InteractiveApprovalBridge();
+    const runtime = new CliRuntime({
+      configPath,
+      debug: options.debug,
+      permissionMode: mode,
+      requestApproval: approvalBridge.requestApproval,
+    }, sessionId);
     console.log(`[AgentOS] Permission mode: ${mode} | Type your goal to begin.`);
     
     const router = new CommandRouter();
@@ -73,16 +81,24 @@ program.command('chat')
       }
     };
 
-    const onApprove = async (changeSetId: string) => {
-      await handleApprove(changeSetId, {
+    const onApprove = async (id: string) => {
+      if (approvalBridge.hasPending()) {
+        const decided = approvalBridge.decide(id, true);
+        if (decided) return;
+      }
+      await handleApprove(id, {
         eventBus: runtime.agentRuntime.getEventBus(),
         sessionId,
         workspaceRoot: process.cwd(),
       });
     };
 
-    const onReject = async (changeSetId: string) => {
-      await handleReject(changeSetId, {
+    const onReject = async (id: string) => {
+      if (approvalBridge.hasPending()) {
+        const decided = approvalBridge.decide(id, false, 'User rejected');
+        if (decided) return;
+      }
+      await handleReject(id, {
         eventBus: runtime.agentRuntime.getEventBus(),
         sessionId,
       });

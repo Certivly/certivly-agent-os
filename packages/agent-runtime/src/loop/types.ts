@@ -38,6 +38,19 @@ export interface LoopState {
 
 export type PermissionMode = 'plan' | 'manual' | 'acceptEdits' | 'auto';
 
+export interface ApprovalRequest {
+  sessionId?: string;
+  toolName: string;
+  args: Record<string, unknown>;
+  reason?: string;
+  toolCallId?: string;
+  diff?: string;
+}
+
+export type ApprovalHandler = (
+  input: ApprovalRequest
+) => Promise<{ approved: boolean; reason?: string }>;
+
 export interface AgentLoopOptions {
   maxTurns: number;
   maxWallTimeMs: number;
