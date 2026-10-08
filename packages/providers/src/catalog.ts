@@ -1,6 +1,6 @@
 export interface ModelSpec {
   id: string;
-  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'lmstudio' | 'ollama' | 'fake';
+  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'lmstudio' | 'ollama' | 'openrouter' | 'fake';
   displayName: string;
   contextWindow: number;
   maxOutputTokens: number;
@@ -174,6 +174,43 @@ export class ModelCatalog {
       provider: 'ollama',
       displayName: 'Qwen 2.5 Coder',
       contextWindow: 32_000,
+      maxOutputTokens: 8_192,
+      supportsTools: true,
+      supportsStreaming: true,
+    },
+    // OpenRouter
+    'openrouter/auto': {
+      id: 'openrouter/auto',
+      provider: 'openrouter',
+      displayName: 'OpenRouter Auto',
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192,
+      supportsTools: true,
+      supportsStreaming: true,
+    },
+    'anthropic/claude-3.5-sonnet': {
+      id: 'anthropic/claude-3.5-sonnet',
+      provider: 'openrouter',
+      displayName: 'Claude 3.5 Sonnet (OpenRouter)',
+      contextWindow: 200_000,
+      maxOutputTokens: 8_192,
+      supportsTools: true,
+      supportsStreaming: true,
+    },
+    'deepseek/deepseek-chat': {
+      id: 'deepseek/deepseek-chat',
+      provider: 'openrouter',
+      displayName: 'DeepSeek Chat (OpenRouter)',
+      contextWindow: 64_000,
+      maxOutputTokens: 8_192,
+      supportsTools: true,
+      supportsStreaming: true,
+    },
+    'meta-llama/llama-3.3-70b-instruct': {
+      id: 'meta-llama/llama-3.3-70b-instruct',
+      provider: 'openrouter',
+      displayName: 'Llama 3.3 70B (OpenRouter)',
+      contextWindow: 128_000,
       maxOutputTokens: 8_192,
       supportsTools: true,
       supportsStreaming: true,

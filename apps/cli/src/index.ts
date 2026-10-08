@@ -164,6 +164,20 @@ async function runProvidersDiagnosis(probe?: boolean): Promise<boolean> {
   return true;
 }
 
+async function runPluginsDiagnosis(): Promise<boolean> {
+  const { PluginManager } = await import('@agent-os/agent-runtime');
+  const pm = new PluginManager({ workspaceRoot: process.cwd() });
+  const plugins = pm.load();
+  console.log('Plugin Status & Governance:');
+  for (const p of plugins) {
+    const statusStr = p.status === 'active' ? '[active]' : `[${p.status}]`;
+    let line = `  - ${p.manifest.id.padEnd(16)}: ${statusStr} (${p.source})`;
+    if (p.error) line += ` -> ${p.error}`;
+    console.log(line);
+  }
+  return true;
+}
+
 const doctorCmd = program.command('doctor')
   .description('Diagnose AgentOS system health')
   .option('--runtime', 'Verify production runtime architecture and integration')
@@ -174,6 +188,8 @@ const doctorCmd = program.command('doctor')
     } else {
       console.log('=== AgentOS System Doctor ===\n');
       await runProvidersDiagnosis(false);
+      console.log('\n');
+      await runPluginsDiagnosis();
       console.log('\n');
       const ok = await runRuntimeDiagnosis();
       if (!ok) process.exit(1);
@@ -192,6 +208,12 @@ doctorCmd.command('providers')
   .option('--probe', 'Perform live probe request to check connectivity')
   .action(async (opts) => {
     await runProvidersDiagnosis(opts.probe);
+  });
+
+doctorCmd.command('plugins')
+  .description('Diagnose installed plugins and permission governance')
+  .action(async () => {
+    await runPluginsDiagnosis();
   });
 
 program.command('runtime-audit')

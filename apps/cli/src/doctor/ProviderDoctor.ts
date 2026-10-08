@@ -7,6 +7,7 @@ import {
   OllamaProvider,
   GeminiProvider,
   DeepSeekProvider,
+  OpenRouterProvider,
 } from '@agent-os/providers';
 import * as path from 'path';
 
@@ -251,6 +252,41 @@ export class ProviderDoctor {
       baseUrl: deepseekBaseUrl,
       probeStatus: deepseekProbe,
       error: deepseekError,
+    });
+
+    // 7. OpenRouter
+    const openrouterKey =
+      config.providers?.openrouter?.apiKey || process.env.OPENROUTER_API_KEY;
+    const openrouterBaseUrl = config.providers?.openrouter?.baseUrl;
+    const openrouterModel = config.providers?.openrouter?.model || 'openrouter/auto';
+    const openrouterConfigured = !!openrouterKey;
+
+    let openrouterProbe: 'ok' | 'failed' | 'skipped' = 'skipped';
+    let openrouterError: string | undefined;
+
+    if (probe && openrouterConfigured) {
+      try {
+        const p = new OpenRouterProvider(openrouterKey, openrouterBaseUrl);
+        const health = await p.checkHealth();
+        if (health.ok) {
+          openrouterProbe = 'ok';
+        } else {
+          openrouterProbe = 'failed';
+          openrouterError = health.error;
+        }
+      } catch (err: any) {
+        openrouterProbe = 'failed';
+        openrouterError = err.message;
+      }
+    }
+
+    results.push({
+      provider: 'openrouter',
+      configured: openrouterConfigured,
+      model: openrouterModel,
+      baseUrl: openrouterBaseUrl,
+      probeStatus: openrouterProbe,
+      error: openrouterError,
     });
 
     return results;

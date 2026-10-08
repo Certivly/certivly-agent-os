@@ -14,4 +14,7 @@ export * from './loop/PermissionGuard';
 export * from './loop/HookRunner';
 export * from './loop/ContextAssembler';
 export * from './loop/SearchSubagent';
+export * from './loop/ReviewSubagent';
+export { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
+export * from './plugins/PluginManager';
 

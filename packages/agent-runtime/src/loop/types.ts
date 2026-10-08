@@ -19,10 +19,23 @@ export interface LightweightPlan {
   isEditTask: boolean;
 }
 
+export interface WorkflowMemoryRecord {
+  id: string;
+  runId: string;
+  verdict: 'verified' | 'failed';
+  packageManager?: string;
+  passingTestCommands?: string[];
+  passingBuildCommands?: string[];
+  failedCommandSignatures?: string[];
+  filesChanged?: string[];
+  notes?: string[];
+  createdAt: string;
+}
+
 export interface WorkflowMemoryStore {
-  getMemories(): unknown[];
+  getMemories(): WorkflowMemoryRecord[];
   formatPromptHints(): string;
-  save(record: unknown): boolean;
+  save(record: Omit<WorkflowMemoryRecord, 'id' | 'createdAt'>): boolean;
   close?(): void;
 }
 

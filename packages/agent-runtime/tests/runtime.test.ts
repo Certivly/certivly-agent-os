@@ -15,16 +15,32 @@ describe('AgentRuntime', () => {
     expect(runtime.getSessionManager()).toBeDefined();
   });
 
-  it('fails fast for providers that are still placeholders', () => {
+  it('fails fast for providers that are unsupported or placeholders', () => {
     const configPath = path.join(__dirname, `placeholder-${crypto.randomUUID()}.json`);
     const manager = new ConfigManager(configPath);
     const config = manager.load();
-    config.activeProvider = 'openrouter';
+    config.activeProvider = 'unsupported_provider';
     config.activeModel = 'auto';
     manager.save(config);
 
     try {
-      expect(() => new AgentRuntime({ configPath })).toThrow(/openrouter provider is not implemented yet/i);
+      expect(() => new AgentRuntime({ configPath })).toThrow(/unsupported provider: unsupported_provider/i);
+    } finally {
+      if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
+    }
+  });
+
+  it('initializes openrouter provider successfully', () => {
+    const configPath = path.join(__dirname, `openrouter-${crypto.randomUUID()}.json`);
+    const manager = new ConfigManager(configPath);
+    const config = manager.load();
+    config.activeProvider = 'openrouter';
+    config.activeModel = 'openrouter/auto';
+    manager.save(config);
+
+    try {
+      const runtime = new AgentRuntime({ configPath });
+      expect(runtime).toBeDefined();
     } finally {
       if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
     }

@@ -1557,30 +1557,19 @@ export class AgentLoop {
       });
     }
 
-    const reviewPrompt =
-      `Review the final diff for bugs, missing tests, accidental edits, and unsafe changes.\n` +
-      `Diff:\n${diffSummary}\n\n` +
-      `Verification: ${JSON.stringify(verificationResult)}\n\n` +
-      `Return APPROVE or REQUEST_CHANGES with exact reason.`;
+    const { ReviewSubagent } = await import('./ReviewSubagent');
+    const { ToolRegistry } = await import('@agent-os/tools');
+    const reviewer = new ReviewSubagent(this.model, this.toolRegistry ?? new ToolRegistry(), this.workspaceRoot);
+    const reviewResult = await reviewer.review(diffSummary, verificationResult);
 
-    const reviewResponse = await this.executeModelTurn(
-      {
-        systemPrompt:
-          'You are an expert code reviewer. Return APPROVE or REQUEST_CHANGES with exact reason.',
-        messages: [{ role: 'user', content: reviewPrompt }],
-      },
-      sessionId
-    );
-
-    const reviewText = reviewResponse.text.trim();
-    if (reviewText.startsWith('APPROVE') || reviewText.includes('APPROVE')) {
+    if (reviewResult.approved) {
       return false;
     }
 
-    if (reviewText.includes('REQUEST_CHANGES')) {
+    if (!reviewResult.approved && reviewResult.issues.length > 0) {
       await this.history.appendUser(
         sessionId,
-        `Self-review requested changes:\n${reviewText}\nPlease make the necessary fixes and verify.`
+        `Self-review requested changes:\n${reviewResult.issues.join('\n')}\n${reviewResult.summary}\nPlease make the necessary fixes and verify.`
       );
       return true;
     }

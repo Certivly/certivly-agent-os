@@ -13,11 +13,12 @@ import {
   searchFilesTool,
   repoMapTool,
 } from '@agent-os/tools';
-import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider } from '@agent-os/providers';
+import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider, OpenRouterProvider } from '@agent-os/providers';
 import { RuntimeError, ProviderError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
 import * as path from 'path';
 
 import { AgentLoop } from './loop/AgentLoop';
+import { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
 import { LoopTool, AdaptedLoopTool } from './loop/LoopTool';
 import { SessionHistory } from './loop/SessionHistory';
 import type { RunSummary, PermissionMode, ApprovalRequest, ApprovalHandler } from './loop/types';
@@ -41,6 +42,7 @@ export class AgentRuntime {
   private activeModel: Model;
   private eventBus: LoggingEventBus;
   private lastRunSummary?: RunSummary;
+  private workflowMemoryStore: WorkflowMemoryStore;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.options = options;
@@ -50,6 +52,10 @@ export class AgentRuntime {
 
     const dbPath = path.resolve(process.cwd(), config.runtime.sessionDir, 'sessions.db');
     this.sessionManager = new SessionManager(dbPath);
+
+    const wsRoot = options.workspaceRoot || config.repository?.rootPath || process.cwd();
+    const memoryDbPath = path.resolve(wsRoot, '.agentos', 'workflow-memory.db');
+    this.workflowMemoryStore = new WorkflowMemoryStore(memoryDbPath);
 
     this.toolRegistry = new ToolRegistry();
     this.activeProvider = this.initializeProvider(config);
@@ -103,7 +109,10 @@ export class AgentRuntime {
           config.providers['ollama']?.baseUrl ?? 'http://127.0.0.1:11434'
         );
       case 'openrouter':
-        throw new RuntimeError(`${config.activeProvider} provider is not implemented yet`);
+        return new OpenRouterProvider(
+          config.providers['openrouter']?.apiKey ?? process.env.OPENROUTER_API_KEY ?? '',
+          config.providers['openrouter']?.baseUrl
+        );
       default: throw new RuntimeError(`Unsupported provider: ${config.activeProvider}`);
     }
   }
@@ -118,6 +127,11 @@ export class AgentRuntime {
 
   public close(): void {
     this.sessionManager.close();
+    this.workflowMemoryStore.close();
+  }
+
+  public getWorkflowMemoryStore(): WorkflowMemoryStore {
+    return this.workflowMemoryStore;
   }
 
   public getLastRunSummary(): RunSummary | undefined {
@@ -181,6 +195,7 @@ export class AgentRuntime {
           planningMode: agentConfig.planningMode,
           permissionMode,
           hooks: config.hooks,
+          workflowMemoryStore: this.workflowMemoryStore,
         },
         requestApproval: this.approvalHandler ?? this.options.requestApproval,
       });
@@ -241,6 +256,7 @@ export class AgentRuntime {
         planningMode: agentConfig.planningMode,
         permissionMode,
         hooks: config.hooks,
+        workflowMemoryStore: this.workflowMemoryStore,
       },
       requestApproval: this.approvalHandler ?? this.options.requestApproval,
     });
