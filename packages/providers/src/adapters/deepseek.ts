@@ -1,8 +1,8 @@
 import { Provider, Model, GenerationRequest, GenerationResponse } from '../interface';
-import { ProviderError } from '@agent-os/shared';
 import OpenAI from 'openai';
 
 import { toOpenAIMessages } from '../serialize/openaiMessages';
+import { fetchWithRetry, classifyError } from '../http/retry';
 
 export class DeepSeekModel implements Model {
   id: string;
@@ -14,30 +14,34 @@ export class DeepSeekModel implements Model {
   }
 
   async *stream(request: GenerationRequest): AsyncIterable<any> {
-    const formattedMessages = toOpenAIMessages(request);
+    try {
+      const formattedMessages = toOpenAIMessages(request);
 
-    const response = await this.client.chat.completions.create(
-      {
-        model: this.id,
-        messages: formattedMessages as any,
-        stream: true,
-        stream_options: { include_usage: true },
-        tools: request.tools?.length
-          ? request.tools.map((t) => ({
-              type: 'function' as const,
-              function: {
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters || { type: 'object', properties: {} },
-              },
-            }))
-          : undefined,
-      },
-      request.signal ? { signal: request.signal } : undefined
-    );
+      const response = await this.client.chat.completions.create(
+        {
+          model: this.id,
+          messages: formattedMessages as any,
+          stream: true,
+          stream_options: { include_usage: true },
+          tools: request.tools?.length
+            ? request.tools.map((t) => ({
+                type: 'function' as const,
+                function: {
+                  name: t.name,
+                  description: t.description,
+                  parameters: t.parameters || { type: 'object', properties: {} },
+                },
+              }))
+            : undefined,
+        },
+        request.signal ? { signal: request.signal } : undefined
+      );
 
-    const { parseOpenAIStream } = await import('../streaming/StreamParsers');
-    yield* parseOpenAIStream(response as any);
+      const { parseOpenAIStream } = await import('../streaming/StreamParsers');
+      yield* parseOpenAIStream(response as any);
+    } catch (e: any) {
+      throw classifyError(e, 'DeepSeek');
+    }
   }
 
   async *generateStream(request: GenerationRequest): AsyncIterableIterator<any> {
@@ -94,7 +98,7 @@ export class DeepSeekModel implements Model {
         latencyMs,
       };
     } catch (e: any) {
-      throw new ProviderError(`DeepSeek generation failed: ${e.message}`);
+      throw classifyError(e, 'DeepSeek');
     }
   }
 }
@@ -114,7 +118,16 @@ export class DeepSeekProvider implements Provider {
     this.baseUrl = baseUrl || 'https://api.deepseek.com';
     this.defaultModel = defaultModel || 'deepseek-chat';
     const key = this.apiKey || process.env.DEEPSEEK_API_KEY || '';
-    this.client = new OpenAI({ apiKey: key || 'dummy-key', baseURL: this.baseUrl });
+    this.client = new OpenAI({
+      apiKey: key || 'dummy-key',
+      baseURL: this.baseUrl,
+      maxRetries: 0,
+      fetch: (url, init) =>
+        fetchWithRetry(url, init || {}, {
+          signal: init?.signal as AbortSignal,
+          providerName: 'DeepSeek',
+        }),
+    });
     this.models = [
       new DeepSeekModel('deepseek-chat', this.client),
       new DeepSeekModel('deepseek-reasoner', this.client),

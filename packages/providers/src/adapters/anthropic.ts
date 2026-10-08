@@ -1,16 +1,16 @@
 import { Provider, Model, GenerationRequest, GenerationResponse } from '../interface';
-import { ProviderError } from '@agent-os/shared';
 import { toAnthropicMessages } from '../serialize/anthropicMessages';
+import { fetchWithRetry, classifyError } from '../http/retry';
 
 export class AnthropicModel implements Model {
   id: string;
   private apiKey: string;
   private baseUrl: string;
 
-  constructor(id: string, apiKey: string, baseUrl: string = 'https://api.anthropic.com') {
+  constructor(id: string, apiKey: string, baseUrl: string | URL = 'https://api.anthropic.com') {
     this.id = id;
     this.apiKey = apiKey;
-    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.baseUrl = String(baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResponse> {
@@ -39,22 +39,23 @@ export class AnthropicModel implements Model {
       }
 
       const startTime = Date.now();
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
-        method: 'POST',
-        headers: {
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-          'content-type': 'application/json',
+      const response = await fetchWithRetry(
+        `${this.baseUrl}/v1/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-        signal: request.signal,
-      });
+        {
+          signal: request.signal,
+          providerName: 'Anthropic',
+        }
+      );
       const latencyMs = Date.now() - startTime;
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
 
       const data = (await response.json()) as any;
       let text = '';
@@ -89,7 +90,7 @@ export class AnthropicModel implements Model {
         latencyMs,
       };
     } catch (e: any) {
-      throw new ProviderError(`Anthropic generation failed: ${e.message}`);
+      throw classifyError(e, 'Anthropic');
     }
   }
 
@@ -112,20 +113,26 @@ export class AnthropicModel implements Model {
     if (system) body.system = system;
     if (tools && tools.length > 0) body.tools = tools;
 
-    const response = await fetch(`${this.baseUrl}/v1/messages`, {
-      method: 'POST',
-      headers: {
-        'x-api-key': this.apiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(body),
-      signal: request.signal,
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new ProviderError(`Anthropic streaming failed HTTP ${response.status}: ${errorText}`);
+    let response: Response;
+    try {
+      response = await fetchWithRetry(
+        `${this.baseUrl}/v1/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        },
+        {
+          signal: request.signal,
+          providerName: 'Anthropic',
+        }
+      );
+    } catch (err: any) {
+      throw classifyError(err, 'Anthropic');
     }
 
     async function* responseToLines(res: Response): AsyncIterable<string> {
@@ -169,9 +176,9 @@ export class AnthropicProvider implements Provider {
   private apiKey: string;
   private baseUrl: string;
 
-  constructor(apiKey?: string, baseUrl?: string) {
+  constructor(apiKey?: string, baseUrl?: string | URL) {
     this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY || 'dummy-key';
-    this.baseUrl = (baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
+    this.baseUrl = String(baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
     if (!apiKey && !process.env.ANTHROPIC_API_KEY) {
       console.warn('Warning: ANTHROPIC_API_KEY is missing. Anthropic API calls will fail.');
     }

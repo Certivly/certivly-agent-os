@@ -237,10 +237,6 @@ export class AgentLoop {
 
         const genMessages = toProviderMessages(compactedHistory);
 
-        for (const m of genMessages) {
-          approxInputTokens += estimateTokenCount(m.content);
-        }
-
         // Available tools spec
         const toolSpecs = this.tools.map(t => ({
           name: t.spec.name,
@@ -263,11 +259,25 @@ export class AgentLoop {
           systemPrompt: turnSystemPrompt,
           messages: genMessages,
           ...(toolSpecs.length > 0 ? { tools: toolSpecs } : {}),
+          signal: input.abortSignal,
         };
 
         const response = await this.executeModelTurn(genRequest, sessionId);
 
-        approxOutputTokens += estimateTokenCount(response.text || '');
+        if (typeof response.usage?.inputTokens === 'number') {
+          approxInputTokens += response.usage.inputTokens;
+        } else {
+          for (const m of genMessages) {
+            approxInputTokens += estimateTokenCount(m.content);
+          }
+        }
+
+        if (typeof response.usage?.outputTokens === 'number') {
+          approxOutputTokens += response.usage.outputTokens;
+        } else {
+          approxOutputTokens += estimateTokenCount(response.text || '');
+        }
+
         finalText = response.text || '';
 
         const modelToolCalls = response.toolCalls;
@@ -765,10 +775,6 @@ export class AgentLoop {
 
         const genMessages = toProviderMessages(compactedHistory);
 
-        for (const m of genMessages) {
-          approxInputTokens += estimateTokenCount(m.content);
-        }
-
         const toolSpecs = this.tools.map(t => ({
           name: t.spec.name,
           description: t.spec.description,
@@ -789,10 +795,25 @@ export class AgentLoop {
           systemPrompt: turnSystemPrompt,
           messages: genMessages,
           ...(toolSpecs.length > 0 ? { tools: toolSpecs } : {}),
+          signal: input.abortSignal,
         };
 
         const response = await this.executeModelTurn(genRequest, sessionId);
-        approxOutputTokens += estimateTokenCount(response.text || '');
+
+        if (typeof response.usage?.inputTokens === 'number') {
+          approxInputTokens += response.usage.inputTokens;
+        } else {
+          for (const m of genMessages) {
+            approxInputTokens += estimateTokenCount(m.content);
+          }
+        }
+
+        if (typeof response.usage?.outputTokens === 'number') {
+          approxOutputTokens += response.usage.outputTokens;
+        } else {
+          approxOutputTokens += estimateTokenCount(response.text || '');
+        }
+
         finalText = response.text || '';
 
         const modelToolCalls = response.toolCalls;

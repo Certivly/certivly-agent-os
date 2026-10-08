@@ -1,4 +1,6 @@
-import { JsonObject } from '@agent-os/shared';
+import { JsonObject, ProviderError, AuthError, RateLimitError, ContextLengthError } from '@agent-os/shared';
+
+export { ProviderError, AuthError, RateLimitError, ContextLengthError };
 
 export interface ToolCallRef {
   id: string;

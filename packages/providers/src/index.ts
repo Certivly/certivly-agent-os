@@ -10,3 +10,4 @@ export * from './pricing';
 export * from './streaming/StreamParsers';
 export * from './serialize/openaiMessages';
 export * from './serialize/anthropicMessages';
+export * from './http/retry';

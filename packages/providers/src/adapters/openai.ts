@@ -1,8 +1,8 @@
 import { Provider, Model, GenerationRequest, GenerationResponse } from '../interface';
-import { ProviderError } from '@agent-os/shared';
 import OpenAI from 'openai';
 
 import { toOpenAIMessages } from '../serialize/openaiMessages';
+import { fetchWithRetry, classifyError } from '../http/retry';
 
 class OpenAIModel implements Model {
   id: string;
@@ -14,30 +14,34 @@ class OpenAIModel implements Model {
   }
 
   async *stream(request: GenerationRequest): AsyncIterable<any> {
-    const formattedMessages = toOpenAIMessages(request);
+    try {
+      const formattedMessages = toOpenAIMessages(request);
 
-    const response = await this.client.chat.completions.create(
-      {
-        model: this.id,
-        messages: formattedMessages as any,
-        stream: true,
-        stream_options: { include_usage: true },
-        tools: request.tools?.length
-          ? request.tools.map((t) => ({
-              type: 'function' as const,
-              function: {
-                name: t.name,
-                description: t.description,
-                parameters: t.parameters || { type: 'object', properties: {} },
-              },
-            }))
-          : undefined,
-      },
-      request.signal ? { signal: request.signal } : undefined
-    );
+      const response = await this.client.chat.completions.create(
+        {
+          model: this.id,
+          messages: formattedMessages as any,
+          stream: true,
+          stream_options: { include_usage: true },
+          tools: request.tools?.length
+            ? request.tools.map((t) => ({
+                type: 'function' as const,
+                function: {
+                  name: t.name,
+                  description: t.description,
+                  parameters: t.parameters || { type: 'object', properties: {} },
+                },
+              }))
+            : undefined,
+        },
+        request.signal ? { signal: request.signal } : undefined
+      );
 
-    const { parseOpenAIStream } = await import('../streaming/StreamParsers');
-    yield* parseOpenAIStream(response as any);
+      const { parseOpenAIStream } = await import('../streaming/StreamParsers');
+      yield* parseOpenAIStream(response as any);
+    } catch (e: any) {
+      throw classifyError(e, 'OpenAI');
+    }
   }
 
   async *generateStream(request: GenerationRequest): AsyncIterableIterator<any> {
@@ -94,7 +98,7 @@ class OpenAIModel implements Model {
         latencyMs,
       };
     } catch (e: any) {
-      throw new ProviderError(`OpenAI generation failed: ${e.message}`);
+      throw classifyError(e, 'OpenAI');
     }
   }
 }
@@ -109,7 +113,16 @@ export class OpenAIProvider implements Provider {
     if (!key) {
       console.warn("Warning: OPENAI_API_KEY is missing. API calls will fail.");
     }
-    this.client = new OpenAI({ apiKey: key || 'dummy-key', baseURL: baseUrl });
+    this.client = new OpenAI({
+      apiKey: key || 'dummy-key',
+      baseURL: baseUrl,
+      maxRetries: 0,
+      fetch: (url, init) =>
+        fetchWithRetry(url, init || {}, {
+          signal: init?.signal as AbortSignal,
+          providerName: 'OpenAI',
+        }),
+    });
     this.models = [
       new OpenAIModel('gpt-4o', this.client),
       new OpenAIModel('gpt-4-turbo', this.client),

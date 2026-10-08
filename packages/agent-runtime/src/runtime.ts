@@ -147,14 +147,6 @@ export class AgentRuntime {
         eventBus.publish('session.created', { sessionId });
       }
 
-      // Check provider health if checkHealth method is present
-      const health = typeof this.activeProvider.checkHealth === 'function' ? await this.activeProvider.checkHealth() : { ok: true };
-      if (!health.ok) {
-        const errMsg = `Provider connection failed: ${health.error}`;
-        eventBus.publish('message.responded', { sessionId, response: errMsg });
-        return errMsg;
-      }
-
       const config = this.configManager.load();
       const workspaceRoot = config.repository?.rootPath || process.cwd();
       const history = new SessionHistory(this.sessionManager);

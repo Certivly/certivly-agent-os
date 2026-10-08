@@ -6,9 +6,36 @@ export class AgentError extends Error {
 }
 
 export class ProviderError extends AgentError {
-  constructor(message: string) {
+  public readonly cause?: unknown;
+
+  constructor(message: string, cause?: unknown) {
     super(message);
     this.name = 'ProviderError';
+    this.cause = cause;
+  }
+}
+
+export class AuthError extends ProviderError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = 'AuthError';
+  }
+}
+
+export class RateLimitError extends ProviderError {
+  public readonly retryAfterMs?: number;
+
+  constructor(message: string, retryAfterMs?: number, cause?: unknown) {
+    super(message, cause);
+    this.name = 'RateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export class ContextLengthError extends ProviderError {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause);
+    this.name = 'ContextLengthError';
   }
 }
 

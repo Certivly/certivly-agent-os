@@ -1,5 +1,5 @@
-import { Provider, Model, GenerationRequest, GenerationResponse, StreamEvent } from '../interface';
-import { ProviderError } from '@agent-os/shared';
+import { Provider, Model, GenerationRequest, GenerationResponse, StreamEvent, ProviderError } from '../interface';
+import { fetchWithRetry, classifyError } from '../http/retry';
 
 export class OllamaModel implements Model {
   id: string;
@@ -90,14 +90,30 @@ export class OllamaModel implements Model {
     const startTime = Date.now();
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: request.signal,
-      });
+      res = await fetchWithRetry(
+        `${this.baseUrl}/api/chat`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+        {
+          signal: request.signal,
+          providerName: 'Ollama',
+        }
+      );
     } catch (e: any) {
-      throw new ProviderError(`Ollama unreachable at ${this.baseUrl}: ${e.message}`);
+      if (
+        e.name === 'APIConnectionError' ||
+        e.code === 'ECONNREFUSED' ||
+        e.message?.includes('Connection error') ||
+        e.message?.includes('fetch failed') ||
+        e.message?.includes('Unable to connect') ||
+        e.message?.includes('ECONNREFUSED')
+      ) {
+        throw new ProviderError(`Ollama unreachable at ${this.baseUrl}: ${e.message}`);
+      }
+      throw classifyError(e, 'Ollama');
     }
 
     const latencyMs = Date.now() - startTime;

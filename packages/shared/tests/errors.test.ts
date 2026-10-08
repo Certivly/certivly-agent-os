@@ -1,5 +1,15 @@
 import { describe, it, expect } from 'bun:test';
-import { AgentError, ProviderError, ToolError, SessionError, ConfigError, RuntimeError } from '../src/errors';
+import {
+  AgentError,
+  ProviderError,
+  AuthError,
+  RateLimitError,
+  ContextLengthError,
+  ToolError,
+  SessionError,
+  ConfigError,
+  RuntimeError,
+} from '../src/errors';
 
 describe('Errors', () => {
   it('should create an AgentError', () => {
@@ -9,10 +19,24 @@ describe('Errors', () => {
     expect(error instanceof Error).toBe(true);
   });
 
-  it('should create specific errors inheriting from AgentError', () => {
+  it('should create specific errors inheriting from AgentError and ProviderError', () => {
     const providerErr = new ProviderError('provider error');
     expect(providerErr.name).toBe('ProviderError');
     expect(providerErr instanceof AgentError).toBe(true);
+
+    const authErr = new AuthError('unauthorized');
+    expect(authErr.name).toBe('AuthError');
+    expect(authErr instanceof ProviderError).toBe(true);
+    expect(authErr instanceof AgentError).toBe(true);
+
+    const rateLimitErr = new RateLimitError('too many requests', 2000);
+    expect(rateLimitErr.name).toBe('RateLimitError');
+    expect(rateLimitErr.retryAfterMs).toBe(2000);
+    expect(rateLimitErr instanceof ProviderError).toBe(true);
+
+    const ctxErr = new ContextLengthError('context too long');
+    expect(ctxErr.name).toBe('ContextLengthError');
+    expect(ctxErr instanceof ProviderError).toBe(true);
 
     const toolErr = new ToolError('tool error');
     expect(toolErr.name).toBe('ToolError');
