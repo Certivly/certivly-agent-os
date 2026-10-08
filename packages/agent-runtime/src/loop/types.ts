@@ -87,6 +87,7 @@ export interface ResumeLoopInput {
   workspaceRoot?: string;
   sandboxRoot?: string;
   abortSignal?: AbortSignal;
+  tracePath?: string;
 }
 
 

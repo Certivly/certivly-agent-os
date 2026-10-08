@@ -26,6 +26,7 @@ import type {
   PipelineStage,
   LoopState,
   ApprovalHandler,
+  LoopToolCall,
 } from './types';
 import { LightweightPlanner } from '../planning/LightweightPlanner';
 import { SandboxDiffCollector } from './SandboxDiffCollector';
@@ -95,23 +96,56 @@ export class AgentLoop {
   }
 
   public async run(input: AgentLoopInput): Promise<RunSummary> {
-    const startedAt = new Date().toISOString();
-    const startTime = Date.now();
-    const sessionId = input.sessionId;
+    if (!this.workspaceRoot && input.workspaceRoot) {
+      this.workspaceRoot = input.workspaceRoot;
+    }
     const sessionManager = this.history.getSessionManager();
     const runId = input.runId || crypto.randomUUID();
 
     sessionManager.createRun({
       id: runId,
-      sessionId,
+      sessionId: input.sessionId,
       status: 'running',
       userInput: input.userInput,
       tracePath: input.tracePath,
     });
 
+    return this.executeUnifiedLoop({
+      sessionId: input.sessionId,
+      runId,
+      userInput: input.userInput,
+      workspaceRoot: input.workspaceRoot || this.workspaceRoot,
+      sandboxRoot: input.sandboxRoot || this.sandboxRoot,
+      abortSignal: input.abortSignal,
+      tracePath: input.tracePath,
+      isResume: false,
+    });
+  }
+
+  private async executeUnifiedLoop(params: {
+    sessionId: string;
+    runId: string;
+    userInput: string;
+    workspaceRoot: string;
+    sandboxRoot?: string;
+    abortSignal?: AbortSignal;
+    tracePath?: string;
+    isResume?: boolean;
+    initialTurns?: number;
+    initialApprovalDecisions?: { toolName: string; approved: boolean; reason?: string }[];
+    initialFinalText?: string;
+    pendingToolCalls?: LoopToolCall[];
+  }): Promise<RunSummary> {
+    const input = params;
+    const startedAt = new Date().toISOString();
+    const startTime = Date.now();
+    const sessionId = params.sessionId;
+    const sessionManager = this.history.getSessionManager();
+    const runId = params.runId;
+
     this.eventBus.publish('agent.loop.started', {
       sessionId,
-      userInput: input.userInput,
+      userInput: params.userInput,
     });
 
     const toolCallRecords: ToolCallRecord[] = [];
@@ -119,7 +153,8 @@ export class AgentLoop {
     const filesChanged: string[] = [];
     const changeSetFiles: any[] = [];
     const errors: string[] = [];
-    const approvalDecisions: { toolName: string; approved: boolean; reason?: string }[] = [];
+    const approvalDecisions: { toolName: string; approved: boolean; reason?: string }[] =
+      params.initialApprovalDecisions ? [...params.initialApprovalDecisions] : [];
     const loopState: LoopState = {
       filesRead: new Set<string>(),
       filesEdited: new Set<string>(),
@@ -129,11 +164,10 @@ export class AgentLoop {
     };
     const pipelineCompleted = new Set<PipelineStage>(loopState.pipelineCompleted);
 
-
     let approxInputTokens = 0;
     let approxOutputTokens = 0;
-    let turns = 0;
-    let finalText = '';
+    let turns = params.initialTurns ?? 0;
+    let finalText = params.initialFinalText ?? '';
     let success = false;
     let verificationAttempts = 0;
     let reviewAttempts = 0;
@@ -142,15 +176,25 @@ export class AgentLoop {
     let plan: LightweightPlan | undefined;
     const planRevisions: LightweightPlan[] = [];
 
-    if (!this.workspaceRoot && input.workspaceRoot) {
-      this.workspaceRoot = input.workspaceRoot;
-    }
-    const effectiveWs = input.sandboxRoot || this.sandboxRoot || input.workspaceRoot || this.workspaceRoot;
+    const effectiveWs = params.sandboxRoot || this.sandboxRoot || params.workspaceRoot || this.workspaceRoot;
     let verifier: ProjectVerifier | undefined;
 
     try {
-      // 1. Append user message to history
-      await this.history.appendUser(sessionId, input.userInput);
+      if (!params.isResume) {
+        await this.history.appendUser(sessionId, params.userInput);
+      } else if (params.pendingToolCalls && params.pendingToolCalls.length > 0) {
+        await this.executeToolCallsPartitioned(
+          params.pendingToolCalls,
+          sessionId,
+          params.abortSignal,
+          toolCallRecords,
+          commandRecords,
+          filesChanged,
+          approvalDecisions,
+          changeSetFiles,
+          loopState
+        );
+      }
 
       // Load repo instruction text (Action 5-02)
       const instructions = InstructionLoader.load(effectiveWs);
@@ -166,7 +210,7 @@ export class AgentLoop {
         }
       }
 
-      if (this.options.parallelExploration) {
+      if (!params.isResume && this.options.parallelExploration) {
         const { ParallelExplorer } = await import('../exploration/ParallelExplorer');
         const explorer = new ParallelExplorer({
           model: this.model,
@@ -181,7 +225,7 @@ export class AgentLoop {
       }
 
       const planningMode = this.options.planningMode ?? 'auto';
-      if (LightweightPlanner.shouldTriggerPlan({ planningMode, userInput: input.userInput })) {
+      if (!params.isResume && LightweightPlanner.shouldTriggerPlan({ planningMode, userInput: input.userInput })) {
         plan = await LightweightPlanner.generatePlan(this.model, {
           userInput: input.userInput,
           workspaceRoot: this.workspaceRoot,
@@ -649,8 +693,6 @@ export class AgentLoop {
   }
 
   public async resume(input: ResumeLoopInput): Promise<RunSummary> {
-    const startedAt = new Date().toISOString();
-    const startTime = Date.now();
     const sessionId = input.sessionId;
     const sessionManager = this.history.getSessionManager();
 
@@ -680,431 +722,55 @@ export class AgentLoop {
     // 2. Check session consistency
     const rawHistory = await this.history.load(sessionId);
     if (rawHistory.length === 0) {
-      throw new Error(`Inconsistent session state: no messages found for session ${sessionId}. Trace path: ${run.tracePath || 'unknown'}`);
+      throw new Error(
+        `Inconsistent session state: no messages found for session ${sessionId}. Trace path: ${run.tracePath || 'unknown'}`
+      );
     }
 
-    this.eventBus.publish('agent.loop.started', {
-      sessionId,
-      userInput: run.userInput || '',
-    });
+    // 3. Inspect if there are pending tool calls from a crashed turn
+    let pendingToolCalls: LoopToolCall[] | undefined;
+    const lastAssistantIdx = rawHistory.map(m => m.role).lastIndexOf('assistant');
+    if (lastAssistantIdx !== -1) {
+      const lastAssistant = rawHistory[lastAssistantIdx];
+      if (lastAssistant.toolCalls && lastAssistant.toolCalls.length > 0) {
+        const subsequentMessages = rawHistory.slice(lastAssistantIdx + 1);
+        const completedToolCallIds = new Set(
+          subsequentMessages
+            .filter(m => m.role === 'tool' && m.toolCallId)
+            .map(m => m.toolCallId!)
+        );
 
-    const toolCallRecords: ToolCallRecord[] = [];
-    const commandRecords: RunCommandRecord[] = [];
-    const filesChanged: string[] = [];
-    const changeSetFiles: any[] = [];
-    const errors: string[] = [];
+        // Only execute tool calls that do NOT have a persisted tool result!
+        const unexecuted = lastAssistant.toolCalls.filter(tc => !completedToolCallIds.has(tc.id));
+        if (unexecuted.length > 0) {
+          pendingToolCalls = unexecuted;
+        }
+      }
+    }
+
     const approvalDecisions: { toolName: string; approved: boolean; reason?: string }[] = run.approvalDecisions
       ? JSON.parse(run.approvalDecisions)
       : [];
-    const loopState: LoopState = {
-      filesRead: new Set<string>(),
-      filesEdited: new Set<string>(),
-      pipelineCompleted: ['explore'],
-      verificationAttempts: 0,
-      loadedInstructionDirs: new Set<string>(),
-    };
-
-    let approxInputTokens = 0;
-    let approxOutputTokens = 0;
-    let turns = rawHistory.filter(m => m.role === 'assistant').length;
-    let finalText = run.finalText || '';
-    let success = false;
-    let verificationAttempts = 0;
-    let reviewAttempts = 0;
-    let summaryVerification: VerificationResult | undefined;
-    let verificationPassed: boolean | undefined;
-    let plan: LightweightPlan | undefined;
-    const planRevisions: LightweightPlan[] = [];
+    const initialTurns = rawHistory.filter(m => m.role === 'assistant').length;
 
     if (!this.workspaceRoot && input.workspaceRoot) {
       this.workspaceRoot = input.workspaceRoot;
     }
-    const effectiveWs = input.sandboxRoot || this.sandboxRoot || input.workspaceRoot || this.workspaceRoot;
-    let verifier: ProjectVerifier | undefined;
 
-    try {
-      // 3. Inspect if there are pending tool calls from a crashed turn
-      const lastAssistantIdx = rawHistory.map(m => m.role).lastIndexOf('assistant');
-      if (lastAssistantIdx !== -1) {
-        const lastAssistant = rawHistory[lastAssistantIdx];
-        if (lastAssistant.toolCalls && lastAssistant.toolCalls.length > 0) {
-          const subsequentMessages = rawHistory.slice(lastAssistantIdx + 1);
-          const completedToolCallIds = new Set(
-            subsequentMessages
-              .filter(m => m.role === 'tool' && m.toolCallId)
-              .map(m => m.toolCallId!)
-          );
-
-          // Only execute tool calls that do NOT have a persisted tool result!
-          const pendingToolCalls = lastAssistant.toolCalls.filter(tc => !completedToolCallIds.has(tc.id));
-
-          if (pendingToolCalls.length > 0) {
-            await this.executeToolCallsPartitioned(
-              pendingToolCalls,
-              sessionId,
-              input.abortSignal,
-              toolCallRecords,
-              commandRecords,
-              filesChanged,
-              approvalDecisions,
-              changeSetFiles,
-              loopState
-            );
-          }
-
-        }
-      }
-
-
-      // 4. Continue turns (Action 5-02)
-      const instructions = InstructionLoader.load(this.workspaceRoot);
-      const instructionSection = InstructionLoader.buildSystemPromptSection(instructions);
-      let systemPrompt = instructionSection
-        ? `${BASE_AGENT_SYSTEM_PROMPT}\n\n${instructionSection}`
-        : BASE_AGENT_SYSTEM_PROMPT;
-
-      if (this.options.workflowMemoryStore) {
-        const hints = this.options.workflowMemoryStore.formatPromptHints();
-        if (hints) {
-          systemPrompt += `\n\n${hints}`;
-        }
-      }
-
-      const hasEditTools = this.tools.length > 0 && this.tools.some(t => !t.spec.readOnly);
-      const canVerify = !this.options.skipVerification && (!plan || plan.pipeline.includes('verify')) && hasEditTools;
-      if (this.options.baselineVerification && canVerify && effectiveWs) {
-        verifier = new ProjectVerifier(effectiveWs, this.options.verificationExecutor);
-        try {
-          await verifier.captureBaseline(plan?.verificationCommands);
-        } catch {
-          // best-effort baseline capture
-        }
-      }
-
-      while (turns < this.options.maxTurns) {
-        if (Date.now() - startTime > this.options.maxWallTimeMs) {
-          throw new Error(`Execution exceeded maximum wall time of ${this.options.maxWallTimeMs}ms`);
-        }
-
-        if (input.abortSignal?.aborted) {
-          throw new Error('Execution was aborted');
-        }
-
-        turns++;
-        this.eventBus.publish('agent.loop.turn.started', {
-          sessionId,
-          turn: turns,
-        });
-
-        const currentHistory = await this.history.load(sessionId);
-        const compactedHistory = compactHistory(currentHistory, this.options.maxApproxTokens);
-
-        const genMessages = toProviderMessages(compactedHistory);
-
-        const toolSpecs = this.tools.map(t => ({
-          name: t.spec.name,
-          description: t.spec.description,
-          parameters: t.spec.parameters as any,
-        }));
-
-        // ContextAssembler snapshot (Action 5-05)
-        const snapshot = ContextAssembler.build(loopState, {
-          userInput: run.userInput || '',
-          permissionMode: this.options.permissionMode,
-          verificationPassed: loopState.lastVerificationOutput ? false : true,
-          filesChanged,
-        });
-        const turnContextSection = ContextAssembler.toSystemPromptSection(snapshot);
-        const turnSystemPrompt = turnContextSection ? `${turnContextSection}\n\n${systemPrompt}` : systemPrompt;
-
-        const genRequest: GenerationRequest = {
-          systemPrompt: turnSystemPrompt,
-          messages: genMessages,
-          ...(toolSpecs.length > 0 ? { tools: toolSpecs } : {}),
-          signal: input.abortSignal,
-        };
-
-        const response = await this.executeModelTurn(genRequest, sessionId);
-
-        if (typeof response.usage?.inputTokens === 'number') {
-          approxInputTokens += response.usage.inputTokens;
-        } else {
-          for (const m of genMessages) {
-            approxInputTokens += estimateTokenCount(m.content);
-          }
-        }
-
-        if (typeof response.usage?.outputTokens === 'number') {
-          approxOutputTokens += response.usage.outputTokens;
-        } else {
-          approxOutputTokens += estimateTokenCount(response.text || '');
-        }
-
-        finalText = response.text || '';
-
-        const modelToolCalls = response.toolCalls;
-
-        if (!modelToolCalls || modelToolCalls.length === 0) {
-          await this.history.appendAssistant(sessionId, finalText);
-
-          const shouldVerify =
-            (loopState.filesEdited.size > 0 || filesChanged.length > 0) &&
-            !this.options.skipVerification &&
-            (!plan || plan.pipeline.includes('verify'));
-
-          if (shouldVerify) {
-            const effectiveWs = input.sandboxRoot || this.sandboxRoot || this.workspaceRoot;
-            if (!verifier) {
-              verifier = new ProjectVerifier(effectiveWs, this.options.verificationExecutor);
-            }
-            const commands = plan?.verificationCommands && plan.verificationCommands.length > 0
-              ? plan.verificationCommands
-              : undefined;
-
-            // Lifecycle Hook: before_verify (Action 5-03)
-            const hooksConfig = this.options.hooks;
-            if (hooksConfig?.before_verify) {
-              const hookResult = await HookRunner.run(
-                hooksConfig.before_verify,
-                {
-                  VERIFY_COMMANDS: (commands || []).join(' '),
-                },
-                effectiveWs
-              );
-              if (!hookResult.ok && hooksConfig.before_verify.blocking !== false) {
-                loopState.lastVerificationOutput = `[HookFailed before_verify] ${hookResult.output}`.trim();
-              }
-            }
-
-            const vRun = await verifier.run(commands);
-
-            // Lifecycle Hook: after_verify (Action 5-03)
-            if (hooksConfig?.after_verify) {
-              await HookRunner.run(
-                hooksConfig.after_verify,
-                {
-                  VERIFY_STATUS: vRun.passed ? 'pass' : 'fail',
-                  VERIFY_OUTPUT: vRun.output || '',
-                },
-                effectiveWs
-              );
-            }
-
-            loopState.pipelineCompleted.push('verify');
-            loopState.lastVerificationOutput = vRun.output;
-            verificationPassed = vRun.passed;
-
-            const verificationResult: VerificationResult = {
-              verdict: vRun.passed
-                ? 'verified'
-                : (vRun.checks && vRun.checks.length > 0 && vRun.checks.every(c => c.status === 'skipped') ? 'unverified' : 'failed'),
-              checks: vRun.checks || [],
-            };
-            summaryVerification = verificationResult;
-
-            if (vRun.passed) {
-              if (this.options.selfReview && filesChanged.length > 0) {
-                if (reviewAttempts >= (this.options.maxSelfReviewAttempts ?? 1)) {
-                  success = true;
-                  break;
-                }
-
-                reviewAttempts++;
-                const requestedChanges = await this.performSelfReview(
-                  sessionId,
-                  run.id,
-                  verificationResult,
-                  filesChanged,
-                  changeSetFiles
-                );
-
-                if (requestedChanges) {
-                  continue;
-                }
-              }
-
-              success = true;
-              break;
-            } else if (verificationResult.verdict === 'unverified') {
-              success = true;
-              break;
-            } else {
-              verificationAttempts++;
-              loopState.verificationAttempts = verificationAttempts;
-              const maxAttempts = this.options.maxVerificationFixAttempts ?? 3;
-              if (verificationAttempts >= maxAttempts) {
-                success = false;
-                errors.push(`Verification failed after ${verificationAttempts} fix attempts. Last output:\n${vRun.output}`);
-                break;
-              }
-
-              const failureLines = formatVerificationFailure(verificationResult);
-              const feedback = `[Verification Failed]\n${failureLines || vRun.output}\n\nRepair the above failures and try again.`;
-              await this.history.appendUser(sessionId, feedback);
-
-              this.eventBus.publish('verification.failed', {
-                sessionId,
-                attempt: verificationAttempts,
-                feedback,
-              });
-
-              continue;
-            }
-          }
-
-          success = true;
-          break;
-        }
-
-        if (this.tools.length === 0) {
-          const errMsg = 'Tools are not enabled in this action';
-          errors.push(errMsg);
-          await this.history.appendAssistant(sessionId, finalText, modelToolCalls);
-          success = false;
-          break;
-        }
-
-        await this.history.appendAssistant(sessionId, finalText, modelToolCalls);
-
-        await this.executeToolCallsPartitioned(
-          modelToolCalls,
-          sessionId,
-          input.abortSignal,
-          toolCallRecords,
-          commandRecords,
-          filesChanged,
-          approvalDecisions,
-          changeSetFiles,
-          loopState
-        );
-      }
-
-
-      if (!success && turns >= this.options.maxTurns) {
-        errors.push(`Maximum turns (${this.options.maxTurns}) reached without final answer`);
-      }
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      errors.push(errMsg);
-      success = false;
-      this.eventBus.publish('agent.loop.failed', {
-        sessionId,
-        error: errMsg,
-      });
-    }
-
-    const completedAt = new Date().toISOString();
-    const durationMs = Date.now() - startTime;
-    const finalStatus: RunStatus = input.abortSignal?.aborted
-      ? 'cancelled'
-      : (success ? 'completed' : 'failed');
-
-    const effectiveSandboxRoot = input.sandboxRoot || this.sandboxRoot;
-    let changeSetId: string | undefined;
-    let hasChanges = false;
-
-    if (effectiveSandboxRoot && effectiveSandboxRoot !== this.workspaceRoot) {
-      try {
-        const collector = SandboxDiffCollector.collect({
-          workspaceRoot: this.workspaceRoot,
-          sandboxRoot: effectiveSandboxRoot,
-          runId: run.id,
-        });
-
-        if (collector !== null && collector.files.length > 0) {
-          const { ChangeSetStore } = await import('@agent-os/patch-engine');
-          const store = new ChangeSetStore();
-          store.save(collector);
-          changeSetId = collector.id;
-          hasChanges = true;
-        }
-      } catch {}
-    }
-
-    if (!changeSetId && changeSetFiles.length > 0) {
-      try {
-        const { ChangeSetStore } = await import('@agent-os/patch-engine');
-        const store = new ChangeSetStore();
-        store.save({
-          id: run.id,
-          workspaceRoot: this.workspaceRoot,
-          files: changeSetFiles,
-          createdAt: completedAt,
-        });
-        changeSetId = run.id;
-        hasChanges = true;
-      } catch {}
-    }
-
-    if (success && changeSetId && hasChanges) {
-      try {
-        const { ChangeSetStore } = await import('@agent-os/patch-engine');
-        const store = new ChangeSetStore();
-        const cs = store.load(changeSetId);
-        if (cs && cs.files.length > 0) {
-          this.eventBus.publish('approval.requested', {
-            sessionId,
-            runId: run.id,
-            changeSetId,
-            fileCount: cs.files.length,
-            diffPreview: ChangeSetStore.toUnifiedDiff(cs).slice(0, 2000),
-          });
-        }
-      } catch {}
-    }
-
-    sessionManager.updateRun(run.id, {
-
-      status: finalStatus,
-      finalText,
-      verification: summaryVerification ? JSON.stringify(summaryVerification) : undefined,
-      approvalDecisions: approvalDecisions.length > 0 ? JSON.stringify(approvalDecisions) : undefined,
-    });
-
-    await this.persistWorkflowMemory(run.id, summaryVerification, filesChanged);
-
-    const summary: RunSummary = {
+    return this.executeUnifiedLoop({
       sessionId,
       runId: run.id,
-      status: finalStatus,
-      success,
-      finalText,
-      turns,
-      approxInputTokens,
-      approxOutputTokens,
-      toolCalls: toolCallRecords,
-      commands: commandRecords,
-      filesChanged,
-      errors,
-      changeSetId,
-      hasChanges,
-      verificationPassed,
-      verificationOutput: loopState.lastVerificationOutput,
-      repairAttempts: verificationAttempts,
-      startedAt,
-      completedAt,
-      durationMs,
-      verification: summaryVerification,
-      verificationAttempts: verificationAttempts > 0 ? verificationAttempts : undefined,
-      plan,
-      planRevisions: planRevisions.length > 0 ? planRevisions : undefined,
-      searchSubagentResult: loopState.searchSubagentResult,
-    };
-
-    if (success) {
-      this.eventBus.publish('agent.loop.completed', {
-        sessionId,
-        success: true,
-        summary: summary as any,
-      });
-    } else {
-      this.eventBus.publish('agent.loop.failed', {
-        sessionId,
-        error: errors.join('; ') || 'Execution failed',
-      });
-    }
-
-    return summary;
+      userInput: run.userInput || '',
+      workspaceRoot: input.workspaceRoot || this.workspaceRoot,
+      sandboxRoot: input.sandboxRoot || this.sandboxRoot,
+      abortSignal: input.abortSignal,
+      tracePath: input.tracePath || run.tracePath || undefined,
+      isResume: true,
+      initialTurns,
+      initialApprovalDecisions: approvalDecisions,
+      initialFinalText: run.finalText || '',
+      pendingToolCalls,
+    });
   }
 
 
