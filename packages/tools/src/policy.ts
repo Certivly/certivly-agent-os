@@ -246,6 +246,34 @@ export function isSafeCommand(command: string, mode: ToolMode = 'workspace-write
   return false;
 }
 
+export const HARD_DENY_COMMAND_PATTERNS: RegExp[] = [
+  // Fork bombs
+  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/,
+  /bomb\(\)\s*\{\s*bomb\s*\|\s*bomb\s*&\s*\}\s*;/,
+  // Disk partition / format
+  /\b(?:mkfs|fdisk|gdisk|parted)\b/i,
+  /\bformat\s+[a-zA-Z]:/i,
+  /\bdiskpart\b/i,
+  // Raw block device writes
+  /\bdd\s+.*of=\/dev\/(?:sd[a-z]|hd[a-z]|nvme[0-9]n[0-9]|null|zero|disk)/i,
+  />\s*\/dev\/(?:sd[a-z]|hd[a-z]|nvme[0-9]|mem|kmem)/i,
+  // System power/shutdown control
+  /\b(?:shutdown|reboot|poweroff|halt|init\s+[06])\b/i,
+];
+
+export function isHardDeniedCommand(command: string): { denied: boolean; reason?: string } {
+  const trimmed = (command || '').trim();
+  for (const pattern of HARD_DENY_COMMAND_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return {
+        denied: true,
+        reason: 'Command matches hard-deny safety pattern (destructive system operation)',
+      };
+    }
+  }
+  return { denied: false };
+}
+
 export class CommandPolicyEngine {
   private mode: ToolMode;
   private rawMode: ToolMode | CommandMode;

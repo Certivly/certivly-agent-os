@@ -29,7 +29,7 @@ import type {
 } from './types';
 import { LightweightPlanner } from '../planning/LightweightPlanner';
 import { SandboxDiffCollector } from './SandboxDiffCollector';
-import { PermissionGuard } from './PermissionGuard';
+import { PermissionGuard, isHardDeniedCommand } from './PermissionGuard';
 import { HookRunner } from './HookRunner';
 import { ContextAssembler } from './ContextAssembler';
 import { SearchSubagent } from './SearchSubagent';
@@ -1219,10 +1219,12 @@ export class AgentLoop {
       return { toolCallId: tc.id, name: tc.name, content: errorMsg, isError: true };
     }
 
-    // Permission Mode guard (Action 5-01)
+    // Permission Mode & Security Policy (Action 6-06)
     const guard = new PermissionGuard(this.options.permissionMode ?? 'manual');
     const isEditTool = tc.name === 'edit_file' || tc.name === 'write_file' || tc.name === 'apply_patch';
     const isCommandTool = tc.name === 'run_command';
+
+    let requiresApproval = false;
 
     if (isEditTool) {
       const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
@@ -1243,13 +1245,15 @@ export class AgentLoop {
           isError: true,
         };
       }
-    }
-
-    if (isCommandTool) {
+      requiresApproval = editDecision === 'ask';
+    } else if (isCommandTool) {
       const commandStr = (argsObj.command || argsObj.cmd || '') as string;
       const cmdDecision = guard.checkCommand(commandStr);
       if (cmdDecision === 'block') {
-        const denialMsg = `[PermissionDenied] Mode '${this.options.permissionMode ?? 'manual'}' does not allow running commands.`;
+        const hardDeny = isHardDeniedCommand(commandStr);
+        const denialMsg = hardDeny.denied
+          ? `[PermissionDenied] Command blocked by security policy: ${hardDeny.reason || 'prohibited command'}`
+          : `[PermissionDenied] Mode '${this.options.permissionMode ?? 'manual'}' does not allow running commands.`;
         toolCallRecords?.push({
           id: tc.id,
           name: tc.name,
@@ -1263,6 +1267,13 @@ export class AgentLoop {
           content: denialMsg,
           isError: true,
         };
+      }
+      requiresApproval = cmdDecision === 'ask';
+    } else {
+      try {
+        requiresApproval = await tool.requiresApproval(argsObj);
+      } catch {
+        requiresApproval = false;
       }
     }
 
@@ -1291,34 +1302,6 @@ export class AgentLoop {
             content: advisoryMsg,
             isError: true,
           };
-        }
-      }
-    }
-
-    // Check approval
-    let requiresApproval = false;
-    try {
-      requiresApproval = await tool.requiresApproval(argsObj);
-    } catch {
-      requiresApproval = true;
-    }
-
-    if (this.options.permissionMode) {
-      if (isEditTool) {
-        const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
-        const editDecision = guard.checkEdit(filePathStr);
-        if (editDecision === 'allow') {
-          requiresApproval = false;
-        } else if (editDecision === 'ask') {
-          requiresApproval = true;
-        }
-      } else if (isCommandTool) {
-        const commandStr = (argsObj.command || argsObj.cmd || '') as string;
-        const cmdDecision = guard.checkCommand(commandStr);
-        if (cmdDecision === 'allow') {
-          requiresApproval = false;
-        } else if (cmdDecision === 'ask') {
-          requiresApproval = true;
         }
       }
     }

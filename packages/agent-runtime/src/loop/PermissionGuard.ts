@@ -1,13 +1,7 @@
 import type { PermissionMode } from './types';
+import { isSafeCommand, isHardDeniedCommand } from '@agent-os/tools';
 
-// Low-risk commands that are auto-allowed in 'auto' mode
-const SAFE_COMMAND_PATTERNS = [
-  /^bun\s+(test|run|install)/,
-  /^bunx\s+tsc/,
-  /^git\s+(status|log|diff|show)/,
-  /^cat\s+/,
-  /^echo\s+/,
-];
+export { isHardDeniedCommand };
 
 export class PermissionGuard {
   constructor(private mode: PermissionMode = 'manual') {}
@@ -22,12 +16,15 @@ export class PermissionGuard {
   }
 
   checkCommand(command: string): 'allow' | 'block' | 'ask' {
+    const hardDeny = isHardDeniedCommand(command);
+    if (hardDeny.denied) {
+      return 'block';
+    }
     if (this.mode === 'plan') return 'block';
-    const trimmed = (command || '').trim();
-    if (this.mode === 'auto' && SAFE_COMMAND_PATTERNS.some((p) => p.test(trimmed))) {
+    if (this.mode === 'auto' && isSafeCommand(command, 'workspace-write')) {
       return 'allow';
     }
-    return 'ask'; // 'manual' and 'acceptEdits' for commands
+    return 'ask'; // 'manual' and 'acceptEdits' for commands, or non-safe in 'auto'
   }
 
   get isPlanMode(): boolean {
