@@ -174,7 +174,9 @@ When you identify the relevant files, respond with a JSON object:
           reason: typeof parsed.reason === 'string' ? parsed.reason : 'Extracted from search result',
         };
       }
-    } catch {}
+    } catch (_err) {
+      // best-effort: raw text is not valid JSON, proceed to markdown block extraction
+    }
 
     // Markdown block extract ```json ... ```
     const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
@@ -187,7 +189,9 @@ When you identify the relevant files, respond with a JSON object:
             reason: typeof parsed.reason === 'string' ? parsed.reason : 'Extracted from markdown block',
           };
         }
-      } catch {}
+      } catch (_err) {
+        // best-effort: markdown block is not valid JSON, proceed to regex object match
+      }
     }
 
     // Object regex extract \{[\s\S]*"rankedFiles"[\s\S]*\}
@@ -201,7 +205,9 @@ When you identify the relevant files, respond with a JSON object:
             reason: typeof parsed.reason === 'string' ? parsed.reason : 'Extracted from object match',
           };
         }
-      } catch {}
+      } catch (_err) {
+        // best-effort: regex object match is not valid JSON
+      }
     }
 
     return null;

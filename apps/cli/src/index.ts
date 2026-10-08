@@ -31,11 +31,21 @@ const configPath = fs.existsSync(localConfigPath) ? localConfigPath : globalConf
 // Log crashes to disk but DO NOT exit — the UI must stay alive so the user
 // sees the error in the chat panel on next interaction.
 process.on('uncaughtException', (err) => {
-  try { fs.appendFileSync('cli-error.log', `[uncaughtException] ${new Date().toISOString()}\n${err.stack || String(err)}\n\n`); } catch {}
+  try {
+    fs.appendFileSync('cli-error.log', `[uncaughtException] ${new Date().toISOString()}\n${err.stack || String(err)}\n\n`);
+  } catch (_e) {
+    // best-effort: fallback to process stderr if writing to log file fails
+    process.stderr.write(`[uncaughtException] Failed to write cli-error.log: ${String(err)}\n`);
+  }
   // Do not exit — surface to user on next message
 });
 process.on('unhandledRejection', (reason: any) => {
-  try { fs.appendFileSync('cli-error.log', `[unhandledRejection] ${new Date().toISOString()}\n${reason?.stack || String(reason)}\n\n`); } catch {}
+  try {
+    fs.appendFileSync('cli-error.log', `[unhandledRejection] ${new Date().toISOString()}\n${reason?.stack || String(reason)}\n\n`);
+  } catch (_e) {
+    // best-effort: fallback to process stderr if writing to log file fails
+    process.stderr.write(`[unhandledRejection] Failed to write cli-error.log: ${String(reason)}\n`);
+  }
   // Do not exit — surface to user on next message
 });
 

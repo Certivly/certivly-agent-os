@@ -177,7 +177,9 @@ export class OllamaModel implements Model {
         let argsObj: Record<string, unknown> = {};
         try {
           argsObj = JSON.parse(tc.args);
-        } catch {}
+        } catch (_err) {
+          // best-effort: fallback to empty args object if tool call args are not valid JSON
+        }
         yield { type: 'tool_call_end', id: tc.id, arguments: argsObj };
       }
     }

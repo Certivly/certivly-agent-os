@@ -46,7 +46,9 @@ export class GitWorktreeSandbox implements Sandbox {
     // If branch already exists, remove it first
     try {
       await execFileAsync('git', ['branch', '-D', this.branchName], { cwd: this.sourceWorkspaceDir });
-    } catch {}
+    } catch (_err) {
+      // best-effort: branch may not exist yet
+    }
 
     await execFileAsync('git', ['worktree', 'add', '-b', this.branchName, this.sandboxDir, 'HEAD'], {
       cwd: this.sourceWorkspaceDir,
@@ -160,7 +162,9 @@ export class GitWorktreeSandbox implements Sandbox {
       // Mark all untracked files as intent-to-add so git diff includes them
       try {
         await execFileAsync('git', ['add', '-A', '--intent-to-add'], { cwd: this.sandboxDir });
-      } catch {}
+      } catch (_err) {
+        // best-effort: ignore if staging untracked files fails
+      }
 
       const { stdout } = await execFileAsync('git', ['diff', '--binary'], {
         cwd: this.sandboxDir,
@@ -188,7 +192,9 @@ export class GitWorktreeSandbox implements Sandbox {
       // If git worktree remove fails, remove directory manually
       try {
         await fs.rm(this.sandboxDir, { recursive: true, force: true });
-      } catch {}
+      } catch (_rmErr) {
+        // best-effort: directory removal fallback
+      }
     }
 
     // 2. Remove sandbox branch even if worktree remove had issues
@@ -196,11 +202,15 @@ export class GitWorktreeSandbox implements Sandbox {
       await execFileAsync('git', ['branch', '-D', this.branchName], {
         cwd: this.sourceWorkspaceDir,
       });
-    } catch {}
+    } catch (_branchErr) {
+      // best-effort: branch may already be deleted
+    }
 
     // 3. Prune worktrees
     try {
       await execFileAsync('git', ['worktree', 'prune'], { cwd: this.sourceWorkspaceDir });
-    } catch {}
+    } catch (_pruneErr) {
+      // best-effort: worktree prune cleanup
+    }
   }
 }

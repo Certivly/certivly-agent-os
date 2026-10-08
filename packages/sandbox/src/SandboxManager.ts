@@ -127,7 +127,9 @@ export class SandboxManager {
           }
           cleanedIds.push(entry);
         }
-      } catch {}
+      } catch (_err) {
+        // best-effort: skip entry if stat or removal fails
+      }
     }
 
     return cleanedIds;

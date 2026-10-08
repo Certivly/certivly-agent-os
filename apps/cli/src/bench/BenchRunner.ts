@@ -146,7 +146,9 @@ export class BenchRunner {
         stdio: 'ignore',
         timeout: 5000,
       });
-    } catch {}
+    } catch (_err) {
+      // best-effort: spawnSync error fallback to duration calculation
+    }
     const duration = performance.now() - start;
     return Math.max(1, duration);
   }
@@ -204,7 +206,9 @@ export class BenchRunner {
     } finally {
       try {
         fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {}
+      } catch (_err) {
+        // best-effort: temporary benchmark directory cleanup
+      }
     }
   }
 
@@ -224,7 +228,9 @@ export class BenchRunner {
           if (t.meta.tags?.includes('smoke') || t.meta.id.includes('smoke')) {
             tasks.push(t);
           }
-        } catch {}
+        } catch (_err) {
+          // best-effort: skip unparseable eval task
+        }
       }
       const tasksToRun =
         tasks.length > 0
@@ -237,7 +243,9 @@ export class BenchRunner {
           modelName: 'fake:scripted',
         });
       }
-    } catch {}
+    } catch (_err) {
+      // best-effort: fallback on eval runner failure during benchmark
+    }
     return performance.now() - start;
   }
 
@@ -281,7 +289,9 @@ export class BenchRunner {
     } finally {
       try {
         fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {}
+      } catch (_err) {
+        // best-effort: temporary benchmark loop directory cleanup
+      }
     }
   }
 

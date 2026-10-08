@@ -31,7 +31,9 @@ export class SessionManager {
   public close(): void {
     try {
       this.sqlite.close();
-    } catch {}
+    } catch (_err) {
+      // best-effort: SQLite database may already be closed
+    }
   }
 
 

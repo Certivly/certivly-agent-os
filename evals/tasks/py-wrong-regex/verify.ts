@@ -22,7 +22,9 @@ for (const cmd of ['python', 'python3', 'py']) {
       pyPassed = true;
       break;
     }
-  } catch {}
+  } catch (_err) {
+    // best-effort: candidate python executable may not exist on system
+  }
 }
 
 if (!pyPassed) {

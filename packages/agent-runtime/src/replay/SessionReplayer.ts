@@ -71,7 +71,9 @@ export class SessionReplayer {
             content = parsed.text ?? '';
             toolCalls = parsed.toolCalls;
           }
-        } catch {}
+        } catch (_err) {
+          // best-effort: fallback to plain text if assistant message is not JSON-encoded
+        }
       }
 
       messages.push({

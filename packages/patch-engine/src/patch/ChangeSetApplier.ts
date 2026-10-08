@@ -346,7 +346,9 @@ export class ChangeSetApplier {
           } else if (plan.originalContent !== undefined) {
             fs.writeFileSync(plan.fullPath, plan.originalContent, 'utf8');
           }
-        } catch {}
+        } catch (_rollbackErr) {
+          // best-effort: rollback attempt during write failure restoration
+        }
       }
 
       return {

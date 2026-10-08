@@ -117,7 +117,9 @@ export class CompetitorEval {
             const buf = fs.readFileSync(full);
             const hash = crypto.createHash('sha256').update(buf).digest('hex');
             map.set(rel, hash);
-          } catch {}
+          } catch (_err) {
+            // best-effort: file may be locked or inaccessible during snapshot
+          }
         }
       }
     }
@@ -307,7 +309,9 @@ export class CompetitorEval {
     } finally {
       try {
         fs.rmSync(tempDir, { recursive: true, force: true });
-      } catch {}
+      } catch (_err) {
+        // best-effort: temporary competitor eval workspace cleanup
+      }
     }
   }
 

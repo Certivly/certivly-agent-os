@@ -1,7 +1,8 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import type { Model, GenerationRequest } from '@agent-os/providers';
-import { generateUnifiedDiff, computeSha256, type LoggingEventBus } from '@agent-os/shared';
+import type { Model, GenerationRequest, ModelUsage } from '@agent-os/providers';
+import { generateUnifiedDiff, computeSha256, type LoggingEventBus, type JsonObject } from '@agent-os/shared';
+import type { ChangeSetFile } from '@agent-os/patch-engine';
 import type { SessionHistory } from './SessionHistory';
 import { validateToolArguments, type LoopTool, type ToolExecutionResult } from './LoopTool';
 import { compactHistory, estimateTokenCount } from './compactHistory';
@@ -151,7 +152,7 @@ export class AgentLoop {
     const toolCallRecords: ToolCallRecord[] = [];
     const commandRecords: RunCommandRecord[] = [];
     const filesChanged: string[] = [];
-    const changeSetFiles: any[] = [];
+    const changeSetFiles: ChangeSetFile[] = [];
     const errors: string[] = [];
     const approvalDecisions: { toolName: string; approved: boolean; reason?: string }[] =
       params.initialApprovalDecisions ? [...params.initialApprovalDecisions] : [];
@@ -262,8 +263,12 @@ export class AgentLoop {
         verifier = new ProjectVerifier(effectiveWs, this.options.verificationExecutor);
         try {
           await verifier.captureBaseline(plan?.verificationCommands);
-        } catch {
-          // best-effort baseline capture: do not fail run if baseline capture fails
+        } catch (err) {
+          // best-effort: baseline capture failure should not fail the agent run
+          this.eventBus.publish('agent.loop.warning', {
+            sessionId,
+            message: `Baseline verification failed: ${err instanceof Error ? err.message : String(err)}`,
+          });
         }
       }
 
@@ -293,7 +298,7 @@ export class AgentLoop {
         const toolSpecs = this.tools.map(t => ({
           name: t.spec.name,
           description: t.spec.description,
-          parameters: t.spec.parameters as any,
+          parameters: t.spec.parameters as JsonObject,
         }));
 
         // ContextAssembler snapshot (Action 5-05)
@@ -558,8 +563,8 @@ export class AgentLoop {
       if (!success && turns >= this.options.maxTurns) {
         errors.push(`Maximum turns (${this.options.maxTurns}) reached without final answer`);
       }
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
       errors.push(errMsg);
       success = false;
       this.eventBus.publish('agent.loop.failed', {
@@ -594,7 +599,10 @@ export class AgentLoop {
           changeSetId = collector.id;
           hasChanges = true;
         }
-      } catch {}
+      } catch (err) {
+        // best-effort: record error if sandbox change collection fails
+        errors.push(`Failed to collect sandbox changes: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     if (!changeSetId && changeSetFiles.length > 0) {
@@ -610,7 +618,10 @@ export class AgentLoop {
         });
         changeSetId = runId;
         hasChanges = true;
-      } catch {}
+      } catch (err) {
+        // best-effort: record error if saving in-place changeset fails
+        errors.push(`Failed to save changeset: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
 
     if (success && changeSetId && hasChanges) {
@@ -627,7 +638,13 @@ export class AgentLoop {
             diffPreview: ChangeSetStore.toUnifiedDiff(cs).slice(0, 2000),
           });
         }
-      } catch {}
+      } catch (err) {
+        // best-effort: log warning if approval preview fails to generate
+        this.eventBus.publish('agent.loop.warning', {
+          sessionId,
+          message: `Failed to create approval preview: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
     }
 
     const warnings: string[] = [];
@@ -680,7 +697,7 @@ export class AgentLoop {
       this.eventBus.publish('agent.loop.completed', {
         sessionId,
         success: true,
-        summary: summary as any,
+        summary: summary as unknown as JsonObject,
       });
     } else {
       this.eventBus.publish('agent.loop.failed', {
@@ -782,7 +799,7 @@ export class AgentLoop {
     commandRecords?: RunCommandRecord[],
     filesChanged?: string[],
     approvalDecisions?: { toolName: string; approved: boolean; reason?: string }[],
-    changeSetFiles?: any[],
+    changeSetFiles?: ChangeSetFile[],
     loopState?: LoopState
   ): Promise<ToolExecutionResult[]> {
     const results: ToolExecutionResult[] = [];
@@ -874,7 +891,7 @@ export class AgentLoop {
     commandRecords?: RunCommandRecord[],
     filesChanged?: string[],
     approvalDecisions?: { toolName: string; approved: boolean; reason?: string }[],
-    changeSetFiles?: any[],
+    changeSetFiles?: ChangeSetFile[],
     loopState?: LoopState
   ): Promise<ToolExecutionResult> {
 
@@ -882,8 +899,9 @@ export class AgentLoop {
     let argsObj: Record<string, unknown> = {};
     try {
       argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
-    } catch (err: any) {
-      const errorMsg = `Failed to parse arguments: ${err.message}`;
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      const errorMsg = `Failed to parse arguments: ${errMsg}`;
       toolCallRecords?.push({
         id: tc.id,
         name: tc.name,
@@ -995,15 +1013,17 @@ export class AgentLoop {
       } else {
         try {
           requiresApproval = await tool.requiresApproval(argsObj);
-        } catch {
-          requiresApproval = false;
+        } catch (err) {
+          // best-effort: fail safe to requiring approval if check fails
+          requiresApproval = true;
         }
       }
     } else {
       try {
         requiresApproval = await tool.requiresApproval(argsObj);
-      } catch {
-        requiresApproval = false;
+      } catch (err) {
+        // best-effort: fail safe to requiring approval if check fails
+        requiresApproval = true;
       }
     }
 
@@ -1045,18 +1065,18 @@ export class AgentLoop {
         id: `appr-${tc.id}`,
         sessionId,
         toolName: tc.name,
-        args: argsObj as any,
+        args: argsObj as JsonObject,
         toolCallId: tc.id,
         files: filesList,
         diff: diffPreview,
       });
 
       if (isEditTool) {
-        this.eventBus.publish('approval.requested.edit' as any, {
+        this.eventBus.publish('approval.requested.edit', {
           id: `appr-${tc.id}`,
           sessionId,
           toolName: tc.name,
-          args: argsObj as any,
+          args: argsObj as JsonObject,
           toolCallId: tc.id,
           files: filesList,
           diff: diffPreview,
@@ -1148,7 +1168,7 @@ export class AgentLoop {
       sessionId,
       toolCallId: tc.id,
       toolName: tc.name,
-      args: argsObj as any,
+      args: argsObj as JsonObject,
     });
 
     try {
@@ -1263,11 +1283,11 @@ export class AgentLoop {
 
 
       return result;
-    } catch (err: any) {
-      if ((err as any)?.fatal) {
+    } catch (err: unknown) {
+      if (typeof err === 'object' && err !== null && 'fatal' in err && (err as { fatal: unknown }).fatal) {
         throw err;
       }
-      const errorMsg = err?.message || String(err);
+      const errorMsg = err instanceof Error ? err.message : String(err);
 
       this.eventBus.publish('tool.call.failed', {
         sessionId,
@@ -1293,10 +1313,10 @@ export class AgentLoop {
 
   private syncChangeSetFiles(
     loopState: LoopState | undefined,
-    changeSetFiles: any[] | undefined,
+    changeSetFiles: ChangeSetFile[] | undefined,
     filesChanged: string[] | undefined,
     toolName: string,
-    result: any,
+    result: ToolExecutionResult,
     argsObj: Record<string, unknown>
   ): void {
     if (!loopState) return;
@@ -1408,13 +1428,13 @@ export class AgentLoop {
   ): Promise<{
     text: string;
     toolCalls?: Array<{ id: string; name: string; args: string }>;
-    usage?: any;
+    usage?: ModelUsage;
   }> {
     if (typeof this.model.stream === 'function') {
       let text = '';
       const toolCalls: Array<{ id: string; name: string; args: string }> = [];
       const toolNames = new Map<string, string>();
-      let usage: any = undefined;
+      let usage: ModelUsage | undefined = undefined;
 
       const events = this.model.stream(genRequest);
       for await (const event of events) {
@@ -1517,7 +1537,7 @@ export class AgentLoop {
     runId: string,
     verificationResult: VerificationResult,
     filesChanged: string[],
-    changeSetFiles: any[]
+    changeSetFiles: ChangeSetFile[]
   ): Promise<boolean> {
     let diffSummary = filesChanged.join(', ');
     try {
@@ -1529,7 +1549,13 @@ export class AgentLoop {
           files: changeSetFiles,
           createdAt: new Date().toISOString(),
         }) || diffSummary;
-    } catch {}
+    } catch (err) {
+      // best-effort: fallback to filesChanged string if unified diff generation fails
+      this.eventBus.publish('agent.loop.warning', {
+        sessionId,
+        message: `Failed to generate unified diff for review: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
 
     const reviewPrompt =
       `Review the final diff for bugs, missing tests, accidental edits, and unsafe changes.\n` +

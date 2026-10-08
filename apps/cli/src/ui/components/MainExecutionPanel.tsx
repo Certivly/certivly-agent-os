@@ -70,7 +70,9 @@ export const ChatRenderer = memo(({
           )}
         </Box>
       );
-    } catch {}
+    } catch (_err) {
+      // best-effort: fallback to standard message rendering if tool execution metadata is not JSON
+    }
   }
 
   // Provider error plain string

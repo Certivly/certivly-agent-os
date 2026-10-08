@@ -136,9 +136,13 @@ export function createDefaultExecutor(options?: VerificationExecutorOptions): Ve
               child.kill('SIGKILL');
             }
           }
-        } catch {
-          // best-effort process termination
-          try { child.kill(); } catch {}
+        } catch (_treeErr) {
+          // best-effort process termination: fallback to direct kill
+          try {
+            child.kill();
+          } catch (_killErr) {
+            // best-effort: process may already have terminated
+          }
         }
 
         const timeoutMsg = `\n[Verification command timed out after ${timeoutMs}ms]`;

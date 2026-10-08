@@ -440,7 +440,9 @@ export class EvalRunner {
       if (!options.keepWorkspace) {
         try {
           fs.rmSync(tempDir, { recursive: true, force: true });
-        } catch {}
+        } catch (_err) {
+          // best-effort: temporary eval workspace cleanup
+        }
       }
     }
   }

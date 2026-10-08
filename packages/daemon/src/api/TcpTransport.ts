@@ -66,8 +66,12 @@ export class TcpTransport implements Transport {
       const lines = buf.split('\n');
       buf = lines.pop() ?? '';
       for (const line of lines) {
-        if (!line.trim()) continue;
-        try { for (const h of this.messageHandlers) h(clientId, JSON.parse(line)); } catch {}
+        try {
+          const parsed = JSON.parse(line);
+          for (const h of this.messageHandlers) h(clientId, parsed);
+        } catch (_err) {
+          // best-effort: skip malformed JSON frame
+        }
       }
     });
     socket.on('close', () => { this.clients.delete(clientId); for (const h of this.disconnectHandlers) h(clientId); });

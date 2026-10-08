@@ -39,8 +39,11 @@ export class DaemonClient {
         const lines = this.buf.split('\n');
         this.buf = lines.pop() ?? '';
         for (const line of lines) {
-          if (!line.trim()) continue;
-          try { this.onFrame(JSON.parse(line)); } catch {}
+          try {
+            this.onFrame(JSON.parse(line));
+          } catch (_err) {
+            // best-effort: skip malformed JSON frame
+          }
         }
       });
 

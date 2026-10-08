@@ -20,9 +20,9 @@ export interface LightweightPlan {
 }
 
 export interface WorkflowMemoryStore {
-  getMemories(): any[];
+  getMemories(): unknown[];
   formatPromptHints(): string;
-  save(record: any): boolean;
+  save(record: unknown): boolean;
   close?(): void;
 }
 

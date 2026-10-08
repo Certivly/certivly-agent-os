@@ -47,7 +47,9 @@ export class ChangeSetStore {
         try {
           fs.unlinkSync(c);
           deleted = true;
-        } catch {}
+        } catch (_err) {
+          // best-effort: candidate file may have already been removed
+        }
       }
     }
     return deleted;

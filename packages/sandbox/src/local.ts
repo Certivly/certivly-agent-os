@@ -39,7 +39,9 @@ export class LocalWorkspaceSandbox implements Sandbox {
         } else {
           await fs.symlink(srcNodeModules, destNodeModules, 'dir');
         }
-      } catch {}
+      } catch (_err) {
+        // best-effort: node_modules symlink/junction creation may fail due to filesystem permissions
+      }
     }
 
     this.initialSnapshot = await WorkspaceSnapshotBuilder.capture(this.sandboxDir);
