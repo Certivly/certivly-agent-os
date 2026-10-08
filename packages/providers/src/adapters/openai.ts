@@ -17,7 +17,7 @@ class OpenAIModel implements Model {
       : [...request.messages];
     const formattedMessages = sourceMessages.map(m => {
       if (m.role === 'tool') {
-        return { role: 'tool', tool_call_id: m.name || '', content: m.content };
+        return { role: 'tool', tool_call_id: m.toolCallId || '', content: m.content };
       }
       return { role: m.role, content: m.content };
     });
@@ -60,7 +60,7 @@ class OpenAIModel implements Model {
       
       for (const msg of request.messages) {
         if (msg.role === 'tool') {
-          messages.push({ role: 'tool', content: msg.content, tool_call_id: msg.name || '' });
+          messages.push({ role: 'tool', content: msg.content, tool_call_id: msg.toolCallId || '' });
         } else {
           messages.push({ role: msg.role, content: msg.content });
         }

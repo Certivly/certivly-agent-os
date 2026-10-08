@@ -44,7 +44,7 @@ export class OllamaModel implements Model {
 
     for (const msg of request.messages) {
       if (msg.role === 'tool') {
-        messages.push({ role: 'tool', content: msg.content });
+        messages.push({ role: 'tool', content: msg.content, tool_name: msg.name });
       } else {
         messages.push({ role: msg.role, content: msg.content });
       }

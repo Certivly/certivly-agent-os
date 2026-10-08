@@ -1,9 +1,22 @@
 import { JsonObject } from '@agent-os/shared';
 
+export interface ToolCallRef {
+  id: string;
+  name: string;
+  args: string; // args = JSON string
+}
+
+export type ChatMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: ToolCallRef[] }
+  | { role: 'tool'; content: string; toolCallId: string; name: string; isError?: boolean };
+
 export interface GenerationRequest {
   systemPrompt?: string;
-  messages: { role: 'user' | 'assistant' | 'system' | 'tool'; content: string; name?: string }[];
+  messages: ChatMessage[];
   tools?: { name: string; description: string; parameters?: JsonObject }[];
+  signal?: AbortSignal;
+  maxOutputTokens?: number;
 }
 
 export interface ModelUsage {

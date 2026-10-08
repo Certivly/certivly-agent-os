@@ -29,25 +29,8 @@ class AnthropicModel implements Model {
             content: [
               {
                 type: 'tool_result',
-                tool_use_id: msg.name || '',
+                tool_use_id: msg.toolCallId || '',
                 content: msg.content
-              }
-            ]
-          });
-        } else if (msg.role === 'assistant' && msg.name) {
-          // Assistant tool call
-          messages.push({
-            role: 'assistant',
-            content: [
-              {
-                type: 'text',
-                text: msg.content || ''
-              },
-              {
-                type: 'tool_use',
-                id: msg.name,
-                name: msg.name, // Simplistic mapping
-                input: {} // Inputs are usually in args, but if we're just restoring history
               }
             ]
           });
@@ -147,17 +130,9 @@ class AnthropicModel implements Model {
           content: [
             {
               type: 'tool_result',
-              tool_use_id: msg.name || '',
+              tool_use_id: msg.toolCallId || '',
               content: msg.content
             }
-          ]
-        });
-      } else if (msg.role === 'assistant' && msg.name) {
-        messages.push({
-          role: 'assistant',
-          content: [
-            { type: 'text', text: msg.content || '' },
-            { type: 'tool_use', id: msg.name, name: msg.name, input: {} }
           ]
         });
       } else {

@@ -78,7 +78,7 @@ describe('Action 3.02: Fake Scripted Provider', () => {
       messages: [
         { role: 'user', content: 'task: test-task' },
         { role: 'assistant', content: 'Turn 1 text' },
-        { role: 'tool', content: 'success' },
+        { role: 'tool', content: 'success', toolCallId: 'call-1', name: 'calc' },
       ],
     });
     expect(res2.text).toBe('Final resolution text');

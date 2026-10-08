@@ -5,6 +5,7 @@ import type { LoggingEventBus } from '@agent-os/shared';
 import type { SessionHistory } from './SessionHistory';
 import { validateToolArguments, type LoopTool, type ToolExecutionResult } from './LoopTool';
 import { compactHistory, estimateTokenCount } from './compactHistory';
+import { toProviderMessages } from './providerMessages';
 import { BASE_AGENT_SYSTEM_PROMPT, loadInstructionText, InstructionLoader } from './instructions';
 import {
   Verification,
@@ -234,11 +235,7 @@ export class AgentLoop {
         const rawHistory = await this.history.load(sessionId);
         const compactedHistory = compactHistory(rawHistory, this.options.maxApproxTokens);
 
-        const genMessages = compactedHistory.map(m => ({
-          role: m.role,
-          content: m.content,
-          name: m.name,
-        }));
+        const genMessages = toProviderMessages(compactedHistory);
 
         for (const m of genMessages) {
           approxInputTokens += estimateTokenCount(m.content);
@@ -766,11 +763,7 @@ export class AgentLoop {
         const currentHistory = await this.history.load(sessionId);
         const compactedHistory = compactHistory(currentHistory, this.options.maxApproxTokens);
 
-        const genMessages = compactedHistory.map(m => ({
-          role: m.role,
-          content: m.content,
-          name: m.name,
-        }));
+        const genMessages = toProviderMessages(compactedHistory);
 
         for (const m of genMessages) {
           approxInputTokens += estimateTokenCount(m.content);

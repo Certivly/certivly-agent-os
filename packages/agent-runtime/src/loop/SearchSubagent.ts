@@ -1,5 +1,5 @@
 import * as path from 'path';
-import type { Model, GenerationRequest } from '@agent-os/providers';
+import type { Model, GenerationRequest, ChatMessage } from '@agent-os/providers';
 import { ToolRegistry } from '@agent-os/tools';
 
 export interface SearchSubagentResult {
@@ -46,12 +46,7 @@ When you identify the relevant files, respond with a JSON object:
   "reason": "explanation of why these files were selected"
 }`;
 
-    const messages: Array<{
-      role: 'user' | 'assistant' | 'system' | 'tool';
-      content: string;
-      name?: string;
-      toolCallId?: string;
-    }> = [
+    const messages: ChatMessage[] = [
       {
         role: 'user',
         content: `Find all files relevant to: ${query}`,
@@ -86,7 +81,11 @@ When you identify the relevant files, respond with a JSON object:
       messages.push({
         role: 'assistant',
         content: response.text || '',
-        name: undefined,
+        toolCalls: modelToolCalls.map((tc) => ({
+          id: tc.id,
+          name: tc.name,
+          args: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args || {}),
+        })),
       });
 
       // Execute each tool call
