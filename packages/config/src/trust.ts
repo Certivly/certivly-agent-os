@@ -42,7 +42,8 @@ export class WorkspaceTrustManager {
   }
 
   private normalize(dirPath: string): string {
-    return path.resolve(dirPath).toLowerCase();
+    const resolved = path.resolve(dirPath);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
   }
 
   private loadStore(): TrustedWorkspacesMap {

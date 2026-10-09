@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import { TruncatedWriteGuard } from '../src/guards/TruncatedWriteGuard';
 import { writeFileTool } from '../src/implementations/write_file';
+import { editFileTool } from '../src/implementations/edit_file';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -84,5 +85,35 @@ describe('TruncatedWriteGuard', () => {
 
     expect(resultAllowed.isError).toBe(false);
     expect(fs.readFileSync(targetFile, 'utf8')).toBe(cutOffContent);
+  });
+
+  it('editFileTool refuses cut-off replacement block on large sections unless allowTruncation is true', async () => {
+    const sectionToReplace = Array.from({ length: 40 }, (_, i) => `function block${i}() { return ${i}; }`).join('\n');
+    const fullContent = `// header\n${sectionToReplace}\n// footer`;
+    fs.writeFileSync(targetFile, fullContent, 'utf8');
+
+    const cutOffReplacement = 'function replacement() {\n  if (true) {';
+
+    // 1. Without allowTruncation -> refused!
+    const resultRefused = await editFileTool.execute({
+      path: '.agentos/test-write-guard/large-file.ts',
+      oldText: sectionToReplace,
+      newText: cutOffReplacement,
+    }, { workspaceRoot: process.cwd() });
+
+    expect(resultRefused.isError).toBe(true);
+    expect(resultRefused.content).toContain('Refusing edit');
+    expect(fs.readFileSync(targetFile, 'utf8')).toBe(fullContent);
+
+    // 2. With allowTruncation -> permitted!
+    const resultAllowed = await editFileTool.execute({
+      path: '.agentos/test-write-guard/large-file.ts',
+      oldText: sectionToReplace,
+      newText: cutOffReplacement,
+      allowTruncation: true,
+    }, { workspaceRoot: process.cwd() });
+
+    expect(resultAllowed.isError).toBe(false);
+    expect(fs.readFileSync(targetFile, 'utf8')).toBe(`// header\n${cutOffReplacement}\n// footer`);
   });
 });

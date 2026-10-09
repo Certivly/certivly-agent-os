@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { logger } from '@agent-os/shared';
-import { ConfigManager } from '@agent-os/config';
+import { ConfigManager, WorkspaceTrustManager } from '@agent-os/config';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -827,6 +827,53 @@ configCmd
     }
     manager.save(config, opts.project ? 'project' : 'user');
     console.log(`[OK] Updated '${key}' in ${opts.project ? 'project' : 'user'} configuration.`);
+  });
+
+const trustCmd = program.command('trust').description('Manage trusted workspaces for script & MCP execution');
+
+trustCmd
+  .command('list')
+  .description('List all trusted workspaces')
+  .action(() => {
+    const trustManager = new WorkspaceTrustManager();
+    const list = trustManager.listTrusted();
+    console.log('\n[AgentOS Trusted Workspaces]');
+    if (list.length === 0) {
+      console.log('  No trusted workspaces recorded yet.');
+    } else {
+      list.forEach((w) => console.log(`  - ${w}`));
+    }
+    console.log();
+  });
+
+trustCmd
+  .command('add [dir]')
+  .description('Trust a workspace directory (defaults to current directory)')
+  .action((dir) => {
+    const targetDir = dir || process.cwd();
+    const trustManager = new WorkspaceTrustManager();
+    trustManager.trustWorkspace(targetDir);
+    console.log(`[OK] Workspace trusted: ${path.resolve(targetDir)}`);
+  });
+
+trustCmd
+  .command('revoke [dir]')
+  .description('Revoke trust for a workspace directory')
+  .action((dir) => {
+    const targetDir = dir || process.cwd();
+    const trustManager = new WorkspaceTrustManager();
+    trustManager.revokeWorkspace(targetDir);
+    console.log(`[OK] Workspace trust revoked: ${path.resolve(targetDir)}`);
+  });
+
+trustCmd
+  .command('check [dir]')
+  .description('Check whether a workspace directory is trusted')
+  .action((dir) => {
+    const targetDir = dir || process.cwd();
+    const trustManager = new WorkspaceTrustManager();
+    const trusted = trustManager.isWorkspaceTrusted(targetDir);
+    console.log(`Workspace ${path.resolve(targetDir)} is ${trusted ? 'TRUSTED' : 'UNTRUSTED'}.`);
   });
 
 await program.parseAsync();

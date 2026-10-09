@@ -4,6 +4,7 @@ import * as path from 'path';
 import { WorkspaceManager, workspaceManager } from '../workspace';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
 import { generateUnifiedDiff, computeSha256 } from '@agent-os/shared';
+import { TruncatedWriteGuard } from '../guards/TruncatedWriteGuard';
 
 export const editFileTool: WorkspaceTool & Tool = {
   name: 'edit_file',
@@ -18,6 +19,7 @@ export const editFileTool: WorkspaceTool & Tool = {
         oldText: { type: 'string', description: 'Exact text to find and replace' },
         newText: { type: 'string', description: 'Replacement text' },
         replaceAll: { type: 'boolean', description: 'Whether to replace all occurrences (default false)' },
+        allowTruncation: { type: 'boolean', description: 'Explicitly allow large deletions that leave unclosed brackets' },
       },
       required: ['path', 'oldText', 'newText'],
     },
@@ -86,6 +88,16 @@ export const editFileTool: WorkspaceTool & Tool = {
         content: `Error: Multiple occurrences (${occurrences}) of oldText found in '${rawPath}'. Specify more context or pass replaceAll: true.`,
         isError: true,
       };
+    }
+
+    if (!args.allowTruncation && normalizedOld.split('\n').length >= TruncatedWriteGuard.MIN_EXISTING_LINES) {
+      const truncationCheck = TruncatedWriteGuard.detectTruncatedRewrite(normalizedOld, normalizedNew, false);
+      if (truncationCheck.isTruncated) {
+        return {
+          content: `Refusing edit to '${rawPath}': ${truncationCheck.reason} If this deletion is intentional, pass allowTruncation: true.`,
+          isError: true,
+        };
+      }
     }
 
     let updatedContent: string;

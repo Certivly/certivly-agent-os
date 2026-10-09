@@ -37,7 +37,7 @@ import { ContextAssembler } from './ContextAssembler';
 import { SearchSubagent } from './SearchSubagent';
 import { AntiLoopMonitor } from './AntiLoopMonitor';
 import { FilePickerAgent } from '../exploration/FilePickerAgent';
-import { ToolRegistry } from '@agent-os/tools';
+import { ToolRegistry, TruncatedWriteGuard } from '@agent-os/tools';
 
 
 const DEFAULT_OPTIONS: AgentLoopOptions = {
@@ -562,7 +562,8 @@ export class AgentLoop {
           pipelineCompleted.add('approve');
         }
 
-        // Anti-Loop Monitoring (Plan 01)
+        // Anti-Loop Monitoring (Plan 01 & Plan 06)
+        let circuitBreakerHalted = false;
         if (antiLoopMonitor) {
           for (let idx = 0; idx < modelToolCalls.length; idx++) {
             const tc = modelToolCalls[idx];
@@ -591,9 +592,22 @@ export class AgentLoop {
                   repetitionCount: loopStatus.repetitionCount,
                   intervention: loopStatus.interventionPrompt,
                 });
+
+                if (loopStatus.shouldHaltLoop) {
+                  errors.push(
+                    `Circuit breaker tripped: Repeated identical tool actions detected (${loopStatus.repetitionCount} times). Halting loop.`
+                  );
+                  success = false;
+                  circuitBreakerHalted = true;
+                  break;
+                }
               }
             }
           }
+        }
+
+        if (circuitBreakerHalted) {
+          break;
         }
 
         if (!plan && (this.options.planningMode ?? 'auto') !== 'off') {
@@ -973,8 +987,10 @@ export class AgentLoop {
     try {
       argsObj = typeof tc.args === 'string' ? JSON.parse(tc.args) : (tc.args ?? {});
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      const errorMsg = `Failed to parse arguments: ${errMsg}`;
+      let errorMsg = `Failed to parse arguments: ${err instanceof Error ? err.message : String(err)}`;
+      if (typeof tc.args === 'string' && TruncatedWriteGuard.isTruncatedJsonPrefix(tc.args)) {
+        errorMsg = TruncatedWriteGuard.formatTruncatedCallRefusal(tc.name);
+      }
       toolCallRecords?.push({
         id: tc.id,
         name: tc.name,

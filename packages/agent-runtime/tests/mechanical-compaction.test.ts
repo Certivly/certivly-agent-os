@@ -80,4 +80,46 @@ describe('MechanicalCompactionEngine', () => {
     expect(result.compactedMessages.length).toBe(shortMessages.length);
     expect(result.savingsRatio).toBe(0);
   });
+
+  it('correctly maps distinct file contents using toolCallId', () => {
+    const messages: LoopMessage[] = [
+      { role: 'system', content: 'System prompt' },
+      { role: 'user', content: 'Inspect both config and schema' },
+      {
+        role: 'assistant',
+        content: 'Reading files',
+        toolCalls: [
+          { id: 'call_cfg', name: 'read_file', args: JSON.stringify({ path: 'config.json' }) },
+          { id: 'call_schema', name: 'read_file', args: JSON.stringify({ path: 'schema.json' }) },
+        ],
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call_cfg',
+        name: 'read_file',
+        content: '{"port": 8080}',
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call_schema',
+        name: 'read_file',
+        content: '{"type": "object"}',
+      },
+      { role: 'user', content: 'Recent user message' },
+      { role: 'assistant', content: 'Recent assistant answer' },
+    ];
+
+    const result = MechanicalCompactionEngine.compact(messages, {
+      verbatimRecentTurns: 1,
+      maxPreservedFiles: 5,
+    });
+
+    expect(result.workingSet.preservedFiles).toHaveLength(2);
+    const cfg = result.workingSet.preservedFiles.find((f) => f.path === 'config.json');
+    const schema = result.workingSet.preservedFiles.find((f) => f.path === 'schema.json');
+    expect(cfg).toBeDefined();
+    expect(cfg!.content).toBe('{"port": 8080}');
+    expect(schema).toBeDefined();
+    expect(schema!.content).toBe('{"type": "object"}');
+  });
 });

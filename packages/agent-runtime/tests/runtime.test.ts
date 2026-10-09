@@ -91,16 +91,16 @@ describe('AgentRuntime', () => {
     const config = manager.load();
     config.activeProvider = 'openai';
     config.activeModel = 'gpt-4o';
-    config.agent = { ...config.agent, maxTurns: 10 };
+    config.agent = { ...config.agent, maxTurns: 10, antiLoopMonitoring: false };
     manager.save(config);
 
     try {
       const runtime = new AgentRuntime({ configPath });
       // Model asks for tools forever with maxTurns exceeded
       const model = new ScriptedModel(
-        Array.from({ length: 15 }, () => ({
+        Array.from({ length: 15 }, (_, i) => ({
           text: 'Need tool',
-          toolCalls: [{ id: 'tc', name: 'nonexistent_tool', args: '{}' }],
+          toolCalls: [{ id: `tc-${i}`, name: 'nonexistent_tool', args: JSON.stringify({ attempt: i }) }],
         }))
       );
       // @ts-ignore

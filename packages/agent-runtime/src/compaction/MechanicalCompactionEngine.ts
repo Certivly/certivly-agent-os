@@ -78,6 +78,8 @@ export class MechanicalCompactionEngine {
     const fileReadsMap = new Map<string, { content: string; order: number }>();
     let readOrder = 0;
 
+    const callIdToPath = new Map<string, string>();
+
     for (const msg of olderMessages) {
       if (msg.role === 'user' && msg.content) {
         userGoals.push(msg.content.trim());
@@ -97,19 +99,30 @@ export class MechanicalCompactionEngine {
           } else if (tc.name === 'run_command' && args.command) {
             commandsRun.push({ command: args.command });
           } else if (tc.name === 'read_file' && args.path) {
-            // Placeholder: file content tracked when tool result is encountered
             if (!fileReadsMap.has(args.path)) {
               fileReadsMap.set(args.path, { content: '', order: ++readOrder });
+            }
+            if (tc.id) {
+              callIdToPath.set(tc.id, args.path);
             }
           }
         }
       }
 
       if (msg.role === 'tool' && msg.content) {
-        // If this is a read_file result, capture content
-        for (const [p, data] of fileReadsMap.entries()) {
-          if (!data.content && msg.name === 'read_file') {
-            data.content = msg.content;
+        const pathFromId = msg.toolCallId ? callIdToPath.get(msg.toolCallId) : undefined;
+        if (pathFromId && fileReadsMap.has(pathFromId)) {
+          const entry = fileReadsMap.get(pathFromId)!;
+          if (!entry.content) {
+            entry.content = msg.content;
+          }
+        } else if (msg.name === 'read_file') {
+          // Fallback if toolCallId was not preserved: assign to first empty read entry
+          for (const [, data] of fileReadsMap.entries()) {
+            if (!data.content) {
+              data.content = msg.content;
+              break;
+            }
           }
         }
       }
