@@ -27,8 +27,13 @@ program
   .option('-d, --debug', 'Enable debug mode');
 
 const localConfigPath = path.join(process.cwd(), 'agentos.config.json');
+const dotConfigPath = path.join(process.cwd(), '.agentos', 'config.json');
 const globalConfigPath = path.join(os.homedir(), '.agentos', 'config.json');
-const configPath = fs.existsSync(localConfigPath) ? localConfigPath : globalConfigPath;
+const configPath = fs.existsSync(localConfigPath)
+  ? localConfigPath
+  : fs.existsSync(dotConfigPath)
+  ? dotConfigPath
+  : globalConfigPath;
 
 // Log crashes to disk but DO NOT exit — the UI must stay alive so the user
 // sees the error in the chat panel on next interaction.

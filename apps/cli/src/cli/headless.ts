@@ -35,8 +35,9 @@ export async function runHeadless(options: HeadlessOptions): Promise<HeadlessRes
   let configPath = options.configPath;
   if (!configPath) {
     const local = path.join(workspaceRoot, 'agentos.config.json');
+    const localDot = path.join(workspaceRoot, '.agentos', 'config.json');
     const user = path.join(process.env.HOME || process.env.USERPROFILE || '', '.agentos', 'config.json');
-    configPath = fs.existsSync(local) ? local : user;
+    configPath = fs.existsSync(local) ? local : fs.existsSync(localDot) ? localDot : user;
   }
 
   let runtime: AgentRuntime | undefined;
