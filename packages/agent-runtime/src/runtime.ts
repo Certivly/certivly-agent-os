@@ -1,5 +1,6 @@
 import { ConfigManager, AgentConfig } from '@agent-os/config';
 import { SessionManager } from '@agent-os/sessions';
+import * as fs from 'fs';
 import {
   ToolRegistry,
   readFileTool,
@@ -12,6 +13,9 @@ import {
   listFilesTool,
   searchFilesTool,
   repoMapTool,
+  searchSymbolsTool,
+  codeInterpreterTool,
+  McpClientManager,
 } from '@agent-os/tools';
 import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider, OpenRouterProvider } from '@agent-os/providers';
 import { RuntimeError, ProviderError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
@@ -43,6 +47,7 @@ export class AgentRuntime {
   private eventBus: LoggingEventBus;
   private lastRunSummary?: RunSummary;
   private workflowMemoryStore: WorkflowMemoryStore;
+  private mcpManager?: McpClientManager;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.options = options;
@@ -65,6 +70,27 @@ export class AgentRuntime {
     this.eventBus = new LoggingEventBus();
     this.activeModel = this.activeProvider.getModel(config.activeModel);
 
+    // Initialize MCP Client Manager if configured
+    this.mcpManager = new McpClientManager(wsRoot);
+    const mcpWorkspaceConfig = path.join(wsRoot, '.agentos', 'mcp.json');
+    if (fs.existsSync(mcpWorkspaceConfig)) {
+      this.mcpManager.initializeFromConfig(mcpWorkspaceConfig).then(() => {
+        if (this.mcpManager) {
+          this.toolRegistry.registerMcpManager(this.mcpManager);
+        }
+      }).catch((err: any) => {
+        this.eventBus.publish('mcp.init.failed', { sessionId: 'system', error: err.message });
+      });
+    } else if (config.mcpServers && Object.keys(config.mcpServers).length > 0) {
+      this.mcpManager.initializeFromConfig(this.options.configPath).then(() => {
+        if (this.mcpManager) {
+          this.toolRegistry.registerMcpManager(this.mcpManager);
+        }
+      }).catch((err: any) => {
+        this.eventBus.publish('mcp.init.failed', { sessionId: 'system', error: err.message });
+      });
+    }
+
     // Check provider health at startup and publish event
     if (typeof this.activeProvider.checkHealth === 'function') {
       this.activeProvider.checkHealth().then(health => {
@@ -86,10 +112,16 @@ export class AgentRuntime {
     this.toolRegistry.register(applyPatchTool);
     this.toolRegistry.register(runCommandTool);
     this.toolRegistry.register(repoMapTool);
+    this.toolRegistry.register(searchSymbolsTool);
+    this.toolRegistry.register(codeInterpreterTool);
   }
 
   private initializeProvider(config: AgentConfig): Provider {
-    switch (config.activeProvider) {
+    return this.initializeProviderForName(config.activeProvider, config);
+  }
+
+  private initializeProviderForName(providerName: string, config: AgentConfig): Provider {
+    switch (providerName) {
       case 'openai': return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl);
       case 'lmstudio': return new LMStudioProvider(config.providers['lmstudio']?.apiKey, config.providers['lmstudio']?.baseUrl);
       case 'anthropic': return new AnthropicProvider(config.providers['anthropic']?.apiKey);
@@ -113,13 +145,37 @@ export class AgentRuntime {
           config.providers['openrouter']?.apiKey ?? process.env.OPENROUTER_API_KEY ?? '',
           config.providers['openrouter']?.baseUrl
         );
-      default: throw new RuntimeError(`Unsupported provider: ${config.activeProvider}`);
+      default: throw new RuntimeError(`Unsupported provider: ${providerName}`);
     }
+  }
+
+  public resolveModel(modelSpec?: string): Model | undefined {
+    if (!modelSpec) return undefined;
+    const config = this.configManager.load();
+    if (modelSpec.includes('/')) {
+      const [providerName, modelId] = modelSpec.split('/', 2);
+      try {
+        const provider = this.initializeProviderForName(providerName, config);
+        return provider.getModel(modelId);
+      } catch {
+        return this.activeProvider.getModel(modelId);
+      }
+    }
+    return this.activeProvider.getModel(modelSpec);
+  }
+
+  public setActiveModel(modelId: string): void {
+    this.activeModel = this.activeProvider.getModel(modelId);
+  }
+
+  public getActiveModel(): Model {
+    return this.activeModel;
   }
 
   public getSessionManager() { return this.sessionManager; }
   public getConfigManager() { return this.configManager; }
   public getToolRegistry() { return this.toolRegistry; }
+  public getMcpManager() { return this.mcpManager; }
   
   public getEventBus(): LoggingEventBus {
     return this.eventBus;
@@ -128,6 +184,7 @@ export class AgentRuntime {
   public close(): void {
     this.sessionManager.close();
     this.workflowMemoryStore.close();
+    this.mcpManager?.close().catch(() => {});
   }
 
   public getWorkflowMemoryStore(): WorkflowMemoryStore {
@@ -178,6 +235,10 @@ export class AgentRuntime {
       const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
 
       const agentConfig = config.agent ?? {};
+      const fastModel = this.resolveModel(agentConfig.modelRoles?.fast) || this.activeModel;
+      const planningModel = this.resolveModel(agentConfig.modelRoles?.planning) || this.activeModel;
+      const reviewModel = this.resolveModel(agentConfig.modelRoles?.review) || this.activeModel;
+
       const loop = new AgentLoop({
         model: this.activeModel,
         tools: this.getLoopTools(workspaceRoot),
@@ -196,6 +257,10 @@ export class AgentRuntime {
           permissionMode,
           hooks: config.hooks,
           workflowMemoryStore: this.workflowMemoryStore,
+          fastModel,
+          planningModel,
+          reviewModel,
+          antiLoopMonitoring: agentConfig.antiLoopMonitoring ?? true,
         },
         requestApproval: this.approvalHandler ?? this.options.requestApproval,
       });
@@ -239,6 +304,10 @@ export class AgentRuntime {
     const permissionMode = this.options.permissionMode ?? config.permissionMode ?? 'manual';
 
     const agentConfig = config.agent ?? {};
+    const fastModel = this.resolveModel(agentConfig.modelRoles?.fast) || this.activeModel;
+    const planningModel = this.resolveModel(agentConfig.modelRoles?.planning) || this.activeModel;
+    const reviewModel = this.resolveModel(agentConfig.modelRoles?.review) || this.activeModel;
+
     const loop = new AgentLoop({
       model: this.activeModel,
       tools: this.getLoopTools(workspaceRoot),
@@ -257,6 +326,10 @@ export class AgentRuntime {
         permissionMode,
         hooks: config.hooks,
         workflowMemoryStore: this.workflowMemoryStore,
+        fastModel,
+        planningModel,
+        reviewModel,
+        antiLoopMonitoring: agentConfig.antiLoopMonitoring ?? true,
       },
       requestApproval: this.approvalHandler ?? this.options.requestApproval,
     });

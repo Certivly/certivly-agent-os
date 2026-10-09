@@ -35,6 +35,10 @@ export class McpClientManager {
     return 0;
   }
 
+  public async initializeFromConfig(customConfigPath?: string): Promise<number> {
+    return this.loadFromWorkspaceConfig(customConfigPath);
+  }
+
   /**
    * Connects to provided servers and returns count of connected servers
    */
@@ -98,5 +102,9 @@ export class McpClientManager {
     }
     this.connections.clear();
     this.bridgedTools = [];
+  }
+
+  public async close(): Promise<void> {
+    await this.shutdown();
   }
 }

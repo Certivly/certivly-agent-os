@@ -27,27 +27,42 @@ export class McpDoctor {
       ? path.resolve(root, options.configPath)
       : path.resolve(root, '.agentos', 'mcp.json');
 
-    if (!fs.existsSync(configPath)) {
+    let activeConfigPath = configPath;
+    if (!fs.existsSync(activeConfigPath)) {
+      const agentosConfig = path.resolve(root, 'agentos.config.json');
+      if (fs.existsSync(agentosConfig)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(agentosConfig, 'utf-8'));
+          if (raw.mcpServers && Object.keys(raw.mcpServers).length > 0) {
+            activeConfigPath = agentosConfig;
+          }
+        } catch (_parseErr: any) {
+          // Fallback failed
+        }
+      }
+    }
+
+    if (!fs.existsSync(activeConfigPath)) {
       return {
         configFound: false,
-        configPath,
+        configPath: activeConfigPath,
         servers: [],
       };
     }
 
     let parsed: McpConfigFile;
     try {
-      const content = fs.readFileSync(configPath, 'utf-8');
+      const content = fs.readFileSync(activeConfigPath, 'utf-8');
       parsed = JSON.parse(content);
     } catch (err: any) {
       return {
         configFound: true,
-        configPath,
+        configPath: activeConfigPath,
         servers: [
           {
             name: 'syntax_error',
             type: 'invalid_json',
-            commandOrUrl: configPath,
+            commandOrUrl: activeConfigPath,
             healthy: false,
             toolCount: 0,
             error: `Failed to parse JSON: ${err.message}`,

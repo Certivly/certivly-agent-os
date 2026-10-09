@@ -18,6 +18,16 @@ export const ModelRolesSchema = z.object({
   review: z.string().optional(),
 }).optional();
 
+export const McpServerConfigSchema = z.object({
+  type: z.enum(['stdio', 'sse']).default('stdio').optional(),
+  command: z.string().optional(),
+  args: z.array(z.string()).default([]).optional(),
+  env: z.record(z.string()).default({}).optional(),
+  cwd: z.string().optional(),
+  url: z.string().optional(),
+  headers: z.record(z.string()).default({}).optional(),
+});
+
 export const ConfigSchema = z.object({
   activeProvider: z.string().default('lmstudio'),
   activeModel: z.string().default('local-model'),
@@ -48,6 +58,7 @@ export const ConfigSchema = z.object({
     ignorePatterns: z.array(z.string()).default([]),
   }).optional(),
   providers: z.record(z.string(), ProviderConfigSchema).default({}),
+  mcpServers: z.record(z.string(), McpServerConfigSchema).default({}).optional(),
   hooks: z.object({
     before_tool: z.object({
       command: z.string(),

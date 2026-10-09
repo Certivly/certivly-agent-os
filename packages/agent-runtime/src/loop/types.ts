@@ -83,6 +83,8 @@ export interface AgentLoopOptions {
   permissionMode?: PermissionMode;
   hooks?: import('@agent-os/config').HooksConfig;
   fastModel?: import('@agent-os/providers').Model;
+  planningModel?: import('@agent-os/providers').Model;
+  reviewModel?: import('@agent-os/providers').Model;
   antiLoopMonitoring?: boolean;
 }
 

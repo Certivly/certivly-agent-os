@@ -13,6 +13,8 @@ import { InputParser } from './cli/InputParser';
 import { RuntimeAuditor, PackageUsageReport, RuntimeHealthChecker } from '@agent-os/runtime-audit';
 import { handleApprove, handleReject } from './bridge/ApprovalHandler';
 import { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
+import { CommandDispatcher } from './ui/commands/CommandDispatcher';
+import { execSync } from 'child_process';
 export { handleApprove, handleReject } from './bridge/ApprovalHandler';
 export { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
 
@@ -74,7 +76,56 @@ program.command('chat')
 
     const handleInput = async (input: string, mode: string) => {
       try {
-        if (mode === 'chat') {
+        if (CommandDispatcher.isCommand(input)) {
+          const dispatched = CommandDispatcher.dispatch(input);
+          if (dispatched.action === 'set_model' && dispatched.payload?.modelId) {
+            runtime.agentRuntime.setActiveModel(dispatched.payload.modelId);
+            runtime.agentRuntime.getEventBus().publish('message.responded', {
+              sessionId,
+              response: `Switched active reasoning model to: ${dispatched.payload.modelId}`,
+            });
+            return;
+          } else if (dispatched.action === 'undo') {
+            try {
+              execSync('git checkout -- .', { cwd: process.cwd(), stdio: 'pipe' });
+              runtime.agentRuntime.getEventBus().publish('message.responded', {
+                sessionId,
+                response: 'Successfully rolled back uncommitted working tree changes.',
+              });
+            } catch (err: any) {
+              runtime.agentRuntime.getEventBus().publish('message.responded', {
+                sessionId,
+                response: `Undo failed: ${err.message}`,
+              });
+            }
+            return;
+          } else if (dispatched.action === 'doctor') {
+            const { McpDoctor } = await import('./doctor/McpDoctor');
+            const diagnosis = await McpDoctor.diagnose();
+            const summary = diagnosis.servers.map(s => `  - ${s.name} (${s.type}): ${s.healthy ? 'HEALTHY' : 'UNHEALTHY'} (${s.toolCount} tools)`).join('\n') || '  No MCP servers configured.';
+            runtime.agentRuntime.getEventBus().publish('message.responded', {
+              sessionId,
+              response: `[AgentOS System Diagnostics]\nConfig: ${diagnosis.configPath}\nServers:\n${summary}`,
+            });
+            return;
+          } else if (dispatched.action === 'mcp') {
+            const tools = runtime.agentRuntime.getToolRegistry().list().filter(t => t.spec.name.startsWith('mcp__'));
+            const list = tools.map(t => `  - ${t.spec.name}: ${t.spec.description}`).join('\n') || '  No active MCP tools loaded.';
+            runtime.agentRuntime.getEventBus().publish('message.responded', {
+              sessionId,
+              response: `[Active MCP Tools]\n${list}`,
+            });
+            return;
+          } else if (dispatched.message) {
+            runtime.agentRuntime.getEventBus().publish('message.responded', {
+              sessionId,
+              response: dispatched.message,
+            });
+            return;
+          }
+        }
+
+        if (mode === 'chat' || mode === 'plan') {
           await runtime.agentRuntime.handleRequest(sessionId, input);
         } else {
           const parsed = InputParser.parse(input);

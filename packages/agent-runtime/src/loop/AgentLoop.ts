@@ -233,7 +233,8 @@ export class AgentLoop {
 
       const planningMode = this.options.planningMode ?? 'auto';
       if (!params.isResume && LightweightPlanner.shouldTriggerPlan({ planningMode, userInput: input.userInput })) {
-        plan = await LightweightPlanner.generatePlan(this.model, {
+        const planningModel = this.options.planningModel || this.model;
+        plan = await LightweightPlanner.generatePlan(planningModel, {
           userInput: input.userInput,
           workspaceRoot: this.workspaceRoot,
         });
@@ -1631,7 +1632,8 @@ export class AgentLoop {
 
     const { ReviewSubagent } = await import('./ReviewSubagent');
     const { ToolRegistry } = await import('@agent-os/tools');
-    const reviewer = new ReviewSubagent(this.model, this.toolRegistry ?? new ToolRegistry(), this.workspaceRoot);
+    const reviewModel = this.options.reviewModel || this.model;
+    const reviewer = new ReviewSubagent(reviewModel, this.toolRegistry ?? new ToolRegistry(), this.workspaceRoot);
     const reviewResult = await reviewer.review(diffSummary, verificationResult);
 
     if (reviewResult.approved) {
