@@ -121,6 +121,100 @@ program.command('chat')
     adapter.cleanup();
   });
 
+program.command('run')
+  .description('Run AgentOS in headless, automated, or CI mode')
+  .option('--goal <goal>', 'The goal or task description')
+  .option('--mode <mode>', 'Permission mode: plan, manual, acceptEdits, auto', 'auto')
+  .option('--headless', 'Run non-interactively without TTY', true)
+  .option('--auto-commit', 'Automatically git commit changes upon passing verification', false)
+  .option('--commit-message <msg>', 'Custom git commit message')
+  .option('--format <format>', 'Output format: text or json', 'text')
+  .option('--output-file <path>', 'Path to write JSON run summary file')
+  .action(async (cmdOptions) => {
+    const goal = cmdOptions.goal || program.args.slice(1).join(' ');
+    if (!goal) {
+      console.error('Error: --goal <string> is required for headless runs');
+      process.exit(1);
+    }
+    const { runHeadless } = await import('./cli/headless');
+    const result = await runHeadless({
+      goal,
+      permissionMode: cmdOptions.mode,
+      autoCommit: cmdOptions.autoCommit,
+      commitMessage: cmdOptions.commitMessage,
+      format: cmdOptions.format,
+      outputFile: cmdOptions.outputFile,
+    });
+    process.exit(result.exitCode);
+  });
+
+program.command('review')
+  .description('Run ReviewSubagent on a diff file or staged changes')
+  .option('--diff <path>', 'Path to unified diff file')
+  .option('--post-github-comment', 'Post review comment to GitHub PR via GITHUB_TOKEN', false)
+  .option('--pr-number <number>', 'GitHub Pull Request number')
+  .action(async (cmdOptions) => {
+    let diffContent = '';
+    if (cmdOptions.diff && fs.existsSync(cmdOptions.diff)) {
+      diffContent = fs.readFileSync(cmdOptions.diff, 'utf-8');
+    } else {
+      try {
+        const { execSync } = await import('child_process');
+        diffContent = execSync('git diff HEAD', { encoding: 'utf-8' });
+      } catch {
+        diffContent = '';
+      }
+    }
+
+    if (!diffContent.trim()) {
+      console.log('[AgentOS Reviewer] No changes detected in diff.');
+      process.exit(0);
+    }
+
+    const { AgentRuntime, ReviewSubagent } = await import('@agent-os/agent-runtime');
+    const runtime = new AgentRuntime({ configPath }, 'review-session');
+    const activeModel = runtime['activeModel'];
+    if (!activeModel) {
+      console.error('[AgentOS Reviewer] No active model configured for review');
+      process.exit(1);
+    }
+
+    const reviewer = new ReviewSubagent(activeModel, runtime.getToolRegistry(), process.cwd());
+    const verdict = await reviewer.review(diffContent);
+
+    console.log(`\n=== AgentOS Code Review ===`);
+    console.log(`Verdict: ${verdict.approved ? 'APPROVED [OK]' : 'CHANGES REQUESTED [FAIL]'}`);
+    console.log(`Summary: ${verdict.summary}`);
+    if (verdict.issues && verdict.issues.length > 0) {
+      console.log('\nIssues Identified:');
+      for (const issue of verdict.issues) {
+        console.log(`  - ${issue}`);
+      }
+    }
+
+    if (cmdOptions.postGithubComment && cmdOptions.prNumber && process.env.GITHUB_TOKEN && process.env.GITHUB_REPOSITORY) {
+      try {
+        const commentBody = `### 🤖 AgentOS Code Review Summary\n\n**Verdict:** ${verdict.approved ? '✅ Approved' : '❌ Changes Requested'}\n\n**Summary:**\n${verdict.summary}\n\n${verdict.issues?.length ? `**Issues:**\n${verdict.issues.map(i => `- ${i}`).join('\n')}` : ''}`;
+        const ghUrl = `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/${cmdOptions.prNumber}/comments`;
+        await fetch(ghUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.GITHUB_TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ body: commentBody }),
+        });
+        console.log(`[AgentOS Reviewer] Posted review comment to PR #${cmdOptions.prNumber}`);
+      } catch (err: any) {
+        console.warn(`[AgentOS Reviewer] Failed to post comment: ${err.message}`);
+      }
+    }
+
+    runtime.close();
+    process.exit(verdict.approved ? 0 : 1);
+  });
+
 function findWorkspaceRoot(startDir: string = process.cwd()): string {
   let curr = path.resolve(startDir);
   while (true) {
@@ -178,6 +272,13 @@ async function runPluginsDiagnosis(): Promise<boolean> {
   return true;
 }
 
+async function runMcpDiagnosis(): Promise<boolean> {
+  const { McpDoctor } = await import('./doctor/McpDoctor');
+  const result = await McpDoctor.diagnose();
+  console.log(McpDoctor.formatReport(result));
+  return true;
+}
+
 const doctorCmd = program.command('doctor')
   .description('Diagnose AgentOS system health')
   .option('--runtime', 'Verify production runtime architecture and integration')
@@ -190,6 +291,8 @@ const doctorCmd = program.command('doctor')
       await runProvidersDiagnosis(false);
       console.log('\n');
       await runPluginsDiagnosis();
+      console.log('\n');
+      await runMcpDiagnosis();
       console.log('\n');
       const ok = await runRuntimeDiagnosis();
       if (!ok) process.exit(1);
@@ -214,6 +317,12 @@ doctorCmd.command('plugins')
   .description('Diagnose installed plugins and permission governance')
   .action(async () => {
     await runPluginsDiagnosis();
+  });
+
+doctorCmd.command('mcp')
+  .description('Diagnose Model Context Protocol (MCP) server configuration and tool connectivity')
+  .action(async () => {
+    await runMcpDiagnosis();
   });
 
 program.command('runtime-audit')

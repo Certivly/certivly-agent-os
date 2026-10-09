@@ -3,6 +3,8 @@ import { Box, useInput, useStdout, Text } from 'ink';
 import { MainExecutionPanel } from './components/MainExecutionPanel';
 import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
+import { DiffPanel } from './components/DiffPanel';
+import { CommandDispatcher } from './commands/CommandDispatcher';
 import { useAgentSession } from './hooks/useAgentSession';
 import { useEventStream } from './hooks/useEventStream';
 import { EventBatcher } from '../bridge/EventStreamAdapter';
@@ -18,6 +20,7 @@ export const App: React.FC<{
   const projection = useEventStream(batcher);
   const { stdout } = useStdout();
   const [height, setHeight] = useState((stdout && stdout.rows) ? stdout.rows : 24);
+  const [showDiff, setShowDiff] = useState(false);
 
   const handleApprove = async (msgId: string) => {
     const msg = projection.chatHistory.find(m => m.id === msgId);
@@ -59,9 +62,9 @@ export const App: React.FC<{
   }, [stdout]);
 
   useInput((char, key) => {
-    // Global Debug Toggle
+    // Diff Panel Toggle (Ctrl+D)
     if (key.ctrl && char === 'd') {
-      setMode(state.mode === 'debug' ? 'chat' : 'debug');
+      setShowDiff((prev) => !prev);
       return;
     }
 
@@ -70,9 +73,8 @@ export const App: React.FC<{
     if (key.ctrl && char === '2') setFocus('center');
     if (key.ctrl && char === '3') setFocus('right');
 
-    if (state.mode === 'chat') {
+    if (state.mode === 'chat' || state.mode === 'plan') {
       if (char === '/') setMode('command');
-      // ctrl+c to cancel stream is usually process.exit in ink, we'll intercept if possible, but default is exit.
     } else if (state.mode === 'command') {
       if (key.escape) setMode('chat');
     } else if (state.mode === 'replay') {
@@ -84,6 +86,20 @@ export const App: React.FC<{
   });
 
   const handleSubmit = (input: string) => {
+    if (CommandDispatcher.isCommand(input)) {
+      const result = CommandDispatcher.dispatch(input);
+      if (result.action === 'set_mode' && result.payload?.mode) {
+        setMode(result.payload.mode);
+        if (result.payload.goal) {
+          onInput(result.payload.goal, result.payload.mode);
+        }
+        return;
+      }
+      if (result.action === 'toggle_diff') {
+        setShowDiff((prev) => !prev);
+        return;
+      }
+    }
     onInput(input, state.mode);
     if (state.mode === 'command') setMode('chat');
   };
@@ -108,8 +124,18 @@ export const App: React.FC<{
         </Box>
       </Box>
 
+      {showDiff && (
+        <Box width="100%">
+          <DiffPanel diff={projection.narrativeSummary || ''} />
+        </Box>
+      )}
+
       <Box width="100%">
-        <InputBar mode={state.mode} onSubmit={handleSubmit} />
+        <InputBar
+          mode={state.mode}
+          onSubmit={handleSubmit}
+          onToggleMode={() => setMode(state.mode === 'plan' ? 'chat' : 'plan')}
+        />
       </Box>
     </Box>
   );

@@ -22,6 +22,7 @@ export class AnthropicModel implements Model {
         name: t.name,
         description: t.description,
         input_schema: t.parameters || { type: 'object', properties: {} },
+        ...(t.cacheControl ? { cache_control: t.cacheControl } : {}),
       }));
 
       const body: any = {
@@ -31,7 +32,17 @@ export class AnthropicModel implements Model {
       };
 
       if (system) {
-        body.system = system;
+        if (request.systemPromptCacheControl) {
+          body.system = [
+            {
+              type: 'text',
+              text: system,
+              cache_control: request.systemPromptCacheControl,
+            },
+          ];
+        } else {
+          body.system = system;
+        }
       }
 
       if (tools && tools.length > 0) {
@@ -80,6 +91,12 @@ export class AnthropicModel implements Model {
             inputTokens: data.usage.input_tokens ?? 0,
             outputTokens: data.usage.output_tokens ?? 0,
             totalTokens: (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
+            ...(data.usage.cache_read_input_tokens !== undefined
+              ? { cacheReadInputTokens: data.usage.cache_read_input_tokens }
+              : {}),
+            ...(data.usage.cache_creation_input_tokens !== undefined
+              ? { cacheCreationInputTokens: data.usage.cache_creation_input_tokens }
+              : {}),
           }
         : undefined;
 
@@ -102,6 +119,7 @@ export class AnthropicModel implements Model {
       name: t.name,
       description: t.description,
       input_schema: t.parameters || { type: 'object', properties: {} },
+      ...(t.cacheControl ? { cache_control: t.cacheControl } : {}),
     }));
 
     const body: any = {
@@ -110,7 +128,19 @@ export class AnthropicModel implements Model {
       max_tokens: request.maxOutputTokens || 8192,
       stream: true,
     };
-    if (system) body.system = system;
+    if (system) {
+      if (request.systemPromptCacheControl) {
+        body.system = [
+          {
+            type: 'text',
+            text: system,
+            cache_control: request.systemPromptCacheControl,
+          },
+        ];
+      } else {
+        body.system = system;
+      }
+    }
     if (tools && tools.length > 0) body.tools = tools;
 
     let response: Response;

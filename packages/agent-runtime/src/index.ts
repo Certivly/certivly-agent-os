@@ -17,4 +17,5 @@ export * from './loop/SearchSubagent';
 export * from './loop/ReviewSubagent';
 export { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
 export * from './plugins/PluginManager';
-
+export * from './loop/AntiLoopMonitor';
+export * from './exploration/FilePickerAgent';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 export type UIState = {
-  mode: 'chat' | 'command' | 'replay' | 'debug';
+  mode: 'chat' | 'command' | 'replay' | 'debug' | 'plan';
   sessionId: string;
   focus: 'left' | 'center' | 'right';
 };

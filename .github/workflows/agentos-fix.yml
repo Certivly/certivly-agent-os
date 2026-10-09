@@ -1,0 +1,64 @@
+name: AgentOS Issue Resolver
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  resolve-issue:
+    if: startsWith(github.event.comment.body, '/agentos fix')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Verify Collaborator Authorization
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const author = context.payload.comment.user.login;
+            const repo = context.repo;
+            const res = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...repo,
+              username: author,
+            });
+            const perm = res.data.permission;
+            if (!['admin', 'write'].includes(perm)) {
+              core.setFailed(`User @${author} does not have maintainer/write permission to trigger AgentOS.`);
+            }
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Execute Autonomous Fix
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="agentos/fix-issue-${{ github.event.issue.number }}"
+          git config --global user.name "AgentOS Bot"
+          git config --global user.email "bot@agentos.dev"
+          git checkout -b $BRANCH_NAME
+          
+          bun run apps/cli/src/index.ts run \
+            --headless \
+            --goal "${{ github.event.issue.title }}: ${{ github.event.issue.body }}" \
+            --mode auto \
+            --auto-commit
+            
+          git push origin $BRANCH_NAME
+          gh pr create \
+            --title "fix: resolve #${{ github.event.issue.number }} via AgentOS" \
+            --body "Automated fix generated and verified by AgentOS for #${{ github.event.issue.number }}." \
+            --head $BRANCH_NAME

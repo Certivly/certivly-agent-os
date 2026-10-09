@@ -76,4 +76,16 @@ export class ContextAssembler {
     }
     return parts.join('\n');
   }
+
+  /**
+   * Combines static system prompt with dynamic turn context while keeping the static
+   * prefix strictly first to maximize KV cache hit rates across turns.
+   */
+  static buildTurnSystemPrompt(staticSystemPrompt: string, snapshot: ContextSnapshot): string {
+    const turnSection = ContextAssembler.toSystemPromptSection(snapshot);
+    if (!turnSection || turnSection.trim() === '') {
+      return staticSystemPrompt;
+    }
+    return `${staticSystemPrompt.trim()}\n\n${turnSection.trim()}`;
+  }
 }

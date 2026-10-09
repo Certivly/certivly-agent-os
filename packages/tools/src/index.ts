@@ -13,3 +13,8 @@ export * from './implementations/run_command';
 export * from './implementations/grep';
 export * from './implementations/list_dir';
 export * from './implementations/repo_map';
+export * from './mcp/types';
+export * from './mcp/StdioTransport';
+export * from './mcp/McpServerConnection';
+export * from './mcp/McpToolBridge';
+export * from './mcp/McpClientManager';

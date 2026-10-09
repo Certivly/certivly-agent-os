@@ -1,6 +1,7 @@
 import { Tool } from './interface';
 import { ToolError } from '@agent-os/shared';
 import type { WorkspaceTool, ToolSpec, ToolContext, ToolResult } from './types';
+import type { McpClientManager } from './mcp/McpClientManager';
 
 function adaptLegacyTool(legacy: Tool): WorkspaceTool {
   const readOnlyNames = new Set(['read_file', 'list_files', 'search_files']);
@@ -62,5 +63,10 @@ export class ToolRegistry {
     } catch (e: any) {
       throw new ToolError(`Tool execution failed for ${name}: ${e.message}`);
     }
+  }
+
+  public async registerMcpManager(manager: McpClientManager): Promise<number> {
+    const bridged = await manager.registerToolsIntoRegistry(this);
+    return bridged.length;
   }
 }

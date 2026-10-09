@@ -78,11 +78,16 @@ export class OpenRouterModel implements Model {
       const latencyMs = Date.now() - startTime;
 
       const message = response.choices[0].message;
+      const anyUsage = response.usage as any;
+      const cached = anyUsage?.prompt_tokens_details?.cached_tokens ?? anyUsage?.cache_read_input_tokens;
+      const created = anyUsage?.cache_creation_input_tokens;
       const usage = response.usage
         ? {
             inputTokens: response.usage.prompt_tokens,
             outputTokens: response.usage.completion_tokens,
             totalTokens: response.usage.total_tokens,
+            ...(cached !== undefined ? { cacheReadInputTokens: cached } : {}),
+            ...(created !== undefined ? { cacheCreationInputTokens: created } : {}),
           }
         : undefined;
 

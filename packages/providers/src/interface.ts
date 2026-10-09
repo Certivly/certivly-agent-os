@@ -13,10 +13,15 @@ export type ChatMessage =
   | { role: 'assistant'; content: string; toolCalls?: ToolCallRef[] }
   | { role: 'tool'; content: string; toolCallId: string; name: string; isError?: boolean };
 
+export interface CacheControl {
+  type: 'ephemeral';
+}
+
 export interface GenerationRequest {
   systemPrompt?: string;
+  systemPromptCacheControl?: CacheControl;
   messages: ChatMessage[];
-  tools?: { name: string; description: string; parameters?: JsonObject }[];
+  tools?: { name: string; description: string; parameters?: JsonObject; cacheControl?: CacheControl }[];
   signal?: AbortSignal;
   maxOutputTokens?: number;
 }
@@ -25,6 +30,8 @@ export interface ModelUsage {
   inputTokens: number;
   outputTokens: number;
   totalTokens?: number;
+  cacheReadInputTokens?: number;
+  cacheCreationInputTokens?: number;
 }
 
 export interface GenerationResponse {

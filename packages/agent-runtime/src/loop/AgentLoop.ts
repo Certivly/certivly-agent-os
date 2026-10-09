@@ -35,6 +35,8 @@ import { PermissionGuard, isHardDeniedCommand } from './PermissionGuard';
 import { HookRunner } from './HookRunner';
 import { ContextAssembler } from './ContextAssembler';
 import { SearchSubagent } from './SearchSubagent';
+import { AntiLoopMonitor } from './AntiLoopMonitor';
+import { FilePickerAgent } from '../exploration/FilePickerAgent';
 import { ToolRegistry } from '@agent-os/tools';
 
 
@@ -167,6 +169,8 @@ export class AgentLoop {
 
     let approxInputTokens = 0;
     let approxOutputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheCreationTokens = 0;
     let turns = params.initialTurns ?? 0;
     let finalText = params.initialFinalText ?? '';
     let success = false;
@@ -176,6 +180,8 @@ export class AgentLoop {
     let verificationPassed: boolean | undefined;
     let plan: LightweightPlan | undefined;
     const planRevisions: LightweightPlan[] = [];
+    const antiLoopMonitor = this.options.antiLoopMonitoring !== false ? new AntiLoopMonitor() : null;
+    let activeInterventionPrompt: string | null = null;
 
     const effectiveWs = params.sandboxRoot || this.sandboxRoot || params.workspaceRoot || this.workspaceRoot;
     let verifier: ProjectVerifier | undefined;
@@ -236,20 +242,37 @@ export class AgentLoop {
           plan,
         });
 
-        // SearchSubagent integration (Action 5-06)
+        // High-speed FilePickerAgent discovery with SearchSubagent fallback (Plan 01)
         if (plan && (!plan.filesLikelyTouched || plan.filesLikelyTouched.length === 0)) {
-          const registry = this.getOrCreateToolRegistry();
-          const searcher = new SearchSubagent(this.model, registry, this.workspaceRoot);
-          const searchResult = await searcher.search(input.userInput);
-          if (searchResult.rankedFiles.length > 0) {
-            plan.filesLikelyTouched = searchResult.rankedFiles;
+          const fastModel = this.options.fastModel || this.model;
+          const picker = new FilePickerAgent(fastModel, this.workspaceRoot);
+          const pickerResult = await picker.discoverRelevantFiles(input.userInput);
+          if (pickerResult.candidates.length > 0) {
+            plan.filesLikelyTouched = pickerResult.candidates.map((c) => c.path);
+            loopState.searchSubagentResult = {
+              rankedFiles: plan.filesLikelyTouched,
+              reason: pickerResult.summary,
+              turnsUsed: 1,
+            };
+            this.eventBus.publish('search-subagent.completed', {
+              sessionId,
+              rankedFiles: loopState.searchSubagentResult.rankedFiles,
+              reason: loopState.searchSubagentResult.reason,
+            });
+          } else {
+            const registry = this.getOrCreateToolRegistry();
+            const searcher = new SearchSubagent(this.model, registry, this.workspaceRoot);
+            const searchResult = await searcher.search(input.userInput);
+            if (searchResult.rankedFiles.length > 0) {
+              plan.filesLikelyTouched = searchResult.rankedFiles;
+            }
+            loopState.searchSubagentResult = searchResult;
+            this.eventBus.publish('search-subagent.completed', {
+              sessionId,
+              rankedFiles: searchResult.rankedFiles,
+              reason: searchResult.reason,
+            });
           }
-          loopState.searchSubagentResult = searchResult;
-          this.eventBus.publish('search-subagent.completed', {
-            sessionId,
-            rankedFiles: searchResult.rankedFiles,
-            reason: searchResult.reason,
-          });
         }
 
         const formatted = LightweightPlanner.formatPlan(plan);
@@ -294,8 +317,10 @@ export class AgentLoop {
 
         const genMessages = toProviderMessages(compactedHistory);
 
-        // Available tools spec
-        const toolSpecs = this.tools.map(t => ({
+        // Available tools spec: in Plan Mode, filter out mutating tools completely (Plan 04)
+        const isPlanMode = this.options.permissionMode === 'plan';
+        const effectiveTools = isPlanMode ? this.tools.filter(t => t.spec.readOnly) : this.tools;
+        const toolSpecs = effectiveTools.map(t => ({
           name: t.spec.name,
           description: t.spec.description,
           parameters: t.spec.parameters as JsonObject,
@@ -309,11 +334,15 @@ export class AgentLoop {
           verificationPassed: loopState.lastVerificationOutput ? false : true,
           filesChanged,
         });
-        const turnContextSection = ContextAssembler.toSystemPromptSection(snapshot);
-        const turnSystemPrompt = turnContextSection ? `${turnContextSection}\n\n${systemPrompt}` : systemPrompt;
+        let turnSystemPrompt = ContextAssembler.buildTurnSystemPrompt(systemPrompt, snapshot);
+        if (activeInterventionPrompt) {
+          turnSystemPrompt += `\n\n${activeInterventionPrompt}`;
+          activeInterventionPrompt = null;
+        }
 
         const genRequest: GenerationRequest = {
           systemPrompt: turnSystemPrompt,
+          systemPromptCacheControl: { type: 'ephemeral' },
           messages: genMessages,
           ...(toolSpecs.length > 0 ? { tools: toolSpecs } : {}),
           signal: input.abortSignal,
@@ -327,6 +356,13 @@ export class AgentLoop {
           for (const m of genMessages) {
             approxInputTokens += estimateTokenCount(m.content);
           }
+        }
+
+        if (typeof response.usage?.cacheReadInputTokens === 'number') {
+          cacheReadTokens += response.usage.cacheReadInputTokens;
+        }
+        if (typeof response.usage?.cacheCreationInputTokens === 'number') {
+          cacheCreationTokens += response.usage.cacheCreationInputTokens;
         }
 
         if (typeof response.usage?.outputTokens === 'number') {
@@ -525,6 +561,40 @@ export class AgentLoop {
           pipelineCompleted.add('approve');
         }
 
+        // Anti-Loop Monitoring (Plan 01)
+        if (antiLoopMonitor) {
+          for (let idx = 0; idx < modelToolCalls.length; idx++) {
+            const tc = modelToolCalls[idx];
+            const tr = toolExecutionResults[idx];
+            if (tc && tr) {
+              let parsedArgs: unknown = {};
+              try {
+                parsedArgs = JSON.parse(tc.args);
+              } catch {
+                parsedArgs = tc.args;
+              }
+              const loopStatus = antiLoopMonitor.recordAction({
+                turn: turns,
+                toolName: tc.name,
+                args: parsedArgs,
+                output: tr.content,
+                filesModified: filesChanged,
+                isError: tr.isError,
+              });
+
+              if (loopStatus.isLooping && loopStatus.interventionPrompt) {
+                activeInterventionPrompt = loopStatus.interventionPrompt;
+                this.eventBus.publish('agent.loop.anti_loop_triggered', {
+                  sessionId,
+                  loopType: loopStatus.loopType,
+                  repetitionCount: loopStatus.repetitionCount,
+                  intervention: loopStatus.interventionPrompt,
+                });
+              }
+            }
+          }
+        }
+
         if (!plan && (this.options.planningMode ?? 'auto') !== 'off') {
           for (const tr of toolExecutionResults) {
             if (tr.name === 'repo_map' && !tr.isError) {
@@ -673,6 +743,8 @@ export class AgentLoop {
       turns,
       approxInputTokens,
       approxOutputTokens,
+      cacheReadTokens: cacheReadTokens > 0 ? cacheReadTokens : undefined,
+      cacheCreationTokens: cacheCreationTokens > 0 ? cacheCreationTokens : undefined,
       toolCalls: toolCallRecords,
       commands: commandRecords,
       filesChanged,

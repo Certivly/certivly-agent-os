@@ -11,6 +11,13 @@ export const EvalModelConfigSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+export const ModelRolesSchema = z.object({
+  primary: z.string().optional(),
+  fast: z.string().optional(),
+  planning: z.string().optional(),
+  review: z.string().optional(),
+}).optional();
+
 export const ConfigSchema = z.object({
   activeProvider: z.string().default('lmstudio'),
   activeModel: z.string().default('local-model'),
@@ -33,6 +40,8 @@ export const ConfigSchema = z.object({
     selfReview: z.boolean().default(false),
     parallelExploration: z.boolean().default(false),
     planningMode: z.enum(['off', 'auto', 'always']).default('auto'),
+    antiLoopMonitoring: z.boolean().default(true).optional(),
+    modelRoles: ModelRolesSchema,
   }).default({}),
   repository: z.object({
     rootPath: z.string().optional(),
@@ -80,3 +89,4 @@ export type PermissionMode = 'plan' | 'manual' | 'acceptEdits' | 'auto';
 
 export type AgentConfig = z.infer<typeof ConfigSchema>;
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+export type ModelRolesConfig = z.infer<typeof ModelRolesSchema>;

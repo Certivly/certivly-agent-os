@@ -82,6 +82,8 @@ export interface AgentLoopOptions {
   noReadGuard?: boolean;
   permissionMode?: PermissionMode;
   hooks?: import('@agent-os/config').HooksConfig;
+  fastModel?: import('@agent-os/providers').Model;
+  antiLoopMonitoring?: boolean;
 }
 
 export interface AgentLoopInput {
@@ -130,6 +132,8 @@ export interface RunSummary {
   turns: number;
   approxInputTokens: number;
   approxOutputTokens: number;
+  cacheReadTokens?: number;
+  cacheCreationTokens?: number;
   toolCalls: ToolCallRecord[];
   commands: RunCommandRecord[];
   filesChanged: string[];
