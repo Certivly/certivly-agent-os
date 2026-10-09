@@ -136,6 +136,7 @@ dist
 # AgentOS specific
 agentos.config.json
 .agentos/
+.freebuff/
 *.db
 test.db
 sessions.db

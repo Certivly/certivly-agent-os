@@ -20,3 +20,4 @@ export * from './mcp/StdioTransport';
 export * from './mcp/McpServerConnection';
 export * from './mcp/McpToolBridge';
 export * from './mcp/McpClientManager';
+export * from './guards/TruncatedWriteGuard';

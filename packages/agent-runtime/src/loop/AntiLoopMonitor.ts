@@ -15,6 +15,7 @@ export interface AntiLoopStatus {
   loopType?: LoopType;
   repetitionCount: number;
   interventionPrompt?: string;
+  shouldHaltLoop?: boolean;
 }
 
 export interface RecordActionParams {
@@ -29,9 +30,11 @@ export interface RecordActionParams {
 export class AntiLoopMonitor {
   private history: ActionRecord[] = [];
   private readonly REPETITION_THRESHOLD: number;
+  private readonly CIRCUIT_BREAKER_LIMIT: number;
 
-  constructor(options?: { repetitionThreshold?: number }) {
+  constructor(options?: { repetitionThreshold?: number; circuitBreakerLimit?: number }) {
     this.REPETITION_THRESHOLD = options?.repetitionThreshold ?? 3;
+    this.CIRCUIT_BREAKER_LIMIT = options?.circuitBreakerLimit ?? 6;
   }
 
   public recordAction(action: RecordActionParams): AntiLoopStatus {
@@ -54,33 +57,56 @@ export class AntiLoopMonitor {
       return { isLooping: false, repetitionCount: 0 };
     }
 
-    const recent = this.history.slice(-this.REPETITION_THRESHOLD);
+    const last = this.history[this.history.length - 1];
 
-    // 1. Tool call repetition: same tool called with identical arguments across threshold turns
-    const allSameToolAndArgs = recent.every(
-      (r) => r.toolName === recent[0].toolName && r.argsHash === recent[0].argsHash
-    );
-    if (allSameToolAndArgs) {
+    // 1. Tool call repetition: count consecutive identical tool + args
+    let toolConsecutive = 0;
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      if (this.history[i].toolName === last.toolName && this.history[i].argsHash === last.argsHash) {
+        toolConsecutive++;
+      } else {
+        break;
+      }
+    }
+
+    if (toolConsecutive >= this.REPETITION_THRESHOLD) {
+      const shouldHalt = toolConsecutive >= this.CIRCUIT_BREAKER_LIMIT;
       return {
         isLooping: true,
         loopType: 'tool_repetition',
-        repetitionCount: this.REPETITION_THRESHOLD,
-        interventionPrompt: `[ANTI-LOOP INTERVENTION] You have executed tool '${recent[0].toolName}' with identical arguments ${this.REPETITION_THRESHOLD} times consecutively. Stop repeating this query. Pivot to an alternative exploration or implementation hypothesis.`,
+        repetitionCount: toolConsecutive,
+        shouldHaltLoop: shouldHalt,
+        interventionPrompt: shouldHalt
+          ? `[CIRCUIT BREAKER] Tool '${last.toolName}' was repeatedly invoked with identical arguments ${toolConsecutive} times without progress. Execution halted to protect session budget.`
+          : `[ANTI-LOOP INTERVENTION] You have executed tool '${last.toolName}' with identical arguments ${toolConsecutive} times consecutively. Stop repeating this query. Pivot to an alternative exploration or implementation hypothesis.`,
       };
     }
 
-    // 2. Error churn: identical error output across threshold turns
-    const allSameOutput = recent.every((r) => r.outputHash === recent[0].outputHash);
-    if (allSameOutput && recent[0].outputHash !== this.hashString('')) {
+    // 2. Error churn: count consecutive identical error output
+    let errorConsecutive = 0;
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      if (this.history[i].outputHash === last.outputHash && last.outputHash !== this.hashString('')) {
+        errorConsecutive++;
+      } else {
+        break;
+      }
+    }
+
+    if (errorConsecutive >= this.REPETITION_THRESHOLD) {
+      const shouldHalt = errorConsecutive >= this.CIRCUIT_BREAKER_LIMIT;
       return {
         isLooping: true,
         loopType: 'error_churn',
-        repetitionCount: this.REPETITION_THRESHOLD,
-        interventionPrompt: `[ANTI-LOOP INTERVENTION] You have received identical command/verification error output across ${this.REPETITION_THRESHOLD} consecutive actions. Your current fix attempts are not resolving the underlying cause. Stop repeating the same approach, re-read surrounding code, and adopt a different fix strategy.`,
+        repetitionCount: errorConsecutive,
+        shouldHaltLoop: shouldHalt,
+        interventionPrompt: shouldHalt
+          ? `[CIRCUIT BREAKER] Identical error output received across ${errorConsecutive} consecutive turns. Halting loop to prevent spinning.`
+          : `[ANTI-LOOP INTERVENTION] You have received identical command/verification error output across ${errorConsecutive} consecutive actions. Your current fix attempts are not resolving the underlying cause. Stop repeating the same approach, re-read surrounding code, and adopt a different fix strategy.`,
       };
     }
 
     // 3. Diff thrashing: repeatedly modifying the same file back and forth across turns
+    const recent = this.history.slice(-this.REPETITION_THRESHOLD);
     const filesModifiedLists = recent.map((r) => r.filesModified).filter((f) => f.length > 0);
     if (filesModifiedLists.length >= this.REPETITION_THRESHOLD) {
       const allTouchSameFile = filesModifiedLists.every((fl) =>
@@ -108,7 +134,12 @@ export class AntiLoopMonitor {
   }
 
   private hashObject(obj: unknown): string {
-    const canonicalString = this.canonicalizeJson(obj);
+    let target = obj;
+    if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+      const { instructions: _i, comment: _c, explanation: _e, ...rest } = obj as Record<string, unknown>;
+      target = rest;
+    }
+    const canonicalString = this.canonicalizeJson(target);
     return crypto.createHash('sha256').update(canonicalString).digest('hex').slice(0, 16);
   }
 

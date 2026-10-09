@@ -34,6 +34,7 @@ The key innovations planned for AgentOS v2 are:
 | [03-context-caching-and-token-economics.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/03-context-caching-and-token-economics.md) | **Context & Prompt Caching** | Fixing `AgentLoop.ts` lines 312–314, immutable prefix ordering, provider cache breakpoints (`cache_control`), and tool output caps. |
 | [04-cli-tui-and-desktop-parity.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/04-cli-tui-and-desktop-parity.md) | **Interactive TUI & Dual Modes** | Strict `Plan Mode` vs `Build Mode`, slash command engine (`/plan`, `/build`, `/diff`, `/compact`), terminal diff panel, and daemon bridge. |
 | [05-github-actions-headless-agent.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/05-github-actions-headless-agent.md) | **Headless CI/CD Automation** | Non-interactive CLI mode (`--headless`), automated PR review workflow, and `/agentos fix` GitHub Action issue resolver. |
+| [06-freebuff-resilience-and-guards.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/06-freebuff-resilience-and-guards.md) | **Resilience & Zero-Token Compaction** | `TruncatedWriteGuard` (cut-off protection), `MechanicalCompactionEngine` (0-token compaction + working set), `EditLoopGuard`, and `WorkspaceTrustManager`. |
 
 ---
 

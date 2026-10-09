@@ -19,3 +19,4 @@ export { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
 export * from './plugins/PluginManager';
 export * from './loop/AntiLoopMonitor';
 export * from './exploration/FilePickerAgent';
+export * from './compaction/MechanicalCompactionEngine';

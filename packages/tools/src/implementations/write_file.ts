@@ -5,6 +5,8 @@ import { WorkspaceManager, workspaceManager } from '../workspace';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
 import { generateUnifiedDiff, computeSha256 } from '@agent-os/shared';
 
+import { TruncatedWriteGuard } from '../guards/TruncatedWriteGuard';
+
 export const writeFileTool: WorkspaceTool & Tool = {
   name: 'write_file',
   description: 'Write content to a file in workspace (refuses overwrite unless overwrite:true)',
@@ -17,6 +19,7 @@ export const writeFileTool: WorkspaceTool & Tool = {
         path: { type: 'string', description: 'Relative path to file' },
         content: { type: 'string', description: 'Content to write' },
         overwrite: { type: 'boolean', description: 'Whether to overwrite existing file (default false)' },
+        allowTruncation: { type: 'boolean', description: 'Explicitly permit replacing a file with a drastically shorter version' },
       },
       required: ['path', 'content'],
     },
@@ -27,6 +30,7 @@ export const writeFileTool: WorkspaceTool & Tool = {
     const rawPath = args.path as string;
     const content = args.content as string;
     const overwrite = Boolean(args.overwrite);
+    const allowTruncation = Boolean(args.allowTruncation);
 
     if (typeof rawPath !== 'string' || !rawPath) {
       return { content: 'Error: Path must be a non-empty string', isError: true };
@@ -57,6 +61,13 @@ export const writeFileTool: WorkspaceTool & Tool = {
         return { content: `Error: File '${rawPath}' already exists and overwrite is false`, isError: true };
       }
       originalContent = fs.readFileSync(targetPath, 'utf8');
+      const guardCheck = TruncatedWriteGuard.detectTruncatedRewrite(originalContent, content, allowTruncation);
+      if (guardCheck.isTruncated) {
+        return {
+          content: `Error: Truncated rewrite refused: ${guardCheck.reason} To override intentionally, pass allowTruncation: true.`,
+          isError: true,
+        };
+      }
     } else {
       const parentDir = path.dirname(targetPath);
       if (!ws.isWithinWorkspace(parentDir)) {
