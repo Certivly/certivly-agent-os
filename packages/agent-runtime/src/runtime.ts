@@ -20,6 +20,7 @@ import {
 import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider, OpenRouterProvider } from '@agent-os/providers';
 import { RuntimeError, ProviderError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
 import * as path from 'path';
+import * as os from 'os';
 
 import { AgentLoop } from './loop/AgentLoop';
 import { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
@@ -30,7 +31,8 @@ import type { RunSummary, PermissionMode, ApprovalRequest, ApprovalHandler } fro
 export type { ApprovalRequest, ApprovalHandler };
 
 export interface RuntimeOptions {
-  configPath: string;
+  configPath?: string;
+  configManager?: ConfigManager;
   workspaceRoot?: string;
   permissionMode?: PermissionMode;
   requestApproval?: ApprovalHandler;
@@ -52,14 +54,28 @@ export class AgentRuntime {
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.options = options;
     this.approvalHandler = options.requestApproval;
-    this.configManager = new ConfigManager(options.configPath);
+    const wsRoot = options.workspaceRoot || process.cwd();
+    if (options.configManager) {
+      this.configManager = options.configManager;
+    } else if (options.configPath) {
+      this.configManager = new ConfigManager({
+        configPath: options.configPath,
+        workspaceRoot: wsRoot,
+        enableCascading: true,
+      });
+    } else {
+      this.configManager = new ConfigManager({
+        workspaceRoot: wsRoot,
+        enableCascading: true,
+      });
+    }
     const config = this.configManager.load();
 
     const dbPath = path.resolve(process.cwd(), config.runtime.sessionDir, 'sessions.db');
     this.sessionManager = new SessionManager(dbPath);
 
-    const wsRoot = options.workspaceRoot || config.repository?.rootPath || process.cwd();
-    const memoryDbPath = path.resolve(wsRoot, '.agentos', 'workflow-memory.db');
+    const resolvedWsRoot = options.workspaceRoot || config.repository?.rootPath || process.cwd();
+    const memoryDbPath = path.resolve(resolvedWsRoot, '.agentos', 'workflow-memory.db');
     this.workflowMemoryStore = new WorkflowMemoryStore(memoryDbPath);
 
     this.toolRegistry = new ToolRegistry();
@@ -70,11 +86,12 @@ export class AgentRuntime {
     this.eventBus = new LoggingEventBus();
     this.activeModel = this.activeProvider.getModel(config.activeModel);
 
-    // Initialize MCP Client Manager if configured
-    this.mcpManager = new McpClientManager(wsRoot);
-    const mcpWorkspaceConfig = path.join(wsRoot, '.agentos', 'mcp.json');
-    if (fs.existsSync(mcpWorkspaceConfig)) {
-      this.mcpManager.initializeFromConfig(mcpWorkspaceConfig).then(() => {
+    // Initialize MCP Client Manager (loads both user ~/.agentos/mcp.json and workspace .agentos/mcp.json)
+    this.mcpManager = new McpClientManager(resolvedWsRoot);
+    const mcpWorkspaceConfig = path.join(resolvedWsRoot, '.agentos', 'mcp.json');
+    const mcpGlobalConfig = path.join(os.homedir(), '.agentos', 'mcp.json');
+    if (fs.existsSync(mcpWorkspaceConfig) || fs.existsSync(mcpGlobalConfig)) {
+      this.mcpManager.loadFromWorkspaceConfig().then(() => {
         if (this.mcpManager) {
           this.toolRegistry.registerMcpManager(this.mcpManager);
         }

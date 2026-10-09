@@ -32,10 +32,11 @@ export class ProviderDoctor {
     if (options?.config) {
       config = options.config;
     } else {
-      const cfgPath =
-        options?.configPath ||
-        path.join(process.cwd(), '.agentos', 'config.json');
-      const manager = new ConfigManager(cfgPath);
+      const manager = new ConfigManager({
+        configPath: options?.configPath,
+        workspaceRoot: process.cwd(),
+        enableCascading: true,
+      });
       config = manager.getConfig();
     }
 

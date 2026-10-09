@@ -16,6 +16,7 @@ export class CliRuntime {
   constructor(options: CliRuntimeOptions, sessionId: string) {
     this.agentRuntime = new AgentRuntime({
       configPath: options.configPath,
+      workspaceRoot: process.cwd(),
       permissionMode: options.permissionMode,
       requestApproval: options.requestApproval,
     }, sessionId);

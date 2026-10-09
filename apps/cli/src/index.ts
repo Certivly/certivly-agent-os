@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { logger } from '@agent-os/shared';
+import { ConfigManager } from '@agent-os/config';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
@@ -26,14 +27,9 @@ program
   .version('1.0.0')
   .option('-d, --debug', 'Enable debug mode');
 
-const localConfigPath = path.join(process.cwd(), 'agentos.config.json');
-const dotConfigPath = path.join(process.cwd(), '.agentos', 'config.json');
-const globalConfigPath = path.join(os.homedir(), '.agentos', 'config.json');
-const configPath = fs.existsSync(localConfigPath)
-  ? localConfigPath
-  : fs.existsSync(dotConfigPath)
-  ? dotConfigPath
-  : globalConfigPath;
+const userConfigPath = ConfigManager.getUserConfigPath();
+const projectConfigPath = ConfigManager.findProjectConfigPath(process.cwd());
+const configPath = projectConfigPath || userConfigPath;
 
 // Log crashes to disk but DO NOT exit — the UI must stay alive so the user
 // sees the error in the chat panel on next interaction.
@@ -762,6 +758,75 @@ program
       console.error(`Bench error: ${err.message}`);
       process.exit(1);
     }
+  });
+
+const configCmd = program.command('config').description('Inspect and manage AgentOS configuration');
+
+configCmd
+  .command('path')
+  .description('Show active user and project configuration file paths')
+  .action(() => {
+    const userPath = ConfigManager.getUserConfigPath();
+    const projectPath = ConfigManager.findProjectConfigPath(process.cwd());
+    console.log('\n[AgentOS Configuration Paths]');
+    console.log(`  User Settings (Global):   ${userPath} ${fs.existsSync(userPath) ? '[EXISTS]' : '[NOT FOUND]'}`);
+    console.log(`  Project Settings (Local): ${projectPath || '(none)'} ${projectPath && fs.existsSync(projectPath) ? '[EXISTS]' : ''}`);
+    console.log(`  Active Precedence:        User settings (~/.agentos/config.json) overridden by Project settings if present.\n`);
+  });
+
+configCmd
+  .command('show')
+  .description('Display the active configuration')
+  .action(() => {
+    const manager = new ConfigManager({ enableCascading: true, workspaceRoot: process.cwd() });
+    const config = manager.getConfig();
+    const sanitized = JSON.parse(JSON.stringify(config));
+    if (sanitized.providers) {
+      for (const p of Object.keys(sanitized.providers)) {
+        if (sanitized.providers[p]?.apiKey) {
+          const key = sanitized.providers[p].apiKey;
+          sanitized.providers[p].apiKey = key.length > 8 ? `${key.slice(0, 4)}...${key.slice(-4)}` : '****';
+        }
+      }
+    }
+    console.log('\n[AgentOS Active Configuration]');
+    console.log(JSON.stringify(sanitized, null, 2));
+  });
+
+configCmd
+  .command('get <key>')
+  .description('Get a configuration value (e.g., activeProvider, activeModel)')
+  .action((key) => {
+    const manager = new ConfigManager({ enableCascading: true, workspaceRoot: process.cwd() });
+    const config = manager.getConfig() as any;
+    const val = key.split('.').reduce((acc: any, part: string) => acc?.[part], config);
+    if (val === undefined) {
+      console.log(`Key '${key}' is not set.`);
+    } else {
+      console.log(typeof val === 'object' ? JSON.stringify(val, null, 2) : String(val));
+    }
+  });
+
+configCmd
+  .command('set <key> <value>')
+  .description('Set a configuration value in user folder (~/.agentos/config.json)')
+  .option('--project', 'Set in local project configuration (.agentos/config.json) instead of user folder', false)
+  .action((key, value, opts) => {
+    const manager = new ConfigManager({ enableCascading: true, workspaceRoot: process.cwd() });
+    const config = manager.getConfig() as any;
+    const parts = key.split('.');
+    let target = config;
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (!target[parts[i]]) target[parts[i]] = {};
+      target = target[parts[i]];
+    }
+    try {
+      target[parts[parts.length - 1]] = JSON.parse(value);
+    } catch {
+      target[parts[parts.length - 1]] = value;
+    }
+    manager.save(config, opts.project ? 'project' : 'user');
+    console.log(`[OK] Updated '${key}' in ${opts.project ? 'project' : 'user'} configuration.`);
   });
 
 await program.parseAsync();

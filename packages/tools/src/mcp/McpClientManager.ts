@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import type { ToolRegistry } from '../registry';
 import { McpServerConnection } from './McpServerConnection';
 import { McpToolBridge } from './McpToolBridge';
@@ -12,27 +13,48 @@ export class McpClientManager {
   constructor(private workspaceRoot: string = process.cwd()) {}
 
   /**
-   * Initializes MCP servers from workspace configuration file (.agentos/mcp.json)
+   * Initializes MCP servers from user config (~/.agentos/mcp.json) and workspace config (.agentos/mcp.json)
    */
   public async loadFromWorkspaceConfig(customConfigPath?: string): Promise<number> {
+    const serversToRegister: Record<string, McpServerConfig> = {};
+
+    // 1. Global User MCP configuration: ~/.agentos/mcp.json
+    const globalConfigPath = path.join(os.homedir(), '.agentos', 'mcp.json');
+    if (fs.existsSync(globalConfigPath)) {
+      try {
+        const content = fs.readFileSync(globalConfigPath, 'utf-8');
+        const parsed = JSON.parse(content) as McpConfigFile;
+        if (parsed && typeof parsed.mcpServers === 'object') {
+          Object.assign(serversToRegister, parsed.mcpServers);
+        }
+      } catch (err: any) {
+        console.warn(`[McpClientManager] Failed to parse global MCP config at ${globalConfigPath}:`, err.message);
+      }
+    }
+
+    // 2. Workspace MCP configuration: .agentos/mcp.json or custom path
     const configPath = customConfigPath
       ? path.resolve(this.workspaceRoot, customConfigPath)
       : path.resolve(this.workspaceRoot, '.agentos', 'mcp.json');
 
-    if (!fs.existsSync(configPath)) {
+    if (fs.existsSync(configPath) && path.resolve(configPath).toLowerCase() !== path.resolve(globalConfigPath).toLowerCase()) {
+      try {
+        const content = fs.readFileSync(configPath, 'utf-8');
+        const parsed = JSON.parse(content) as McpConfigFile;
+        if (parsed && typeof parsed.mcpServers === 'object') {
+          // Workspace servers override user servers on collision
+          Object.assign(serversToRegister, parsed.mcpServers);
+        }
+      } catch (err: any) {
+        console.warn(`[McpClientManager] Failed to parse workspace MCP config at ${configPath}:`, err.message);
+      }
+    }
+
+    if (Object.keys(serversToRegister).length === 0) {
       return 0;
     }
 
-    try {
-      const content = fs.readFileSync(configPath, 'utf-8');
-      const parsed = JSON.parse(content) as McpConfigFile;
-      if (parsed && typeof parsed.mcpServers === 'object') {
-        return await this.registerServers(parsed.mcpServers);
-      }
-    } catch (err: any) {
-      console.warn(`[McpClientManager] Failed to parse config at ${configPath}:`, err.message);
-    }
-    return 0;
+    return await this.registerServers(serversToRegister);
   }
 
   public async initializeFromConfig(customConfigPath?: string): Promise<number> {

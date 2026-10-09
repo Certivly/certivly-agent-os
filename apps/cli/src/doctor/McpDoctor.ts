@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { McpServerConnection } from '@agent-os/tools';
 import type { McpConfigFile } from '@agent-os/tools';
 
@@ -29,15 +30,20 @@ export class McpDoctor {
 
     let activeConfigPath = configPath;
     if (!fs.existsSync(activeConfigPath)) {
-      const agentosConfig = path.resolve(root, 'agentos.config.json');
-      if (fs.existsSync(agentosConfig)) {
-        try {
-          const raw = JSON.parse(fs.readFileSync(agentosConfig, 'utf-8'));
-          if (raw.mcpServers && Object.keys(raw.mcpServers).length > 0) {
-            activeConfigPath = agentosConfig;
+      const userMcpPath = path.join(os.homedir(), '.agentos', 'mcp.json');
+      if (fs.existsSync(userMcpPath)) {
+        activeConfigPath = userMcpPath;
+      } else {
+        const agentosConfig = path.resolve(root, 'agentos.config.json');
+        if (fs.existsSync(agentosConfig)) {
+          try {
+            const raw = JSON.parse(fs.readFileSync(agentosConfig, 'utf-8'));
+            if (raw.mcpServers && Object.keys(raw.mcpServers).length > 0) {
+              activeConfigPath = agentosConfig;
+            }
+          } catch (_parseErr: any) {
+            // Fallback failed
           }
-        } catch (_parseErr: any) {
-          // Fallback failed
         }
       }
     }
