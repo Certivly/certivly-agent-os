@@ -83,11 +83,13 @@ export const applyPatchTool: WorkspaceTool & Tool = {
             } else if (!b.existed && fs.existsSync(b.targetPath)) {
               fs.unlinkSync(b.targetPath);
             }
-          } catch {
-            // rollback best effort
+          } catch (rollbackErr: unknown) {
+            // rollback best effort with error capture
+            const _rollbackMsg = rollbackErr instanceof Error ? rollbackErr.message : String(rollbackErr);
           }
         }
-        throw new Error(`Disk write failed during patch application, all changes rolled back: ${writeErr.message}`);
+        const writeMsg = writeErr instanceof Error ? writeErr.message : String(writeErr);
+        throw new Error(`Disk write failed during patch application, all changes rolled back: ${writeMsg}`);
       }
 
       const changes = plan.map(p => {

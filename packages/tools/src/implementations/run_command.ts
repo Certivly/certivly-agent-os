@@ -4,6 +4,7 @@ import { Tool } from '../interface';
 import { ToolError } from '@agent-os/shared';
 import { commandPolicyEngine, truncateOutput, MAX_COMMAND_OUTPUT } from '../policy';
 import { WorkspaceManager, workspaceManager } from '../workspace';
+import { toolOutputStore, ToolOutputStore } from '../storage/ToolOutputStore';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
 
 function killProcessTree(pid: number): void {
@@ -13,12 +14,18 @@ function killProcessTree(pid: number): void {
     } else {
       try {
         process.kill(-pid, 'SIGKILL');
-      } catch {
-        process.kill(pid, 'SIGKILL');
+      } catch (err: unknown) {
+        const _msg = err instanceof Error ? err.message : String(err);
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch (innerErr: unknown) {
+          const _innerMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
+        }
       }
     }
-  } catch {
+  } catch (err: unknown) {
     // Process might have already exited
+    const _msg = err instanceof Error ? err.message : String(err);
   }
 }
 
@@ -77,6 +84,19 @@ export const runCommandTool: WorkspaceTool & Tool = {
 
     if (!fs.existsSync(effectiveCwd)) {
       throw new ToolError(`Working directory does not exist: ${effectiveCwd}`);
+    }
+
+    if (context?.signal?.aborted) {
+      const content = 'Command execution was aborted.';
+      return Object.assign(
+        {
+          success: false,
+          content,
+          isError: true,
+          data: { exitCode: 130, stdout: '', stderr: '', timedOut: false, aborted: true },
+        },
+        { toString: () => content }
+      );
     }
 
     const timeoutMs = typeof args.timeoutMs === 'number' && args.timeoutMs > 0 ? args.timeoutMs : 120_000;
@@ -149,13 +169,32 @@ export const runCommandTool: WorkspaceTool & Tool = {
         ));
       });
 
-      child.on('close', (code) => {
+      child.on('close', async (code) => {
         if (settled) return;
         settled = true;
         cleanup();
 
-        const cleanStdout = truncateOutput(stdout, MAX_COMMAND_OUTPUT);
-        const cleanStderr = truncateOutput(stderr, MAX_COMMAND_OUTPUT);
+        let cleanStdout = stdout;
+        let cleanStderr = stderr;
+
+        if (cleanStdout.length > MAX_COMMAND_OUTPUT || ToolOutputStore.countLines(cleanStdout) > ToolOutputStore.DEFAULT_MAX_LINES) {
+          const bounded = await toolOutputStore.boundOutput(stdout, {
+            workspaceRoot: effectiveCwd,
+            toolName: 'cmd_stdout',
+            maxBytes: MAX_COMMAND_OUTPUT,
+          });
+          cleanStdout = bounded.preview;
+        }
+
+        if (cleanStderr.length > MAX_COMMAND_OUTPUT || ToolOutputStore.countLines(cleanStderr) > ToolOutputStore.DEFAULT_MAX_LINES) {
+          const bounded = await toolOutputStore.boundOutput(stderr, {
+            workspaceRoot: effectiveCwd,
+            toolName: 'cmd_stderr',
+            maxBytes: MAX_COMMAND_OUTPUT,
+          });
+          cleanStderr = bounded.preview;
+        }
+
         const exitCode = timedOut ? 124 : (code ?? (aborted ? 130 : 0));
 
         let content = '';

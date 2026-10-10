@@ -115,13 +115,13 @@ export class StdioTransport {
           if (this.process && !this.process.killed) {
             try {
               this.process.kill('SIGKILL');
-            } catch {
-              // Ignore
+            } catch (err: unknown) {
+              const _msg = err instanceof Error ? err.message : String(err);
             }
           }
         }, 1000);
-      } catch {
-        // Ignore kill errors
+      } catch (err: unknown) {
+        const _msg = err instanceof Error ? err.message : String(err);
       }
       this.process = null;
     }
@@ -143,8 +143,9 @@ export class StdioTransport {
           this.pendingRequests.delete(message.id);
           handler?.resolve(message);
         }
-      } catch {
-        // Ignore non-JSON lines (e.g. server stdout banner)
+      } catch (err: unknown) {
+        // Non-JSON stdout lines (e.g. server banner or diagnostics)
+        const _msg = err instanceof Error ? err.message : String(err);
       }
     }
   }

@@ -14,7 +14,8 @@ function loadGitignoreRules(workspaceRoot: string): string[] {
       .split(/\r?\n/)
       .map(l => l.trim())
       .filter(l => l.length > 0 && !l.startsWith('#'));
-  } catch {
+  } catch (err: unknown) {
+    const _msg = err instanceof Error ? err.message : String(err);
     return [];
   }
 }
@@ -99,7 +100,8 @@ export const listDirTool: WorkspaceTool & Tool = {
       let dirEntries: fs.Dirent[];
       try {
         dirEntries = fs.readdirSync(currentDir, { withFileTypes: true });
-      } catch {
+      } catch (err: unknown) {
+        const _msg = err instanceof Error ? err.message : String(err);
         return;
       }
 

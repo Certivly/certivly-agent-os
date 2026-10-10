@@ -51,4 +51,26 @@ describe('code_interpreter Tool (Qwen Code Sandboxed Evaluator)', () => {
     expect(result.isError).toBe(true);
     expect(result.content).toContain('Code must be a non-empty string');
   });
+
+  it('5. handles template literals with backticks and interpolation without error', async () => {
+    const result = await codeInterpreterTool.execute({
+      code: 'const name = "AgentOS"; console.log(`Hello, ${name}!`); return `Welcome to ${name}`;',
+    }, ctx);
+
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain('Hello, AgentOS!');
+    expect(result.content).toContain('Welcome to AgentOS');
+  });
+
+  it('6. respects AbortSignal and aborts immediately', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const result = await codeInterpreterTool.execute(
+      { code: 'console.log("should not run");' },
+      { ...ctx, signal: controller.signal }
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain('aborted');
+  });
 });

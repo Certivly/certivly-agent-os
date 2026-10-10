@@ -23,12 +23,12 @@ export function killProcessTree(pid: number): void {
     } else {
       try {
         process.kill(-pid, 'SIGKILL');
-      } catch {
+      } catch (_grpErr: unknown) {
         process.kill(pid, 'SIGKILL');
       }
     }
-  } catch {
-    // Process already exited
+  } catch (_err: unknown) {
+    // Process already exited or permission denied
   }
 }
 

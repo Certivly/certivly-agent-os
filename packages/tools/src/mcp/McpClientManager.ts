@@ -118,8 +118,9 @@ export class McpClientManager {
     for (const connection of this.connections.values()) {
       try {
         await connection.disconnect();
-      } catch {
-        // Ignore disconnect errors during shutdown
+      } catch (err: unknown) {
+        // Disconnect failure during shutdown
+        const _msg = err instanceof Error ? err.message : String(err);
       }
     }
     this.connections.clear();

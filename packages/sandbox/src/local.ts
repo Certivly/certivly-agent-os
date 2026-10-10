@@ -88,7 +88,7 @@ export class LocalWorkspaceSandbox implements Sandbox {
     try {
       const entries = await fs.readdir(fullPath);
       return entries;
-    } catch {
+    } catch (_err: unknown) {
       return [];
     }
   }

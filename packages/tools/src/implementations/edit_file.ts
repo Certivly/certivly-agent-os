@@ -51,6 +51,12 @@ export const editFileTool: WorkspaceTool & Tool = {
       return { content: `Error: ${e.message}`, isError: true };
     }
 
+    // Check .git protection
+    const rel = path.relative(ws.root, targetPath).replace(/\\/g, '/');
+    if (rel === '.git' || rel.startsWith('.git/')) {
+      return { content: 'Error: Security Violation: Editing inside .git is prohibited', isError: true };
+    }
+
     if (!fs.existsSync(targetPath)) {
       return { content: `Error: File not found: ${rawPath}`, isError: true };
     }

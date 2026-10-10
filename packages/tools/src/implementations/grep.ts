@@ -14,7 +14,8 @@ function loadGitignoreRules(workspaceRoot: string): string[] {
       .split(/\r?\n/)
       .map(l => l.trim())
       .filter(l => l.length > 0 && !l.startsWith('#'));
-  } catch {
+  } catch (err: unknown) {
+    const _msg = err instanceof Error ? err.message : String(err);
     return [];
   }
 }
@@ -124,7 +125,8 @@ export const grepTool: WorkspaceTool & Tool = {
       let stats: fs.Stats;
       try {
         stats = fs.statSync(currentPath);
-      } catch {
+      } catch (err: unknown) {
+        const _msg = err instanceof Error ? err.message : String(err);
         return;
       }
 
@@ -137,7 +139,8 @@ export const grepTool: WorkspaceTool & Tool = {
         let entries: string[];
         try {
           entries = fs.readdirSync(currentPath);
-        } catch {
+        } catch (err: unknown) {
+          const _msg = err instanceof Error ? err.message : String(err);
           return;
         }
 
@@ -167,8 +170,9 @@ export const grepTool: WorkspaceTool & Tool = {
               }
             }
           }
-        } catch {
-          // ignore unreadable
+        } catch (err: unknown) {
+          // Ignore unreadable or locked files
+          const _msg = err instanceof Error ? err.message : String(err);
         }
       }
     };

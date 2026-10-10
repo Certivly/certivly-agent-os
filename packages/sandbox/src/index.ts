@@ -9,3 +9,5 @@ export * from './SandboxErrors';
 export * from './CommandExecutor';
 export * from './WorkspaceSnapshot';
 export * from './SandboxManager';
+export * from './snapshot/ShadowSnapshotManager';
+export * from './terminal/TerminalSessionManager';

@@ -48,12 +48,9 @@ export const codeInterpreterTool: WorkspaceTool = {
   };
 
   try {
-    const __fn = new Function(\`
-      return (async () => {
-        ${rawCode}
-      })();
-    \`);
-    const __result = await __fn();
+    const __result = await (async () => {
+${rawCode}
+    })();
     process.stdout.write(JSON.stringify({
       success: true,
       stdout: __stdout.join('\\n'),
@@ -75,6 +72,21 @@ export const codeInterpreterTool: WorkspaceTool = {
 
     return new Promise((resolve) => {
       let isSettled = false;
+
+      if (context?.signal?.aborted) {
+        const msg = 'Code execution was aborted.';
+        return resolve({ content: msg, output: msg, isError: true });
+      }
+
+      const proc = spawn('bun', ['-'], {
+        cwd: workspaceRoot,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          NODE_ENV: 'test',
+        },
+      });
+
       const timer = setTimeout(() => {
         if (!isSettled) {
           isSettled = true;
@@ -88,14 +100,23 @@ export const codeInterpreterTool: WorkspaceTool = {
         }
       }, timeoutMs);
 
-      const proc = spawn('bun', ['-'], {
-        cwd: workspaceRoot,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-        },
-      });
+      const abortHandler = () => {
+        if (!isSettled) {
+          isSettled = true;
+          clearTimeout(timer);
+          try {
+            proc.kill('SIGKILL');
+          } catch (_killErr: any) {
+            // Process may have already terminated or aborted
+          }
+          const msg = 'Code execution was aborted.';
+          resolve({ content: msg, output: msg, isError: true });
+        }
+      };
+
+      if (context?.signal) {
+        context.signal.addEventListener('abort', abortHandler, { once: true });
+      }
 
       let stdoutBuffer = '';
       let stderrBuffer = '';
@@ -112,6 +133,7 @@ export const codeInterpreterTool: WorkspaceTool = {
         if (!isSettled) {
           isSettled = true;
           clearTimeout(timer);
+          if (context?.signal) context.signal.removeEventListener('abort', abortHandler);
           const msg = `Failed to spawn runtime interpreter: ${err.message}`;
           resolve({ content: msg, output: msg, isError: true });
         }
@@ -121,6 +143,7 @@ export const codeInterpreterTool: WorkspaceTool = {
         if (isSettled) return;
         isSettled = true;
         clearTimeout(timer);
+        if (context?.signal) context.signal.removeEventListener('abort', abortHandler);
         const durationMs = Date.now() - startTime;
 
         try {
@@ -153,8 +176,9 @@ export const codeInterpreterTool: WorkspaceTool = {
             const output = sections.join('\n');
             resolve({ content: output, output, isError: true });
           }
-        } catch {
+        } catch (parseErr: unknown) {
           // If JSON parse failed, output raw buffers
+          const _parseMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
           const errorMsg = stderrBuffer.trim() || stdoutBuffer.trim() || `Process exited with code ${exitCode}`;
           const output = `## Code Interpreter Result\n- **Status:** Execution Error (${durationMs}ms)\n\`\`\`\n${errorMsg}\n\`\`\``;
           resolve({ content: output, output, isError: exitCode !== 0 });
@@ -164,11 +188,12 @@ export const codeInterpreterTool: WorkspaceTool = {
       try {
         proc.stdin?.write(wrappedScript);
         proc.stdin?.end();
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!isSettled) {
           isSettled = true;
           clearTimeout(timer);
-          const msg = `Failed to send code to interpreter: ${err.message}`;
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const msg = `Failed to send code to interpreter: ${errMsg}`;
           resolve({ content: msg, output: msg, isError: true });
         }
       }

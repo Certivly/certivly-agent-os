@@ -16,7 +16,8 @@ export async function isGitRepository(dir: string): Promise<boolean> {
     }
     const { stdout } = await execFileAsync('git', ['rev-parse', '--show-toplevel'], { cwd: dir });
     return path.resolve(stdout.trim()) === path.resolve(dir);
-  } catch {
+  } catch (err: unknown) {
+    const _msg = err instanceof Error ? err.message : String(err);
     return false;
   }
 }
@@ -105,8 +106,9 @@ export class GitWorktreeSandbox implements Sandbox {
           }
         }
       }
-    } catch {
+    } catch (err: unknown) {
       // If git status fails, continue with worktree as created
+      const _msg = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -121,8 +123,9 @@ export class GitWorktreeSandbox implements Sandbox {
         } else {
           await fs.symlink(srcNodeModules, destNodeModules, 'dir');
         }
-      } catch {
+      } catch (err: unknown) {
         // Symlinking node_modules is best-effort
+        const _msg = err instanceof Error ? err.message : String(err);
       }
     }
   }
@@ -147,7 +150,7 @@ export class GitWorktreeSandbox implements Sandbox {
     try {
       const entries = await fs.readdir(fullPath);
       return entries;
-    } catch {
+    } catch (_err: unknown) {
       return [];
     }
   }
@@ -162,7 +165,7 @@ export class GitWorktreeSandbox implements Sandbox {
       // Mark all untracked files as intent-to-add so git diff includes them
       try {
         await execFileAsync('git', ['add', '-A', '--intent-to-add'], { cwd: this.sandboxDir });
-      } catch (_err) {
+      } catch (_err: unknown) {
         // best-effort: ignore if staging untracked files fails
       }
 
@@ -188,11 +191,11 @@ export class GitWorktreeSandbox implements Sandbox {
       await execFileAsync('git', ['worktree', 'remove', '--force', this.sandboxDir], {
         cwd: this.sourceWorkspaceDir,
       });
-    } catch {
+    } catch (_err: unknown) {
       // If git worktree remove fails, remove directory manually
       try {
         await fs.rm(this.sandboxDir, { recursive: true, force: true });
-      } catch (_rmErr) {
+      } catch (_rmErr: unknown) {
         // best-effort: directory removal fallback
       }
     }
