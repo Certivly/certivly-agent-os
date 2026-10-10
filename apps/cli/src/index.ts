@@ -1507,6 +1507,34 @@ program
     console.log(`✓ Exported session to: ${res.outputPath}`);
   });
 
+program
+  .command('desktop')
+  .description('Launch the AgentOS Desktop App with Key Vault, Visual Diff Inspector, and Workspace Explorer')
+  .option('-p, --port <port>', 'Port to listen on', '3456')
+  .option('--host <host>', 'Host to bind to', '127.0.0.1')
+  .option('--open', 'Automatically open in default browser / desktop window', true)
+  .action(async (opts: any) => {
+    const { DesktopServer } = await import('@agent-os/desktop');
+    const port = parseInt(opts.port, 10);
+    const server = new DesktopServer({
+      port,
+      host: opts.host,
+      workspaceRoot: process.cwd(),
+      openBrowser: Boolean(opts.open),
+    });
+    const url = await server.start();
+    console.log(`\n======================================================`);
+    console.log(` 🚀 AgentOS Desktop running at: ${url}`);
+    console.log(` 🔑 Manage keys, models, and interactive sessions`);
+    console.log(`======================================================\n`);
+
+    if (opts.open) {
+      const startCmd = process.platform === 'win32' ? 'start' : (process.platform === 'darwin' ? 'open' : 'xdg-open');
+      const { exec } = await import('child_process');
+      exec(`${startCmd} ${url}`);
+    }
+  });
+
 await program.parseAsync();
 
 

@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentOS Desktop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #090C15;
+      --bg-panel: rgba(15, 21, 37, 0.75);
+      --bg-surface: rgba(22, 30, 52, 0.85);
+      --bg-surface-elevated: rgba(30, 41, 69, 0.95);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(99, 102, 241, 0.35);
+      --border-focus: #6366F1;
+      
+      --accent-indigo: #6366F1;
+      --accent-violet: #8B5CF6;
+      --accent-cyan: #06B6D4;
+      --accent-emerald: #10B981;
+      --accent-amber: #F59E0B;
+      --accent-rose: #F43F5E;
+      
+      --text-main: #F8FAFC;
+      --text-muted: #94A3B8;
+      --text-dim: #64748B;
+      
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+      
+      --glow-indigo: 0 0 20px rgba(99, 102, 241, 0.25);
+      --glow-cyan: 0 0 20px rgba(6, 182, 212, 0.25);
+      --glow-emerald: 0 0 20px rgba(16, 185, 129, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 90%, rgba(6, 182, 212, 0.06) 0%, transparent 40%);
+    }
+
+    /* Layout */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+    }
+
+    /* Header */
+    header {
+      height: 54px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: -0.3px;
+      background: linear-gradient(135deg, #FFF 30%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--glow-indigo);
+      -webkit-text-fill-color: #FFF;
+      font-size: 14px;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, 0.25);
+      padding: 4px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 5px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #FFF;
+      background: var(--bg-surface-elevated);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .new-tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .new-tab-btn:hover {
+      color: var(--accent-cyan);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: var(--radius-md);
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .badge-pill:hover {
+      border-color: var(--border-hover);
+      color: var(--text-main);
+    }
+
+    .badge-pill.keys-badge {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: rgba(99, 102, 241, 0.3);
+      color: #A5B4FC;
+    }
+
+    .badge-pill.keys-badge:hover {
+      background: rgba(99, 102, 241, 0.2);
+      box-shadow: var(--glow-indigo);
+    }
+
+    .mode-select {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 8px;
+      border-radius: var(--radius-sm);
+      outline: none;
+      cursor: pointer;
+    }
+
+    .mode-select:focus {
+      border-color: var(--accent-indigo);
+    }
+
+    /* Main Container */
+    .main-content {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 54px);
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    aside {
+      width: 280px;
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(0, 0, 0, 0.15);
+    }
+
+    .sidebar-tab-btn {
+      flex: 1;
+      padding: 10px 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s ease;
+      border-bottom: 2px solid transparent;
+    }
+
+    .sidebar-tab-btn:hover {
+      color: var(--text-muted);
+    }
+
+    .sidebar-tab-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .sidebar-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    /* Explorer Tree */
+    .tree-node {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .tree-node:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-main);
+    }
+
+    .tree-node.is-dir {
+      font-weight: 500;
+      color: #CBD5E1;
+    }
+
+    /* Sessions List */
+    .session-item {
+      padding: 8px 10px;
+      border-radius: var(--radius-md);
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .session-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: var(--border-hover);
+    }
+
+    .session-item.active {
+      background: rgba(99, 102, 241, 0.12);
+      border-color: var(--accent-indigo);
+    }
+
+    .session-item-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-item-snippet {
+      font-size: 11px;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+
+    /* Tasks / Todo Panel */
+    .todo-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--radius-sm);
+      margin-bottom: 6px;
+      font-size: 12px;
+    }
+
+    .todo-checkbox {
+      accent-color: var(--accent-emerald);
+    }
+
+    /* Chat Area */
+    .chat-view {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: rgba(10, 14, 25, 0.5);
+    }
+
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      scroll-behavior: smooth;
+    }
+
+    /* Message Bubbles */
+    .message-row {
+      display: flex;
+      gap: 12px;
+      max-width: 860px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+
+    .avatar.user {
+      background: linear-gradient(135deg, #3B82F6, #1D4ED8);
+      color: #FFF;
+    }
+
+    .avatar.agent {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+      color: #FFF;
+      box-shadow: var(--glow-indigo);
+    }
+
+    .message-bubble {
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 18px;
+      user-select: text;
+      position: relative;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .message-bubble.user {
+      background: rgba(59, 130, 246, 0.08);
+      border-color: rgba(59, 130, 246, 0.2);
+    }
+
+    .message-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+
+    .message-body {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #E2E8F0;
+    }
+
+    .message-body pre {
+      background: #060911;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      margin: 10px 0;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      position: relative;
+    }
+
+    .message-body code {
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 5px;
+      border-radius: 4px;
+    }
+
+    /* Tool Call Cards */
+    .tool-card {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-left: 3px solid var(--accent-indigo);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      margin: 10px 0;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .tool-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .tool-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      color: #CBD5E1;
+    }
+
+    .tool-status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-amber);
+    }
+
+    .tool-status-dot.completed {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
+    }
+
+    .tool-status-dot.error {
+      background: var(--accent-rose);
+    }
+
+    /* Approval Diff Banner */
+    .approval-card {
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin: 12px 0;
+      box-shadow: 0 4px 20px rgba(245, 158, 11, 0.1);
+    }
+
+    .approval-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      color: #FBBF24;
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+
+    .diff-box {
+      background: #050811;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      max-height: 220px;
+      overflow-y: auto;
+      margin: 10px 0;
+      white-space: pre-wrap;
+    }
+
+    .diff-line-add {
+      color: #4ADE80;
+      background: rgba(74, 222, 128, 0.1);
+    }
+
+    .diff-line-del {
+      color: #F87171;
+      background: rgba(248, 113, 113, 0.1);
+    }
+
+    .approval-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn-approve {
+      background: linear-gradient(135deg, #10B981, #059669);
+      color: #FFF;
+      border: none;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      box-shadow: var(--glow-emerald);
+    }
+
+    .btn-approve:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-reject {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #FDA4AF;
+      padding: 7px 16px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-reject:hover {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    /* Prompt Dock */
+    .prompt-dock {
+      background: var(--bg-panel);
+      backdrop-filter: blur(16px);
+      border-top: 1px solid var(--border-subtle);
+      padding: 16px 24px;
+      flex-shrink: 0;
+    }
+
+    .prompt-container {
+      max-width: 860px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .quick-chips {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      overflow-x: auto;
+    }
+
+    .chip-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .chip-btn:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: var(--border-hover);
+      color: #FFF;
+    }
+
+    .input-box-wrapper {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      transition: border-color 0.15s ease;
+    }
+
+    .input-box-wrapper:focus-within {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      color: #FFF;
+      font-family: var(--font-sans);
+      font-size: 14px;
+      resize: none;
+      outline: none;
+      min-height: 44px;
+      max-height: 180px;
+      line-height: 1.5;
+    }
+
+    .prompt-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 4px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .model-pill-dock {
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn-send {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-violet));
+      color: #FFF;
+      border: none;
+      padding: 6px 16px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      box-shadow: var(--glow-indigo);
+    }
+
+    .btn-send:hover {
+      filter: brightness(1.1);
+    }
+
+    .btn-cancel {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: #FDA4AF;
+      padding: 6px 14px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    /* Modal / Dialog */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.open {
+      display: flex;
+    }
+
+    .modal-window {
+      background: #0E1322;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      width: 720px;
+      max-width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), var(--glow-indigo);
+      animation: modalIn 0.2s ease-out;
+    }
+
+    @keyframes modalIn {
+      from { transform: scale(0.96); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-title {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      font-size: 18px;
+      cursor: pointer;
+    }
+
+    .modal-close-btn:hover {
+      color: #FFF;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* Provider Cards Grid */
+    .provider-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .provider-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.15s ease;
+    }
+
+    .provider-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    .provider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .provider-title {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .provider-status {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-dim);
+    }
+
+    .provider-status.configured {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .provider-inputs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .input-text {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-subtle);
+      color: #FFF;
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+    }
+
+    .input-text:focus {
+      border-color: var(--accent-indigo);
+    }
+
+    .btn-test {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-test:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #FFF;
+    }
+
+    .btn-save-key {
+      background: var(--accent-indigo);
+      border: none;
+      color: #FFF;
+      padding: 6px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn-save-key:hover {
+      filter: brightness(1.1);
+    }
+
+    /* Streaming Cursor */
+    .cursor-blink {
+      display: inline-block;
+      width: 7px;
+      height: 15px;
+      background: var(--accent-cyan);
+      margin-left: 4px;
+      vertical-align: middle;
+      animation: blink 0.8s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        AgentOS Desktop
+      </div>
+
+      <div class="header-center" id="sessionTabs">
+        <!-- Rendered by JS -->
+      </div>
+
+      <div class="header-right">
+        <select class="mode-select" id="modeSelect">
+          <option value="manual">Manual Mode (Review)</option>
+          <option value="auto">Auto Mode (Autonomous)</option>
+          <option value="plan">Plan Mode (Read-Only)</option>
+        </select>
+
+        <select class="mode-select" id="modelSelect">
+          <option value="claude-3-7-sonnet-20250219">Claude 3.7 Sonnet</option>
+          <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+          <option value="gpt-4o">GPT-4o</option>
+          <option value="o1">o1</option>
+          <option value="o3-mini">o3-mini</option>
+          <option value="deepseek-chat">DeepSeek V3</option>
+          <option value="deepseek-reasoner">DeepSeek R1</option>
+          <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+          <option value="ollama">Ollama (Local)</option>
+        </select>
+
+        <div class="badge-pill keys-badge" id="openKeyVaultBtn">
+          🔑 Key Vault (<span id="configuredKeysCount">0</span>)
+        </div>
+
+        <div class="badge-pill" id="deepResearchBtn">
+          🔬 Deep Research
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Left Sidebar -->
+      <aside>
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab-btn active" data-tab="files">Explorer</button>
+          <button class="sidebar-tab-btn" data-tab="sessions">Sessions</button>
+          <button class="sidebar-tab-btn" data-tab="todos">Tasks</button>
+          <button class="sidebar-tab-btn" data-tab="skills">Skills</button>
+        </div>
+
+        <div class="sidebar-body" id="sidebarBody">
+          <!-- Populated by JS -->
+        </div>
+      </aside>
+
+      <!-- Center Chat View -->
+      <div class="chat-view">
+        <div class="chat-history" id="chatHistory">
+          <!-- Messages & Tool Cards Populated by JS -->
+        </div>
+
+        <!-- Prompt Dock -->
+        <div class="prompt-dock">
+          <div class="prompt-container">
+            <div class="quick-chips">
+              <button class="chip-btn" data-prompt="Research codebase architecture and list key entry points">🏗️ Architecture</button>
+              <button class="chip-btn" data-prompt="Audit repository for potential bugs, security holes, and missing tests">🛡️ Security Audit</button>
+              <button class="chip-btn" data-prompt="Find and fix any failing tests or TypeScript typecheck errors">🧪 Fix Tests</button>
+              <button class="chip-btn" data-prompt="Draft a comprehensive plan before writing code">📝 Plan Feature</button>
+            </div>
+
+            <div class="input-box-wrapper">
+              <textarea 
+                class="prompt-textarea" 
+                id="promptInput" 
+                placeholder="Ask AgentOS to edit code, execute commands, or run research... (Type / for commands)"
+                rows="1"
+              ></textarea>
+
+              <div class="prompt-footer">
+                <div class="model-pill-dock">
+                  <span id="activeModelLabel">Model: Claude 3.7 Sonnet</span> • <span id="activeModeLabel">Manual</span>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn-cancel" id="cancelBtn" style="display: none;">Cancel</button>
+                  <button class="btn-send" id="sendBtn">
+                    <span>Send</span> ➔
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Key Vault Modal -->
+  <div class="modal-overlay" id="keyVaultModal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🔑</span> Provider Key Vault & Endpoints
+        </div>
+        <button class="modal-close-btn" id="closeKeyVaultBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">
+          Configure your LLM provider API credentials. Keys are saved securely to your local configuration (<code>~/.agentos/config.json</code>).
+        </p>
+
+        <div class="provider-grid" id="providerList">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Deep Research Modal -->
+  <div class="modal-overlay" id="researchModal">
+    <div class="modal-window" style="width: 560px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🔬</span> Autonomous Deep Research
+        </div>
+        <button class="modal-close-btn" id="closeResearchBtn">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+          Dispatches parallel web search, framework doc exploration, and codebase reconnaissance agents to synthesize an authoritative research report.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <input 
+            type="text" 
+            class="input-text" 
+            id="researchQueryInput" 
+            placeholder="e.g. How to implement resilient SQLite event sourcing in Bun..." 
+            style="width: 100%;"
+          />
+
+          <button class="btn-send" id="startResearchBtn" style="justify-content: center;">
+            Launch Research Workflow
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let currentSessionId = 'session_default';
+    let sessions = [];
+    let currentSidebarTab = 'files';
+    let isRunning = false;
+    let sseSource = null;
+    let activePendingApproval = null;
+    let currentStreamBubble = null;
+
+    // Elements
+    const promptInput = document.getElementById('promptInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const chatHistory = document.getElementById('chatHistory');
+    const sessionTabs = document.getElementById('sessionTabs');
+    const sidebarBody = document.getElementById('sidebarBody');
+    const modeSelect = document.getElementById('modeSelect');
+    const modelSelect = document.getElementById('modelSelect');
+    const keyVaultModal = document.getElementById('keyVaultModal');
+    const researchModal = document.getElementById('researchModal');
+    const providerList = document.getElementById('providerList');
+    const configuredKeysCount = document.getElementById('configuredKeysCount');
+
+    // Auto-resize textarea
+    promptInput.addEventListener('input', () => {
+      promptInput.style.height = 'auto';
+      promptInput.style.height = Math.min(promptInput.scrollHeight, 180) + 'px';
+    });
+
+    // Enter to submit (Shift+Enter for newline)
+    promptInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmitPrompt();
+      }
+    });
+
+    sendBtn.addEventListener('click', handleSubmitPrompt);
+
+    cancelBtn.addEventListener('click', async () => {
+      await fetch('/api/sessions/' + currentSessionId + '/cancel', { method: 'POST' });
+      setRunning(false);
+    });
+
+    // Quick Chips
+    document.querySelectorAll('.chip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        promptInput.value = btn.getAttribute('data-prompt');
+        promptInput.focus();
+      });
+    });
+
+    // Modals
+    document.getElementById('openKeyVaultBtn').addEventListener('click', () => {
+      loadKeys();
+      keyVaultModal.classList.add('open');
+    });
+    document.getElementById('closeKeyVaultBtn').addEventListener('click', () => keyVaultModal.classList.remove('open'));
+
+    document.getElementById('deepResearchBtn').addEventListener('click', () => {
+      researchModal.classList.add('open');
+    });
+    document.getElementById('closeResearchBtn').addEventListener('click', () => researchModal.classList.remove('open'));
+
+    document.getElementById('startResearchBtn').addEventListener('click', async () => {
+      const q = document.getElementById('researchQueryInput').value.trim();
+      if (!q) return;
+      researchModal.classList.remove('open');
+      appendUserMessage('🔬 Research: ' + q);
+      setRunning(true);
+      try {
+        const res = await fetch('/api/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: q }),
+        });
+        const data = await res.json();
+        appendAgentMessage(data.finalSummary || 'Research complete.');
+      } catch (err) {
+        appendAgentMessage('Research failed: ' + err.message);
+      } finally {
+        setRunning(false);
+      }
+    });
+
+    // Sidebar Tabs
+    document.querySelectorAll('.sidebar-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.sidebar-tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSidebarTab = btn.getAttribute('data-tab');
+        renderSidebar();
+      });
+    });
+
+    // Mode Selector
+    modeSelect.addEventListener('change', async (e) => {
+      const mode = e.target.value;
+      document.getElementById('activeModeLabel').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+      await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissionMode: mode }),
+      });
+    });
+
+    // Model Selector
+    modelSelect.addEventListener('change', async (e) => {
+      const modelId = e.target.value;
+      document.getElementById('activeModelLabel').textContent = 'Model: ' + modelId;
+      await fetch('/api/models/active', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modelId }),
+      });
+    });
+
+    // Key Vault Loader & Tester
+    async function loadKeys() {
+      try {
+        const res = await fetch('/api/keys');
+        const keys = await res.json();
+        const configured = keys.filter(k => k.isConfigured).length;
+        configuredKeysCount.textContent = configured;
+
+        providerList.innerHTML = keys.map(p => `
+          <div class="provider-card" id="card-${p.id}">
+            <div class="provider-header">
+              <div class="provider-title">
+                <span>${getProviderIcon(p.id)}</span>
+                ${p.name}
+              </div>
+              <div class="provider-status ${p.isConfigured ? 'configured' : ''}">
+                ${p.isConfigured ? '✓ Configured (' + p.source + ')' : 'Not Set'}
+              </div>
+            </div>
+
+            <div class="provider-inputs">
+              <input 
+                type="password" 
+                class="input-text" 
+                id="key-${p.id}" 
+                placeholder="${p.isConfigured ? p.maskedKey : 'Enter API Key...'}"
+              />
+              <button class="btn-test" onclick="testKey('${p.id}')">Test</button>
+              <button class="btn-save-key" onclick="saveKey('${p.id}')">Save</button>
+            </div>
+            <div id="test-result-${p.id}" style="font-size: 11px; color: var(--text-muted);"></div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Failed to load keys', err);
+      }
+    }
+
+    function getProviderIcon(id) {
+      if (id === 'anthropic') return '🧠';
+      if (id === 'openai') return '✨';
+      if (id === 'deepseek') return '⚡';
+      if (id === 'gemini') return '💎';
+      if (id === 'groq') return '⚡';
+      if (id === 'ollama') return '🦙';
+      if (id === 'openrouter') return '🌐';
+      return '🔌';
+    }
+
+    window.testKey = async function(providerId) {
+      const input = document.getElementById('key-' + providerId);
+      const resLabel = document.getElementById('test-result-' + providerId);
+      resLabel.innerHTML = 'Testing connection...';
+      const key = input.value.trim();
+
+      try {
+        const res = await fetch('/api/keys/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: providerId, apiKey: key }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          resLabel.innerHTML = '<span style="color: #34D399;">✓ ' + data.message + ' (' + data.latencyMs + 'ms)</span>';
+        } else {
+          resLabel.innerHTML = '<span style="color: #F87171;">✗ ' + data.message + '</span>';
+        }
+      } catch (err) {
+        resLabel.innerHTML = '<span style="color: #F87171;">✗ Error: ' + err.message + '</span>';
+      }
+    };
+
+    window.saveKey = async function(providerId) {
+      const input = document.getElementById('key-' + providerId);
+      const resLabel = document.getElementById('test-result-' + providerId);
+      const key = input.value.trim();
+      if (!key) return;
+
+      try {
+        const res = await fetch('/api/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: providerId, apiKey: key }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          resLabel.innerHTML = '<span style="color: #34D399;">✓ Saved to ~/.agentos/config.json</span>';
+          input.value = '';
+          loadKeys();
+        }
+      } catch (err) {
+        resLabel.innerHTML = '<span style="color: #F87171;">✗ Save failed</span>';
+      }
+    };
+
+    // Sessions Management
+    async function loadSessions() {
+      try {
+        const res = await fetch('/api/sessions');
+        sessions = await res.json();
+        if (sessions.length === 0) {
+          const createRes = await fetch('/api/sessions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: 'Welcome Session' }),
+          });
+          const created = await createRes.json();
+          sessions = [created];
+        }
+        if (!sessions.some(s => s.id === currentSessionId)) {
+          currentSessionId = sessions[0].id;
+        }
+        renderTabs();
+        loadSessionDetails(currentSessionId);
+      } catch (err) {
+        console.error('Failed to load sessions', err);
+      }
+    }
+
+    function renderTabs() {
+      sessionTabs.innerHTML = sessions.slice(0, 4).map(s => `
+        <button class="tab-btn ${s.id === currentSessionId ? 'active' : ''}" onclick="switchSession('${s.id}')">
+          <span>💬</span> ${escapeHtml(s.title || s.id)}
+        </button>
+      `).join('') + `
+        <button class="new-tab-btn" onclick="createNewSession()" title="New Session">+</button>
+      `;
+    }
+
+    window.switchSession = function(id) {
+      currentSessionId = id;
+      renderTabs();
+      loadSessionDetails(id);
+    };
+
+    window.createNewSession = async function() {
+      const res = await fetch('/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'New Session ' + (sessions.length + 1) }),
+      });
+      const s = await res.json();
+      sessions.unshift(s);
+      switchSession(s.id);
+    };
+
+    async function loadSessionDetails(sessionId) {
+      connectSse(sessionId);
+      chatHistory.innerHTML = '';
+      try {
+        const res = await fetch('/api/sessions/' + sessionId);
+        const data = await res.json();
+        if (data.messages) {
+          for (const m of data.messages) {
+            if (m.role === 'user') {
+              appendUserMessage(m.content);
+            } else if (m.role === 'assistant') {
+              appendAgentMessage(m.content);
+            }
+          }
+        }
+        if (data.toolCalls) {
+          for (const tc of data.toolCalls) {
+            appendToolCard(tc.name, tc.args, tc.result);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load session details', err);
+      }
+    }
+
+    // SSE Stream
+    function connectSse(sessionId) {
+      if (sseSource) {
+        sseSource.close();
+      }
+
+      sseSource = new EventSource('/api/sessions/' + sessionId + '/events');
+
+      sseSource.addEventListener('message.delta', (e) => {
+        const data = JSON.parse(e.data);
+        if (data.delta) {
+          appendToStreamBubble(data.delta);
+        }
+      });
+
+      sseSource.addEventListener('tool.call.started', (e) => {
+        const data = JSON.parse(e.data);
+        appendToolCard(data.toolName, data.args, null);
+      });
+
+      sseSource.addEventListener('tool.call.completed', (e) => {
+        const data = JSON.parse(e.data);
+        updateLatestToolCard(data.toolName, data.result);
+      });
+
+      sseSource.addEventListener('approval.requested', (e) => {
+        const data = JSON.parse(e.data);
+        renderApprovalCard(data);
+      });
+
+      sseSource.addEventListener('agent.loop.completed', (e) => {
+        setRunning(false);
+        finishStreamBubble();
+      });
+
+      sseSource.addEventListener('agent.loop.failed', (e) => {
+        const data = JSON.parse(e.data);
+        setRunning(false);
+        appendAgentMessage('⚠️ Error: ' + (data.error || 'Execution failed'));
+      });
+    }
+
+    async function handleSubmitPrompt() {
+      const text = promptInput.value.trim();
+      if (!text || isRunning) return;
+
+      promptInput.value = '';
+      promptInput.style.height = 'auto';
+
+      appendUserMessage(text);
+      setRunning(true);
+      startStreamBubble();
+
+      try {
+        await fetch('/api/sessions/' + currentSessionId + '/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: text,
+            mode: modeSelect.value,
+          }),
+        });
+      } catch (err) {
+        setRunning(false);
+        appendAgentMessage('Failed to send prompt: ' + err.message);
+      }
+    }
+
+    function setRunning(running) {
+      isRunning = running;
+      sendBtn.style.display = running ? 'none' : 'flex';
+      cancelBtn.style.display = running ? 'flex' : 'none';
+    }
+
+    // Message Rendering Helpers
+    function appendUserMessage(text) {
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      row.innerHTML = `
+        <div class="avatar user">U</div>
+        <div class="message-bubble user">
+          <div class="message-header">You</div>
+          <div class="message-body">${escapeHtml(text)}</div>
+        </div>
+      `;
+      chatHistory.appendChild(row);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function appendAgentMessage(text) {
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      row.innerHTML = `
+        <div class="avatar agent">OS</div>
+        <div class="message-bubble">
+          <div class="message-header">AgentOS Assistant</div>
+          <div class="message-body">${renderMarkdown(text)}</div>
+        </div>
+      `;
+      chatHistory.appendChild(row);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function startStreamBubble() {
+      const row = document.createElement('div');
+      row.className = 'message-row';
+      row.innerHTML = `
+        <div class="avatar agent">OS</div>
+        <div class="message-bubble">
+          <div class="message-header">AgentOS Assistant</div>
+          <div class="message-body"><span class="stream-text"></span><span class="cursor-blink"></span></div>
+        </div>
+      `;
+      chatHistory.appendChild(row);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+      currentStreamBubble = row.querySelector('.stream-text');
+    }
+
+    function appendToStreamBubble(chunk) {
+      if (!currentStreamBubble) startStreamBubble();
+      currentStreamBubble.textContent += chunk;
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function finishStreamBubble() {
+      if (currentStreamBubble) {
+        const parent = currentStreamBubble.parentElement;
+        const blinker = parent.querySelector('.cursor-blink');
+        if (blinker) blinker.remove();
+        parent.innerHTML = renderMarkdown(currentStreamBubble.textContent);
+        currentStreamBubble = null;
+      }
+    }
+
+    function appendToolCard(toolName, args, result) {
+      const card = document.createElement('div');
+      card.className = 'tool-card';
+      card.id = 'tc-' + toolName + '-' + Date.now();
+      card.innerHTML = `
+        <div class="tool-card-header">
+          <div class="tool-title">
+            <span class="tool-status-dot ${result ? 'completed' : ''}"></span>
+            <code>${escapeHtml(toolName)}</code>
+          </div>
+          <span style="color: var(--text-dim); font-size: 11px;">${result ? 'Completed' : 'Running...'}</span>
+        </div>
+        <div style="color: var(--text-muted); margin-top: 6px; font-size: 11.5px;">
+          ${escapeHtml(typeof args === 'string' ? args : JSON.stringify(args || {}))}
+        </div>
+      `;
+      chatHistory.appendChild(card);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function updateLatestToolCard(toolName, result) {
+      const dots = chatHistory.querySelectorAll('.tool-status-dot');
+      if (dots.length > 0) {
+        const lastDot = dots[dots.length - 1];
+        lastDot.className = 'tool-status-dot completed';
+        const cardHeader = lastDot.closest('.tool-card-header');
+        if (cardHeader) {
+          const statusText = cardHeader.querySelector('span:last-child');
+          if (statusText) statusText.textContent = 'Completed';
+        }
+      }
+    }
+
+    function renderApprovalCard(data) {
+      const card = document.createElement('div');
+      card.className = 'approval-card';
+      activePendingApproval = data.id;
+
+      card.innerHTML = `
+        <div class="approval-header">
+          <span>⚠️</span> Manual Approval Required: ${escapeHtml(data.toolName)}
+        </div>
+        <p style="font-size: 12.5px; color: #CBD5E1;">
+          The agent requests permission to execute <code>${escapeHtml(data.toolName)}</code> on workspace files.
+        </p>
+        ${data.diff ? '<div class="diff-box">' + formatDiff(data.diff) + '</div>' : ''}
+        <div class="approval-actions">
+          <button class="btn-approve" onclick="resolveApproval('${data.id}', true)">✓ Approve & Apply</button>
+          <button class="btn-reject" onclick="resolveApproval('${data.id}', false)">✕ Reject</button>
+        </div>
+      `;
+      chatHistory.appendChild(card);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    window.resolveApproval = async function(approvalId, approved) {
+      await fetch('/api/sessions/' + currentSessionId + '/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approvalId, approved }),
+      });
+      const card = document.querySelector('.approval-card');
+      if (card) {
+        card.innerHTML = '<div style="font-weight: 600; font-size: 13px; color: ' + (approved ? '#34D399' : '#FDA4AF') + '">' +
+          (approved ? '✓ Approved by User' : '✕ Rejected by User') + '</div>';
+      }
+    };
+
+    // Sidebar Rendering
+    async function renderSidebar() {
+      if (currentSidebarTab === 'files') {
+        const res = await fetch('/api/workspace/tree');
+        const data = await res.json();
+        sidebarBody.innerHTML = renderTreeNodes(data.tree);
+      } else if (currentSidebarTab === 'sessions') {
+        sidebarBody.innerHTML = sessions.map(s => `
+          <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="switchSession('${s.id}')">
+            <div class="session-item-title">${escapeHtml(s.title || s.id)}</div>
+            <div class="session-item-snippet">${s.lastMessageSnippet ? escapeHtml(s.lastMessageSnippet) : 'No messages'}</div>
+          </div>
+        `).join('');
+      } else if (currentSidebarTab === 'todos') {
+        sidebarBody.innerHTML = `
+          <div class="todo-item">
+            <input type="checkbox" class="todo-checkbox" checked />
+            <span style="text-decoration: line-through; color: var(--text-dim);">Inspect repository architecture</span>
+          </div>
+          <div class="todo-item">
+            <input type="checkbox" class="todo-checkbox" checked />
+            <span style="text-decoration: line-through; color: var(--text-dim);">Build Desktop Server API</span>
+          </div>
+          <div class="todo-item">
+            <input type="checkbox" class="todo-checkbox" />
+            <span>Interactive Key Vault & Provider testing</span>
+          </div>
+        `;
+      } else if (currentSidebarTab === 'skills') {
+        const res = await fetch('/api/skills');
+        const skills = await res.json();
+        sidebarBody.innerHTML = skills.map(sk => `
+          <div class="session-item">
+            <div class="session-item-title">⚡ ${escapeHtml(sk.metadata.name)}</div>
+            <div class="session-item-snippet">${escapeHtml(sk.metadata.description || '')}</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    function renderTreeNodes(nodes, depth = 0) {
+      if (!nodes || nodes.length === 0) return '<div style="color: var(--text-dim); font-size: 12px;">Empty directory</div>';
+      return nodes.map(n => `
+        <div class="tree-node ${n.isDir ? 'is-dir' : ''}" style="margin-left: ${depth * 12}px;" onclick="${n.isDir ? '' : 'viewFile(\\'' + n.path + '\\')'}">
+          <span>${n.isDir ? '📁' : '📄'}</span>
+          <span>${escapeHtml(n.name)}</span>
+        </div>
+        ${n.isDir && n.children ? renderTreeNodes(n.children, depth + 1) : ''}
+      `).join('');
+    }
+
+    window.viewFile = async function(filePath) {
+      const res = await fetch('/api/workspace/file?path=' + encodeURIComponent(filePath));
+      const data = await res.json();
+      if (data.content !== undefined) {
+        appendAgentMessage('**Viewing ' + filePath + '**:\n\`\`\`\n' + data.content.slice(0, 1500) + '\n\`\`\`');
+      }
+    };
+
+    function formatDiff(diff) {
+      return diff.split('\n').map(line => {
+        if (line.startsWith('+')) return '<div class="diff-line-add">' + escapeHtml(line) + '</div>';
+        if (line.startsWith('-')) return '<div class="diff-line-del">' + escapeHtml(line) + '</div>';
+        return '<div>' + escapeHtml(line) + '</div>';
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderMarkdown(md) {
+      if (!md) return '';
+      let text = escapeHtml(md);
+      // Code blocks
+      text = text.replace(/\`\`\`([\\s\\S]*?)\`\`\`/g, '<pre><code>$1</code></pre>');
+      // Inline code
+      text = text.replace(/\`([^`]+)\`/g, '<code>$1</code>');
+      // Bold
+      text = text.replace(/\\*\\*([^\\*]+)\\*\\*/g, '<strong>$1</strong>');
+      // Newlines
+      text = text.replace(/\\n/g, '<br/>');
+      return text;
+    }
+
+    // Init
+    loadKeys();
+    loadSessions();
+    renderSidebar();
+  </script>
+</body>
+</html>

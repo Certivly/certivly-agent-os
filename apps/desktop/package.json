@@ -1,0 +1,26 @@
+{
+  "name": "@agent-os/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "start": "bun run src/server/DesktopServer.ts",
+    "dev": "bun run src/server/DesktopServer.ts --dev",
+    "open": "bun run src/server/DesktopServer.ts --open",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@agent-os/agent-runtime": "workspace:*",
+    "@agent-os/config": "workspace:*",
+    "@agent-os/events": "workspace:*",
+    "@agent-os/metrics": "workspace:*",
+    "@agent-os/providers": "workspace:*",
+    "@agent-os/sessions": "workspace:*",
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.0"
+  }
+}
