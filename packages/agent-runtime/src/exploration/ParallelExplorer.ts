@@ -184,7 +184,7 @@ export class ParallelExplorer {
       }
 
       return lines.join('\n');
-    } catch {
+    } catch (_err: unknown) {
       clearTimeout(timeoutId);
       return '';
     }

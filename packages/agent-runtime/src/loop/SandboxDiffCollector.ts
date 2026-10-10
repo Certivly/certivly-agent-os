@@ -42,7 +42,7 @@ export class SandboxDiffCollector {
       }
 
       return this.parseDiffIntoChangeSet(rawDiff, runId, workspaceRoot, sandboxRoot);
-    } catch {
+    } catch (_err: unknown) {
       return null;
     }
   }

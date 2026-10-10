@@ -14,6 +14,10 @@ Follow these operational guidelines:
 export interface LoadedInstructions {
   rootInstructions: string | null;     // from AGENTS.md at workspace root
   copilotInstructions: string | null;  // from .github/copilot-instructions.md
+  customInstructions?: Array<{        // from CLAUDE.md, .cursorrules, QWEN.md, GEMINI.md, .agentos/instructions.md
+    source: string;
+    content: string;
+  }>;
   nestedInstructions: Array<{          // from nearest AGENTS.md in ancestor dirs
     path: string;
     content: string;
@@ -21,7 +25,7 @@ export interface LoadedInstructions {
 }
 
 const INSTRUCTION_FILE_CHAR_CAP = 8000;
-const TRUNCATION_NOTICE = '\n...(truncated — file is too large. Use a shorter AGENTS.md)';
+const TRUNCATION_NOTICE = '\n...(truncated — file is too large. Use a shorter instruction file)';
 
 function readInstructionFile(filePath: string): string | null {
   if (!fs.existsSync(filePath)) return null;
@@ -31,7 +35,7 @@ function readInstructionFile(filePath: string): string | null {
       content = content.slice(0, INSTRUCTION_FILE_CHAR_CAP) + TRUNCATION_NOTICE;
     }
     return content;
-  } catch {
+  } catch (_err: unknown) {
     return null;
   }
 }
@@ -42,9 +46,31 @@ export class InstructionLoader {
     const rootPath = path.join(resolvedRoot, 'AGENTS.md');
     const copilotPath = path.join(resolvedRoot, '.github', 'copilot-instructions.md');
 
+    const customInstructions: Array<{ source: string; content: string }> = [];
+
+    // Check industry-standard coding agent instructions (Claude Code, Qwen Code, Cursor, Gemini)
+    const candidates = [
+      { file: 'CLAUDE.md', label: 'Claude Code Instructions (CLAUDE.md)' },
+      { file: '.cursorrules', label: 'Cursor Rules (.cursorrules)' },
+      { file: path.join('.cursor', 'rules'), label: 'Cursor Rules (.cursor/rules)' },
+      { file: 'QWEN.md', label: 'Qwen Code Instructions (QWEN.md)' },
+      { file: path.join('.qwen', 'instructions.md'), label: 'Qwen Instructions (.qwen/instructions.md)' },
+      { file: 'GEMINI.md', label: 'Gemini Instructions (GEMINI.md)' },
+      { file: path.join('.agentos', 'instructions.md'), label: 'AgentOS Instructions (.agentos/instructions.md)' },
+    ];
+
+    for (const cand of candidates) {
+      const fullPath = path.join(resolvedRoot, cand.file);
+      const text = readInstructionFile(fullPath);
+      if (text) {
+        customInstructions.push({ source: cand.label, content: text });
+      }
+    }
+
     return {
       rootInstructions: readInstructionFile(rootPath),
       copilotInstructions: readInstructionFile(copilotPath),
+      customInstructions,
       nestedInstructions: [],
     };
   }
@@ -65,9 +91,12 @@ export class InstructionLoader {
       : path.dirname(resolvedPath);
 
     while (currentDir !== resolvedRoot && !path.relative(resolvedRoot, currentDir).startsWith('..')) {
-      const candidate = path.join(currentDir, 'AGENTS.md');
-      if (fs.existsSync(candidate)) {
-        return readInstructionFile(candidate);
+      const candidateFiles = ['AGENTS.md', 'CLAUDE.md', '.cursorrules', 'QWEN.md'];
+      for (const candName of candidateFiles) {
+        const candidate = path.join(currentDir, candName);
+        if (fs.existsSync(candidate)) {
+          return readInstructionFile(candidate);
+        }
       }
       const parent = path.dirname(currentDir);
       if (parent === currentDir) break;
@@ -81,6 +110,11 @@ export class InstructionLoader {
     const sections: string[] = [];
     if (instructions.rootInstructions) {
       sections.push(`## Project Instructions (AGENTS.md)\n${instructions.rootInstructions}`);
+    }
+    if (instructions.customInstructions && instructions.customInstructions.length > 0) {
+      for (const custom of instructions.customInstructions) {
+        sections.push(`## ${custom.source}\n${custom.content}`);
+      }
     }
     if (instructions.copilotInstructions) {
       sections.push(`## Copilot Instructions (.github/copilot-instructions.md)\n${instructions.copilotInstructions}`);
@@ -102,16 +136,23 @@ export async function loadInstructionText(
   const resolvedRoot = path.resolve(workspaceRoot);
   const candidateFiles = new Set<string>();
 
-  // 1. Root AGENTS.md
-  const rootAgents = path.join(resolvedRoot, 'AGENTS.md');
-  if (fs.existsSync(rootAgents)) {
-    candidateFiles.add(rootAgents);
-  }
-
-  // 2. Root .github/copilot-instructions.md
-  const copilotInstructions = path.join(resolvedRoot, '.github', 'copilot-instructions.md');
-  if (fs.existsSync(copilotInstructions)) {
-    candidateFiles.add(copilotInstructions);
+  // 1. Root AGENTS.md and standard instructions
+  const standardFiles = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.cursorrules',
+    path.join('.cursor', 'rules'),
+    'QWEN.md',
+    path.join('.qwen', 'instructions.md'),
+    'GEMINI.md',
+    path.join('.agentos', 'instructions.md'),
+    path.join('.github', 'copilot-instructions.md'),
+  ];
+  for (const s of standardFiles) {
+    const p = path.join(resolvedRoot, s);
+    if (fs.existsSync(p)) {
+      candidateFiles.add(p);
+    }
   }
 
   // 3. Nearest parent AGENTS.md for touched files
@@ -157,7 +198,7 @@ export async function loadInstructionText(
       const content = fs.readFileSync(filePath, 'utf8');
       const relPath = path.relative(resolvedRoot, filePath).replace(/\\/g, '/');
       sections.push(`--- Instruction file: ${relPath} ---\n${content}`);
-    } catch {
+    } catch (_err: unknown) {
       // Ignore read errors
     }
   }

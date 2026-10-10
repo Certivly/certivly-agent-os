@@ -24,7 +24,7 @@ export class HookRunner {
       try {
         execSync('where.exe sh', { stdio: 'ignore' });
         shell = 'sh';
-      } catch {
+      } catch (_err: unknown) {
         shell = 'cmd.exe';
       }
     }

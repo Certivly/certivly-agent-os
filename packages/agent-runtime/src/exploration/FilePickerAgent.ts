@@ -115,7 +115,7 @@ Output ONLY a JSON payload matching this schema:
           tokensUsed,
         };
       }
-    } catch {
+    } catch (_err: unknown) {
       // Graceful fallback to heuristic selection if model invocation fails
     }
 
@@ -153,7 +153,7 @@ Output ONLY a JSON payload matching this schema:
           files.push(relativePath);
         }
       }
-    } catch {
+    } catch (_err: unknown) {
       // Ignore read errors
     }
     return files;
@@ -235,7 +235,7 @@ Output ONLY a JSON payload matching this schema:
           summary: typeof obj.summary === 'string' ? obj.summary : undefined,
         };
       }
-    } catch {
+    } catch (_err: unknown) {
       // JSON parse failed
     }
     return null;

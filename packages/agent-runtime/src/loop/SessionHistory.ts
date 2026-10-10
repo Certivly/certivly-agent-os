@@ -12,7 +12,7 @@ export class SessionHistory {
   private ensureSession(sessionId: string): void {
     try {
       this.sessionManager.getSession(sessionId);
-    } catch {
+    } catch (_err: unknown) {
       this.sessionManager.createSession(sessionId);
     }
   }
@@ -33,7 +33,7 @@ export class SessionHistory {
         let parsed: any;
         try {
           parsed = JSON.parse(msg.content);
-        } catch {
+        } catch (_err: unknown) {
           parsed = null;
         }
 
@@ -55,7 +55,7 @@ export class SessionHistory {
         let parsed: any;
         try {
           parsed = JSON.parse(msg.content);
-        } catch {
+        } catch (_err: unknown) {
           parsed = null;
         }
 
@@ -140,7 +140,7 @@ export class SessionHistory {
             name: tc.name,
             args: tc.args,
           });
-        } catch {
+        } catch (_err: unknown) {
           // Ignore secondary insert errors if any
         }
       }
@@ -181,7 +181,7 @@ export class SessionHistory {
 
     try {
       this.sessionManager.updateToolCallResult(toolCallId, sanitizedContent);
-    } catch {
+    } catch (_err: unknown) {
       // Ignore if not found
     }
   }

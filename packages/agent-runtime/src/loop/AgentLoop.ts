@@ -33,11 +33,14 @@ import { LightweightPlanner } from '../planning/LightweightPlanner';
 import { SandboxDiffCollector } from './SandboxDiffCollector';
 import { PermissionGuard, isHardDeniedCommand } from './PermissionGuard';
 import { HookRunner } from './HookRunner';
+import { SkillRegistry } from '../skills/SkillRegistry';
+import { SubagentRegistry } from '../multiagent/SubagentRegistry';
 import { ContextAssembler } from './ContextAssembler';
 import { SearchSubagent } from './SearchSubagent';
 import { AntiLoopMonitor } from './AntiLoopMonitor';
 import { FilePickerAgent } from '../exploration/FilePickerAgent';
 import { ToolRegistry, TruncatedWriteGuard } from '@agent-os/tools';
+import { FileMentionExpander } from '../input/FileMentionExpander';
 
 
 const DEFAULT_OPTIONS: AgentLoopOptions = {
@@ -146,9 +149,15 @@ export class AgentLoop {
     const sessionManager = this.history.getSessionManager();
     const runId = params.runId;
 
+    // Expand file mentions (@path) from user input (learned from Qwen Code)
+    const mentionExpansion = FileMentionExpander.expand(params.userInput, {
+      workspaceRoot: params.workspaceRoot || this.workspaceRoot || process.cwd(),
+    });
+    const effectiveUserInput = mentionExpansion.expandedInput;
+
     this.eventBus.publish('agent.loop.started', {
       sessionId,
-      userInput: params.userInput,
+      userInput: effectiveUserInput,
     });
 
     const toolCallRecords: ToolCallRecord[] = [];
@@ -188,7 +197,7 @@ export class AgentLoop {
 
     try {
       if (!params.isResume) {
-        await this.history.appendUser(sessionId, params.userInput);
+        await this.history.appendUser(sessionId, effectiveUserInput);
       } else if (params.pendingToolCalls && params.pendingToolCalls.length > 0) {
         await this.executeToolCallsPartitioned(
           params.pendingToolCalls,
@@ -215,6 +224,20 @@ export class AgentLoop {
         if (hints) {
           systemPrompt += `\n\n${hints}`;
         }
+      }
+
+      // Inject available specialized skills (Claude Code / Qwen Code / OpenCode pattern)
+      const skillRegistry = new SkillRegistry({ workspaceRoot: effectiveWs });
+      const skillsSection = skillRegistry.formatSkillsForPrompt();
+      if (skillsSection) {
+        systemPrompt += `\n\n${skillsSection}`;
+      }
+
+      // Inject available specialized subagents (Multi-Agent Team Architecture)
+      const subagentRegistry = new SubagentRegistry({ workspaceRoot: effectiveWs });
+      const subagentsSection = subagentRegistry.formatAgentsForPrompt();
+      if (subagentsSection) {
+        systemPrompt += `\n\n${subagentsSection}`;
       }
 
       if (!params.isResume && this.options.parallelExploration) {
@@ -327,7 +350,7 @@ export class AgentLoop {
           parameters: t.spec.parameters as JsonObject,
         }));
 
-        // ContextAssembler snapshot (Action 5-05)
+        // ContextAssembler snapshot (Action 5-05 & OpenCode Context Epoch)
         const snapshot = ContextAssembler.build(loopState, {
           userInput: input.userInput,
           permissionMode: this.options.permissionMode,
@@ -335,14 +358,21 @@ export class AgentLoop {
           verificationPassed: loopState.lastVerificationOutput ? false : true,
           filesChanged,
         });
-        let turnSystemPrompt = ContextAssembler.buildTurnSystemPrompt(systemPrompt, snapshot);
+
+        // Keep static systemPrompt 100% immutable for prefix KV caching;
+        // place dynamic turn context into dynamicSystemPrompt.
+        const dynamicTurnSection = ContextAssembler.toSystemPromptSection(snapshot);
+        let dynamicContext = dynamicTurnSection;
         if (activeInterventionPrompt) {
-          turnSystemPrompt += `\n\n${activeInterventionPrompt}`;
+          dynamicContext = dynamicContext
+            ? `${dynamicContext}\n\n${activeInterventionPrompt}`
+            : activeInterventionPrompt;
           activeInterventionPrompt = null;
         }
 
         const genRequest: GenerationRequest = {
-          systemPrompt: turnSystemPrompt,
+          systemPrompt,
+          dynamicSystemPrompt: dynamicContext && dynamicContext.trim() ? dynamicContext.trim() : undefined,
           systemPromptCacheControl: { type: 'ephemeral' },
           messages: genMessages,
           ...(toolSpecs.length > 0 ? { tools: toolSpecs } : {}),
@@ -572,7 +602,7 @@ export class AgentLoop {
               let parsedArgs: unknown = {};
               try {
                 parsedArgs = JSON.parse(tc.args);
-              } catch {
+              } catch (_err: unknown) {
                 parsedArgs = tc.args;
               }
               const loopStatus = antiLoopMonitor.recordAction({
@@ -618,7 +648,7 @@ export class AgentLoop {
                 const parsed = JSON.parse(tr.content);
                 if (Array.isArray(parsed)) fileCount = parsed.length;
                 else if (parsed.files && Array.isArray(parsed.files)) fileCount = parsed.files.length;
-              } catch {
+              } catch (_err: unknown) {
                 fileCount = (tr.content.match(/\n/g) || []).length + 1;
               }
               if (LightweightPlanner.shouldTriggerPlan({
@@ -1117,9 +1147,9 @@ export class AgentLoop {
     }
 
     // Pre-edit guard (ReadBeforeEdit - Action 4-05)
+    const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
     const hasReadFileTool = this.tools.some(t => t.spec.name === 'read_file');
     if (!this.options.noReadGuard && hasReadFileTool && (tc.name === 'edit_file' || tc.name === 'write_file')) {
-      const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || '') as string;
       if (filePathStr) {
         const targetPath = path.resolve(this.workspaceRoot, filePathStr);
         const exists = fs.existsSync(targetPath);
@@ -1147,8 +1177,12 @@ export class AgentLoop {
 
     if (requiresApproval) {
       const diffPreview = (argsObj.diff || argsObj.content || argsObj.patch || '') as string;
-      const filePathStr = (argsObj.path || argsObj.file || argsObj.filePath || argsObj.targetFile || '') as string;
-      const filesList = filePathStr ? [{ path: filePathStr, kind: tc.name === 'write_file' ? 'modify' : 'modify' }] : [];
+      const filesList = filePathStr
+        ? [{
+            path: filePathStr,
+            kind: (tc.name === 'write_file' && !fs.existsSync(path.resolve(this.workspaceRoot, filePathStr))) ? ('add' as const) : ('modify' as const),
+          }]
+        : [];
 
       this.eventBus.publish('approval.requested', {
         id: `appr-${tc.id}`,

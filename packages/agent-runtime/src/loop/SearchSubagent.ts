@@ -117,7 +117,7 @@ When you identify the relevant files, respond with a JSON object:
         if (typeof tc.args === 'string') {
           try {
             parsedArgs = JSON.parse(tc.args);
-          } catch {
+          } catch (_err: unknown) {
             parsedArgs = {};
           }
         } else if (tc.args && typeof tc.args === 'object') {

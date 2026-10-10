@@ -100,17 +100,19 @@ The archive is a **backlog**, not a graveyard.
 
 ```text
 CLI (apps/cli)
+  → Multi-Harness Instruction Loader (AGENTS.md, CLAUDE.md, .cursorrules, QWEN.md, GEMINI.md)
   → AgentRuntime
     → LightweightPlanner (pipeline: explore→edit→verify→patch→approve)
     → AgentLoop
       → PermissionGuard (plan / manual / acceptEdits / auto)
-      → SearchSubagent (read-only, capped at 5 turns)
+      → SubagentRegistry / Delegation (`researcher-web`, `researcher-docs`, `explore`, `code-search`, `analyzer`, `test-runner`, `browser_verifier`)
       → ToolRegistry: read_file, grep, list_dir, edit_file, write_file,
-                      apply_patch, run_command, repo_map
+                      apply_patch, run_command, terminal_interactive, read_url, web_search, read_docs, repo_map, delegate_subagent
       → SandboxManager / WorktreeSession
       → SandboxDiffCollector
       → ProjectVerifier (max 3 repair turns)
-      → ChangeSetStore
+      → ShadowSnapshotManager (git tree checkpointing)
+      → ChangeSetStore & ChangeSetApplier (SHA-256 pre-image conflict validation)
       → ApprovalGate (typed ChangeSetId)
       → HookRunner (lifecycle hooks)
     → EventBus

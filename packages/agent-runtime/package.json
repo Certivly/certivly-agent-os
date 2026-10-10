@@ -13,7 +13,8 @@
     "@agent-os/metrics": "workspace:*",
     "@agent-os/sandbox": "workspace:*",
     "@agent-os/daemon": "workspace:*",
-    "@agent-os/patch-engine": "workspace:*"
+    "@agent-os/patch-engine": "workspace:*",
+    "@agent-os/codemode": "workspace:*"
   }
 }
 

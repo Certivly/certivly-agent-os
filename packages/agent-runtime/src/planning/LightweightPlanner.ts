@@ -98,7 +98,7 @@ Respond with a JSON object in this format:
 
       const plan = this.parsePlan(response.text, context.userInput);
       return plan;
-    } catch {
+    } catch (_err: unknown) {
       return this.fallbackPlan(context);
     }
   }
@@ -131,7 +131,7 @@ Respond with a JSON object in this format:
         pipeline,
         isEditTask,
       };
-    } catch {
+    } catch (_err: unknown) {
       const defaultPipeline: PipelineStage[] = isEdit
         ? ['explore', 'edit', 'verify', 'patch', 'approve']
         : ['explore'];

@@ -88,7 +88,7 @@ export class SessionReplayer {
       let parsedArgs: Record<string, unknown> = {};
       try {
         parsedArgs = JSON.parse(tc.args);
-      } catch {
+      } catch (_err: unknown) {
         parsedArgs = { raw: tc.args };
       }
 
@@ -96,7 +96,7 @@ export class SessionReplayer {
       if (typeof tc.result === 'string') {
         try {
           parsedResult = JSON.parse(tc.result);
-        } catch {
+        } catch (_err: unknown) {
           parsedResult = tc.result;
         }
       }
@@ -143,7 +143,7 @@ export class SessionReplayer {
     if (run.verification) {
       try {
         verification = JSON.parse(run.verification);
-      } catch {
+      } catch (_err: unknown) {
         verification = run.verification;
       }
     }
@@ -152,7 +152,7 @@ export class SessionReplayer {
     if (run.approvalDecisions) {
       try {
         approvalDecisions = JSON.parse(run.approvalDecisions);
-      } catch {
+      } catch (_err: unknown) {
         approvalDecisions = [run.approvalDecisions];
       }
     }

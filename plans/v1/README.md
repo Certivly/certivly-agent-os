@@ -35,6 +35,7 @@ The key innovations planned for AgentOS v2 are:
 | [04-cli-tui-and-desktop-parity.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/04-cli-tui-and-desktop-parity.md) | **Interactive TUI & Dual Modes** | Strict `Plan Mode` vs `Build Mode`, slash command engine (`/plan`, `/build`, `/diff`, `/compact`), terminal diff panel, and daemon bridge. |
 | [05-github-actions-headless-agent.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/05-github-actions-headless-agent.md) | **Headless CI/CD Automation** | Non-interactive CLI mode (`--headless`), automated PR review workflow, and `/agentos fix` GitHub Action issue resolver. |
 | [06-freebuff-resilience-and-guards.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/06-freebuff-resilience-and-guards.md) | **Resilience & Zero-Token Compaction** | `TruncatedWriteGuard` (cut-off protection), `MechanicalCompactionEngine` (0-token compaction + working set), `EditLoopGuard`, and `WorkspaceTrustManager`. |
+| [07-opencode-architecture-and-capabilities.md](file:///d:/Work/Personal/Cli/agent-os/plans/v1/07-opencode-architecture-and-capabilities.md) | **OpenCode Architectural Capabilities** | `ToolOutputStore` (spillover storage + bounded preview), `todowrite` task tracking, Anchored 5-Part Compaction, Context Epoch prompt stabilization, and Shadow Git snapshots. |
 
 ---
 

@@ -90,7 +90,7 @@ export class MechanicalCompactionEngine {
           let args: any = {};
           try {
             args = typeof tc.args === 'string' ? JSON.parse(tc.args) : tc.args;
-          } catch {
+          } catch (_err: unknown) {
             args = {};
           }
 
@@ -163,30 +163,49 @@ export class MechanicalCompactionEngine {
       }
     }
 
-    // 4. Formulate the mechanical <conversation_summary>
+    // 4. Formulate the anchored <conversation_summary> (OpenCode Anchored 5-Section Schema)
+    const allRelevantFiles = new Set<string>();
+    for (const f of filesModified) allRelevantFiles.add(f);
+    for (const f of preservedFiles) allRelevantFiles.add(f.path);
+    for (const s of outlineStubs) allRelevantFiles.add(s.path);
+
     const summarySections: string[] = [
-      '# Historical Session Summary (Mechanical Zero-Token Compaction)',
+      '# Historical Session Summary (Anchored Compaction)',
       '',
-      '## Original User Requirements',
-      ...userGoals.slice(0, 3).map((g) => `- ${redactSecrets(g)}`),
+      '## Objective',
+      ...(userGoals.length > 0
+        ? userGoals.slice(0, 3).map((g) => `- ${redactSecrets(g)}`)
+        : ['- (none)']),
+      '',
+      '## Important Details',
+      ...(commandsRun.length > 0
+        ? [
+            '- Commands Executed:',
+            ...commandsRun.slice(-6).map((cmd) => `  - \`${redactSecrets(cmd.command)}\``),
+          ]
+        : ['- (none)']),
+      '',
+      '## Work State',
+      '### Completed',
+      ...(filesModified.size > 0
+        ? Array.from(filesModified).map((f) => `- \`${f}\` [COMPLETED]`)
+        : ['- (none)']),
+      '### Active',
+      ...(preservedFiles.length > 0
+        ? preservedFiles.map((f) => `- Active working file: \`${f.path}\` (${f.lineCount} lines)`)
+        : ['- (none)']),
+      '### Blocked',
+      '- (none)',
+      '',
+      '## Next Move',
+      '1. Continue live problem-solving using available tools from the latest state.',
+      '',
+      '## Relevant Files',
+      ...(allRelevantFiles.size > 0
+        ? Array.from(allRelevantFiles).map((f) => `- \`${f}\``)
+        : ['- (none)']),
       '',
     ];
-
-    if (filesModified.size > 0) {
-      summarySections.push('## Files Modified in Prior Turns');
-      for (const f of filesModified) {
-        summarySections.push(`- \`${f}\` [COMPLETED]`);
-      }
-      summarySections.push('');
-    }
-
-    if (commandsRun.length > 0) {
-      summarySections.push('## Commands Executed');
-      for (const cmd of commandsRun.slice(-6)) {
-        summarySections.push(`- \`${redactSecrets(cmd.command)}\``);
-      }
-      summarySections.push('');
-    }
 
     if (preservedFiles.length > 0) {
       summarySections.push('## Active Working Set (Preserved File Contents)');

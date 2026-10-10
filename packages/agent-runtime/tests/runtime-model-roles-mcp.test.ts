@@ -53,6 +53,8 @@ describe('AgentRuntime Multi-Model Roles & MCP Auto-Initialization (Phase Comple
       expect(registry.get('search_symbols')).toBeDefined();
       expect(registry.get('code_interpreter')).toBeDefined();
       expect(registry.get('repo_map')).toBeDefined();
+      expect(registry.get('execute')).toBeDefined();
+      expect(runtime.createCodeModeTool()).toBeDefined();
     } finally {
       runtime.close();
     }

@@ -160,4 +160,6 @@ The upgrade plans are detailed across dedicated specification files in `plans/v1
 - **`plans/v1/03-context-caching-and-token-economics.md`**: Prefix-Stable Prompt Caching and Model Routing.
 - **`plans/v1/04-cli-tui-and-desktop-parity.md`**: Interactive TUI, Dual Plan/Build Modes, and Client-Server Bridge.
 - **`plans/v1/05-github-actions-headless-agent.md`**: Headless CI/CD, Issue Triage, and Pull Request Automation.
+- **`plans/v1/06-freebuff-resilience-and-guards.md`**: Freebuff Resilience, TruncatedWriteGuard, Zero-Token Compaction, and Trust Management.
+- **`plans/v1/07-opencode-architecture-and-capabilities.md`**: OpenCode Architectural Capabilities (ToolOutputStore, todowrite, Anchored Compaction, and Prompt Cache Stabilization).
 - **`plans/v1/README.md`**: Synthesis, execution sequence, risk mitigation, and evaluation metrics.

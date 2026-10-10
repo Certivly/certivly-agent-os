@@ -15,8 +15,17 @@ import {
   repoMapTool,
   searchSymbolsTool,
   codeInterpreterTool,
+  todoWriteTool,
+  loadSkillTool,
+  delegateSubagentTool,
+  terminalInteractiveTool,
+  readUrlTool,
+  webSearchTool,
+  readDocsTool,
+  setSubagentDelegateHandler,
   McpClientManager,
 } from '@agent-os/tools';
+import { ToolCatalog, CodeModeTool } from '@agent-os/codemode';
 import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider, OpenRouterProvider } from '@agent-os/providers';
 import { RuntimeError, ProviderError, logger, runWithContext, LoggingEventBus } from '@agent-os/shared';
 import * as path from 'path';
@@ -24,6 +33,8 @@ import * as os from 'os';
 
 import { AgentLoop } from './loop/AgentLoop';
 import { WorkflowMemoryStore } from './memory/WorkflowMemoryStore';
+import { SkillRegistry } from './skills/SkillRegistry';
+import { SubagentRegistry, SubagentRunner, AgentTeamCoordinator } from './multiagent';
 import { LoopTool, AdaptedLoopTool } from './loop/LoopTool';
 import { SessionHistory } from './loop/SessionHistory';
 import type { RunSummary, PermissionMode, ApprovalRequest, ApprovalHandler } from './loop/types';
@@ -49,6 +60,8 @@ export class AgentRuntime {
   private eventBus: LoggingEventBus;
   private lastRunSummary?: RunSummary;
   private workflowMemoryStore: WorkflowMemoryStore;
+  private skillRegistry: SkillRegistry;
+  private subagentRegistry: SubagentRegistry;
   private mcpManager?: McpClientManager;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
@@ -77,6 +90,8 @@ export class AgentRuntime {
     const resolvedWsRoot = options.workspaceRoot || config.repository?.rootPath || process.cwd();
     const memoryDbPath = path.resolve(resolvedWsRoot, '.agentos', 'workflow-memory.db');
     this.workflowMemoryStore = new WorkflowMemoryStore(memoryDbPath);
+    this.skillRegistry = new SkillRegistry({ workspaceRoot: resolvedWsRoot });
+    this.subagentRegistry = new SubagentRegistry({ workspaceRoot: resolvedWsRoot });
 
     this.toolRegistry = new ToolRegistry();
     this.activeProvider = this.initializeProvider(config);
@@ -84,7 +99,20 @@ export class AgentRuntime {
     this.registerStandardTools();
 
     this.eventBus = new LoggingEventBus();
-    this.activeModel = this.activeProvider.getModel(config.activeModel);
+    const resolvedModel = this.resolveModel(config.activeModel);
+    if (resolvedModel) {
+      this.activeModel = resolvedModel;
+      if (config.activeModel.includes('/')) {
+        const [pName] = config.activeModel.split('/', 2);
+        try {
+          this.activeProvider = this.initializeProviderForName(pName, config);
+        } catch (_err: unknown) {
+          // Keep default initialized provider if fallback was used
+        }
+      }
+    } else {
+      this.activeModel = this.activeProvider.getModel(config.activeModel);
+    }
 
     // Initialize MCP Client Manager (loads both user ~/.agentos/mcp.json and workspace .agentos/mcp.json)
     this.mcpManager = new McpClientManager(resolvedWsRoot);
@@ -131,6 +159,65 @@ export class AgentRuntime {
     this.toolRegistry.register(repoMapTool);
     this.toolRegistry.register(searchSymbolsTool);
     this.toolRegistry.register(codeInterpreterTool);
+    this.toolRegistry.register(todoWriteTool);
+    this.toolRegistry.register(loadSkillTool);
+    this.toolRegistry.register(delegateSubagentTool);
+    this.toolRegistry.register(terminalInteractiveTool);
+    this.toolRegistry.register(readUrlTool);
+    this.toolRegistry.register(webSearchTool);
+    this.toolRegistry.register(readDocsTool);
+    const codeModeCatalog = new ToolCatalog(this.toolRegistry);
+    this.toolRegistry.register(new CodeModeTool(codeModeCatalog));
+
+    // Bind autonomous subagent delegation handler
+    setSubagentDelegateHandler(async (agentName, task, context, toolContext) => {
+      const def = this.subagentRegistry.getSubagent(agentName);
+      if (!def) {
+        const available = this.subagentRegistry.listSubagents().map(a => a.name).join(', ');
+        return {
+          content: `Error: Subagent "${agentName}" not found. Available subagents: ${available}`,
+          isError: true,
+        };
+      }
+      if (agentName === 'browser_verifier') {
+        const urlMatch = (task + ' ' + (context || '')).match(/https?:\/\/[^\s"'`]+/);
+        if (urlMatch) {
+          const { BrowserVerifierSubagent } = await import('./verification/BrowserVerifierSubagent');
+          const verifier = new BrowserVerifierSubagent(this.activeModel);
+          const result = await verifier.verify({ targetUrl: urlMatch[0], instructions: task });
+          const errorsText = result.consoleErrors.map(e => `  - [${e.type}] ${e.text}`).join('\n') || 'None';
+          const networkText = result.failedNetworkRequests.map(r => `  - ${r.status} ${r.url}`).join('\n') || 'None';
+          return {
+            content: `[Browser Verification: ${urlMatch[0]}]\nStatus: ${result.status.toUpperCase()}\nSummary: ${result.summary}\nConsole Errors:\n${errorsText}\nFailed Requests:\n${networkText}`,
+            isError: result.status === 'failed',
+          };
+        }
+      }
+
+      const runner = new SubagentRunner(
+        this.activeModel,
+        this.toolRegistry,
+        this.eventBus,
+        {
+          workspaceRoot: toolContext?.workspaceRoot || this.options.workspaceRoot || process.cwd(),
+          fastModel: this.resolveModel(this.configManager.load().agent?.modelRoles?.fast),
+          reviewModel: this.resolveModel(this.configManager.load().agent?.modelRoles?.review),
+        }
+      );
+      const res = await runner.runSubagent(def, task, {
+        workspaceRoot: toolContext?.workspaceRoot,
+        initialContext: context ? { context } : undefined,
+      });
+      return {
+        content: `[Subagent Result: ${res.agentName.toUpperCase()}] (${res.turnsUsed} turns, ${res.toolsExecuted.length} tools executed)\nStatus: ${res.success ? 'SUCCESS' : 'FAILED'}\n\n${res.finalText}`,
+        isError: !res.success,
+      };
+    });
+  }
+
+  public createCodeModeTool(): CodeModeTool {
+    const catalog = new ToolCatalog(this.toolRegistry);
+    return new CodeModeTool(catalog);
   }
 
   private initializeProvider(config: AgentConfig): Provider {
@@ -138,10 +225,56 @@ export class AgentRuntime {
   }
 
   private initializeProviderForName(providerName: string, config: AgentConfig): Provider {
+    // 1. Check if provider is configured in user/project config.providers
+    const provConfig = config.providers[providerName];
+    if (provConfig) {
+      const type = (provConfig.type || '').toLowerCase();
+      const baseUrl = provConfig.baseUrl;
+      const apiKey = provConfig.apiKey;
+      const headers = provConfig.headers;
+
+      // Anthropic or Claude compatible
+      if (type === 'anthropic' || (!type && (baseUrl?.includes('anthropic') || provConfig.model?.startsWith('claude')))) {
+        return new AnthropicProvider(apiKey, baseUrl, headers, providerName);
+      }
+
+      // Gemini
+      if (type === 'gemini') {
+        return new GeminiProvider(apiKey ?? process.env.GEMINI_API_KEY ?? '', baseUrl);
+      }
+
+      // DeepSeek
+      if (type === 'deepseek') {
+        return new DeepSeekProvider(apiKey ?? process.env.DEEPSEEK_API_KEY ?? '', baseUrl);
+      }
+
+      // Ollama
+      if (type === 'ollama') {
+        return new OllamaProvider(apiKey ?? '', baseUrl ?? 'http://127.0.0.1:11434');
+      }
+
+      // OpenRouter
+      if (type === 'openrouter') {
+        return new OpenRouterProvider(apiKey ?? process.env.OPENROUTER_API_KEY ?? '', baseUrl);
+      }
+
+      // LM Studio
+      if (type === 'lmstudio') {
+        return new LMStudioProvider(apiKey, baseUrl);
+      }
+
+      // Default: Any OpenAI-compatible provider (vLLM, Groq, Together, Mistral, Perplexity, LiteLLM, custom proxy, etc.)
+      return new OpenAIProvider(apiKey, baseUrl, headers, providerName);
+    }
+
+    // 2. Built-in standard providers
     switch (providerName) {
-      case 'openai': return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl);
-      case 'lmstudio': return new LMStudioProvider(config.providers['lmstudio']?.apiKey, config.providers['lmstudio']?.baseUrl);
-      case 'anthropic': return new AnthropicProvider(config.providers['anthropic']?.apiKey);
+      case 'openai':
+        return new OpenAIProvider(config.providers['openai']?.apiKey, config.providers['openai']?.baseUrl, config.providers['openai']?.headers, 'openai');
+      case 'anthropic':
+        return new AnthropicProvider(config.providers['anthropic']?.apiKey, config.providers['anthropic']?.baseUrl, config.providers['anthropic']?.headers, 'anthropic');
+      case 'lmstudio':
+        return new LMStudioProvider(config.providers['lmstudio']?.apiKey, config.providers['lmstudio']?.baseUrl);
       case 'gemini':
         return new GeminiProvider(
           config.providers['gemini']?.apiKey ?? process.env.GEMINI_API_KEY ?? '',
@@ -162,19 +295,35 @@ export class AgentRuntime {
           config.providers['openrouter']?.apiKey ?? process.env.OPENROUTER_API_KEY ?? '',
           config.providers['openrouter']?.baseUrl
         );
-      default: throw new RuntimeError(`Unsupported provider: ${providerName}`);
+      default:
+        // 3. Fallback: If provider name is an HTTP/HTTPS URL, treat as OpenAI-compatible endpoint
+        if (providerName.startsWith('http://') || providerName.startsWith('https://')) {
+          return new OpenAIProvider(undefined, providerName, undefined, 'custom-url');
+        }
+        throw new RuntimeError(`Unsupported provider: ${providerName}. To use custom providers, configure them in agentos.json under "providers" with baseUrl and type ('openai' or 'anthropic').`);
     }
   }
 
   public resolveModel(modelSpec?: string): Model | undefined {
     if (!modelSpec) return undefined;
     const config = this.configManager.load();
+
+    if (modelSpec.startsWith('http://') || modelSpec.startsWith('https://')) {
+      const lastSlash = modelSpec.lastIndexOf('/');
+      if (lastSlash > 8) {
+        const baseUrl = modelSpec.substring(0, lastSlash);
+        const modelId = modelSpec.substring(lastSlash + 1);
+        const provider = new OpenAIProvider(undefined, baseUrl, undefined, 'custom-url');
+        return provider.getModel(modelId);
+      }
+    }
+
     if (modelSpec.includes('/')) {
       const [providerName, modelId] = modelSpec.split('/', 2);
       try {
         const provider = this.initializeProviderForName(providerName, config);
         return provider.getModel(modelId);
-      } catch {
+      } catch (_err: unknown) {
         return this.activeProvider.getModel(modelId);
       }
     }
@@ -182,11 +331,54 @@ export class AgentRuntime {
   }
 
   public setActiveModel(modelId: string): void {
+    if (modelId.startsWith('http://') || modelId.startsWith('https://')) {
+      const resolved = this.resolveModel(modelId);
+      if (resolved) {
+        this.activeModel = resolved;
+        const lastSlash = modelId.lastIndexOf('/');
+        const baseUrl = modelId.substring(0, lastSlash);
+        this.activeProvider = new OpenAIProvider(undefined, baseUrl, undefined, 'custom-url');
+        return;
+      }
+    }
+
+    if (modelId.includes('/')) {
+      const resolved = this.resolveModel(modelId);
+      if (resolved) {
+        this.activeModel = resolved;
+        const [providerName] = modelId.split('/', 2);
+        try {
+          const config = this.configManager.load();
+          this.activeProvider = this.initializeProviderForName(providerName, config);
+        } catch (_err: unknown) {
+          // Keep activeProvider
+        }
+        return;
+      }
+    }
     this.activeModel = this.activeProvider.getModel(modelId);
+  }
+
+  public setActiveProvider(providerName: string): void {
+    const config = this.configManager.load();
+    this.activeProvider = this.initializeProviderForName(providerName, config);
+    this.activeModel = this.activeProvider.getModel(config.activeModel);
   }
 
   public getActiveModel(): Model {
     return this.activeModel;
+  }
+
+  public getModel(): Model {
+    return this.activeModel;
+  }
+
+  public getActiveProvider(): Provider {
+    return this.activeProvider;
+  }
+
+  public getProvider(): Provider {
+    return this.activeProvider;
   }
 
   public getSessionManager() { return this.sessionManager; }
@@ -206,6 +398,28 @@ export class AgentRuntime {
 
   public getWorkflowMemoryStore(): WorkflowMemoryStore {
     return this.workflowMemoryStore;
+  }
+
+  public getSkillRegistry(): SkillRegistry {
+    return this.skillRegistry;
+  }
+
+  public getSubagentRegistry(): SubagentRegistry {
+    return this.subagentRegistry;
+  }
+
+  public getTeamCoordinator(): AgentTeamCoordinator {
+    const runner = new SubagentRunner(
+      this.activeModel,
+      this.toolRegistry,
+      this.eventBus,
+      {
+        workspaceRoot: this.options.workspaceRoot || process.cwd(),
+        fastModel: this.resolveModel(this.configManager.load().agent?.modelRoles?.fast),
+        reviewModel: this.resolveModel(this.configManager.load().agent?.modelRoles?.review),
+      }
+    );
+    return new AgentTeamCoordinator(this.subagentRegistry, runner, this.eventBus);
   }
 
   public getLastRunSummary(): RunSummary | undefined {
@@ -240,7 +454,7 @@ export class AgentRuntime {
 
       try {
         this.sessionManager.getSession(sessionId);
-      } catch {
+      } catch (_err: unknown) {
         this.sessionManager.createSession(sessionId);
         eventBus.publish('session.created', { sessionId });
       }
