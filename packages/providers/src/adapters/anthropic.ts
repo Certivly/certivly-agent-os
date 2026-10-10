@@ -6,11 +6,28 @@ export class AnthropicModel implements Model {
   id: string;
   private apiKey: string;
   private baseUrl: string;
+  private customHeaders?: Record<string, string>;
+  private providerName: string;
 
-  constructor(id: string, apiKey: string, baseUrl: string | URL = 'https://api.anthropic.com') {
+  constructor(
+    id: string,
+    apiKey: string,
+    baseUrl: string | URL = 'https://api.anthropic.com',
+    customHeaders?: Record<string, string>,
+    providerName: string = 'Anthropic'
+  ) {
     this.id = id;
     this.apiKey = apiKey;
     this.baseUrl = String(baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
+    this.customHeaders = customHeaders;
+    this.providerName = providerName;
+  }
+
+  private getEndpoint(): string {
+    const clean = this.baseUrl.replace(/\/+$/, '');
+    if (clean.endsWith('/messages')) return clean;
+    if (clean.endsWith('/v1')) return `${clean}/messages`;
+    return `${clean}/v1/messages`;
   }
 
   async generate(request: GenerationRequest): Promise<GenerationResponse> {
@@ -33,16 +50,27 @@ export class AnthropicModel implements Model {
 
       if (system) {
         if (request.systemPromptCacheControl) {
-          body.system = [
+          const systemBlocks: any[] = [
             {
               type: 'text',
               text: system,
               cache_control: request.systemPromptCacheControl,
             },
           ];
+          if (request.dynamicSystemPrompt && request.dynamicSystemPrompt.trim()) {
+            systemBlocks.push({
+              type: 'text',
+              text: request.dynamicSystemPrompt,
+            });
+          }
+          body.system = systemBlocks;
         } else {
-          body.system = system;
+          body.system = request.dynamicSystemPrompt && request.dynamicSystemPrompt.trim()
+            ? `${system}\n\n${request.dynamicSystemPrompt}`
+            : system;
         }
+      } else if (request.dynamicSystemPrompt && request.dynamicSystemPrompt.trim()) {
+        body.system = request.dynamicSystemPrompt;
       }
 
       if (tools && tools.length > 0) {
@@ -51,19 +79,20 @@ export class AnthropicModel implements Model {
 
       const startTime = Date.now();
       const response = await fetchWithRetry(
-        `${this.baseUrl}/v1/messages`,
+        this.getEndpoint(),
         {
           method: 'POST',
           headers: {
             'x-api-key': this.apiKey,
             'anthropic-version': '2023-06-01',
             'content-type': 'application/json',
+            ...(this.customHeaders || {}),
           },
           body: JSON.stringify(body),
         },
         {
           signal: request.signal,
-          providerName: 'Anthropic',
+          providerName: this.providerName,
         }
       );
       const latencyMs = Date.now() - startTime;
@@ -107,7 +136,7 @@ export class AnthropicModel implements Model {
         latencyMs,
       };
     } catch (e: any) {
-      throw classifyError(e, 'Anthropic');
+      throw classifyError(e, this.providerName);
     }
   }
 
@@ -146,23 +175,24 @@ export class AnthropicModel implements Model {
     let response: Response;
     try {
       response = await fetchWithRetry(
-        `${this.baseUrl}/v1/messages`,
+        this.getEndpoint(),
         {
           method: 'POST',
           headers: {
             'x-api-key': this.apiKey,
             'anthropic-version': '2023-06-01',
             'content-type': 'application/json',
+            ...(this.customHeaders || {}),
           },
           body: JSON.stringify(body),
         },
         {
           signal: request.signal,
-          providerName: 'Anthropic',
+          providerName: this.providerName,
         }
       );
     } catch (err: any) {
-      throw classifyError(err, 'Anthropic');
+      throw classifyError(err, this.providerName);
     }
 
     async function* responseToLines(res: Response): AsyncIterable<string> {
@@ -201,29 +231,32 @@ export class AnthropicModel implements Model {
 }
 
 export class AnthropicProvider implements Provider {
-  name = 'anthropic';
+  name: string = 'anthropic';
   models: Model[];
   private apiKey: string;
   private baseUrl: string;
+  private customHeaders?: Record<string, string>;
 
-  constructor(apiKey?: string, baseUrl?: string | URL) {
+  constructor(apiKey?: string, baseUrl?: string | URL, customHeaders?: Record<string, string>, name: string = 'anthropic') {
+    this.name = name;
     this.apiKey = apiKey || process.env.ANTHROPIC_API_KEY || 'dummy-key';
     this.baseUrl = String(baseUrl || 'https://api.anthropic.com').replace(/\/+$/, '');
-    if (!apiKey && !process.env.ANTHROPIC_API_KEY) {
-      console.warn('Warning: ANTHROPIC_API_KEY is missing. Anthropic API calls will fail.');
+    this.customHeaders = customHeaders;
+    if (!apiKey && !process.env.ANTHROPIC_API_KEY && !baseUrl) {
+      console.warn(`Warning: API key is missing for provider ${this.name}. Anthropic API calls may fail.`);
     }
     this.models = [
-      new AnthropicModel('claude-3-5-sonnet-20241022', this.apiKey, this.baseUrl),
-      new AnthropicModel('claude-3-opus-20240229', this.apiKey, this.baseUrl),
-      new AnthropicModel('claude-3-sonnet-20240229', this.apiKey, this.baseUrl),
-      new AnthropicModel('claude-3-haiku-20240307', this.apiKey, this.baseUrl),
+      new AnthropicModel('claude-3-5-sonnet-20241022', this.apiKey, this.baseUrl, this.customHeaders, this.name),
+      new AnthropicModel('claude-3-opus-20240229', this.apiKey, this.baseUrl, this.customHeaders, this.name),
+      new AnthropicModel('claude-3-sonnet-20240229', this.apiKey, this.baseUrl, this.customHeaders, this.name),
+      new AnthropicModel('claude-3-haiku-20240307', this.apiKey, this.baseUrl, this.customHeaders, this.name),
     ];
   }
 
   getModel(id: string): Model {
     let model = this.models.find((m) => m.id === id);
     if (!model) {
-      model = new AnthropicModel(id, this.apiKey, this.baseUrl);
+      model = new AnthropicModel(id, this.apiKey, this.baseUrl, this.customHeaders, this.name);
       this.models.push(model);
     }
     return model;
@@ -231,7 +264,10 @@ export class AnthropicProvider implements Provider {
 
   async checkHealth(): Promise<{ ok: boolean; error?: string }> {
     if (!this.apiKey || this.apiKey === 'dummy-key') {
-      return { ok: false, error: 'ANTHROPIC_API_KEY not configured' };
+      if (this.baseUrl && !this.baseUrl.includes('api.anthropic.com')) {
+        return { ok: true };
+      }
+      return { ok: false, error: `${this.name} API key not configured` };
     }
     return { ok: true };
   }

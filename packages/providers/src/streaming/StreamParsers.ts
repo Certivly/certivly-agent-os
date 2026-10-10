@@ -137,7 +137,7 @@ export async function* parseAnthropicSSEStream(
       let event: any;
       try {
         event = JSON.parse(dataStr);
-      } catch {
+      } catch (_err: unknown) {
         continue;
       }
 

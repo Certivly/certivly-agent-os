@@ -75,7 +75,7 @@ export class UnixSocketTransport implements Transport {
         try {
           const msg = JSON.parse(line);
           for (const h of this.messageHandlers) h(clientId, msg);
-        } catch {
+        } catch (_err: unknown) {
           // malformed frame — ignore
         }
       }
@@ -96,6 +96,8 @@ export class UnixSocketTransport implements Transport {
     try {
       const fs = await import('fs');
       await fs.promises.unlink(this.socketPath);
-    } catch { /* no stale socket, fine */ }
+    } catch (_err: unknown) {
+      /* no stale socket, fine */
+    }
   }
 }

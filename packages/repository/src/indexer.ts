@@ -116,7 +116,7 @@ export class RepositoryIndexer {
     if (fs.existsSync(cacheFile)) {
       try {
         cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-      } catch {
+      } catch (_err: unknown) {
         cache = {};
       }
     }

@@ -12,13 +12,24 @@ class MockTransport implements Transport {
   onDisconnect() {}
 }
 
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+
 describe("DaemonCrashRecovery", () => {
   test("lifecycle completes startup and shutdown", async () => {
-    const config = { maxConcurrentRuntimes: 10, dataDir: "./.test-lifecycle", socketPath: "" };
-    const { lifecycle } = DaemonBootstrap.create(config, new MockTransport());
-    
-    await lifecycle.startup();
-    await lifecycle.shutdown();
-    expect(true).toBe(true);
+    const tmpDir = path.join(os.tmpdir(), `test-lifecycle-${Date.now()}`);
+    try {
+      const config = { maxConcurrentRuntimes: 10, dataDir: tmpDir, socketPath: "" };
+      const { lifecycle } = DaemonBootstrap.create(config, new MockTransport());
+      
+      await lifecycle.startup();
+      await lifecycle.shutdown();
+      expect(true).toBe(true);
+    } finally {
+      if (fs.existsSync(tmpDir)) {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
+    }
   });
 });

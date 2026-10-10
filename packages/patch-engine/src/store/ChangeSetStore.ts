@@ -26,7 +26,7 @@ export class ChangeSetStore {
       if (fs.existsSync(c)) {
         try {
           return JSON.parse(fs.readFileSync(c, 'utf8'));
-        } catch {
+        } catch (_err: unknown) {
           return null;
         }
       }

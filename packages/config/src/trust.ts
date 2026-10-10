@@ -53,7 +53,7 @@ export class WorkspaceTrustManager {
     try {
       const content = fs.readFileSync(this.trustStorePath, 'utf8');
       return JSON.parse(content);
-    } catch {
+    } catch (_err: unknown) {
       return {};
     }
   }

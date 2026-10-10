@@ -1,6 +1,6 @@
 export interface ModelSpec {
   id: string;
-  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'lmstudio' | 'ollama' | 'openrouter' | 'fake';
+  provider: 'openai' | 'anthropic' | 'gemini' | 'deepseek' | 'lmstudio' | 'ollama' | 'openrouter' | 'fake' | (string & {});
   displayName: string;
   contextWindow: number;
   maxOutputTokens: number;
@@ -243,7 +243,24 @@ export class ModelCatalog {
   }
 
   public getModelSpec(modelId: string): ModelSpec | undefined {
-    return this.specs[modelId];
+    if (this.specs[modelId]) {
+      return this.specs[modelId];
+    }
+    // Dynamic fallback for custom models
+    const providerName = modelId.includes('/') ? modelId.split('/')[0] : 'custom';
+    return {
+      id: modelId,
+      provider: providerName,
+      displayName: modelId,
+      contextWindow: 128_000,
+      maxOutputTokens: 8_192,
+      supportsTools: true,
+      supportsStreaming: true,
+    };
+  }
+
+  public registerModelSpec(spec: ModelSpec): void {
+    this.specs[spec.id] = spec;
   }
 
   public listModels(provider?: string): ModelSpec[] {

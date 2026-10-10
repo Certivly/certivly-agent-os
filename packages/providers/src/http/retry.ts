@@ -173,6 +173,11 @@ export async function fetchWithRetry(
         return response;
       }
 
+      // 404 / 405 -> Not found or method not allowed, return response for client error handling
+      if (response.status === 404 || response.status === 405) {
+        return response;
+      }
+
       const isRetryable = response.status === 429 || (response.status >= 500 && response.status < 600);
 
       if (!isRetryable || attempt >= maxAttempts) {

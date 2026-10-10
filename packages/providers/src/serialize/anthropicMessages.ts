@@ -19,16 +19,16 @@ export function toAnthropicMessages(messages: ChatMessage[]): unknown[] {
     }
 
     if (m.role === 'assistant') {
+      const contentBlocks: any[] = [];
+      if (m.content && m.content.trim() !== '') {
+        contentBlocks.push({ type: 'text', text: m.content });
+      }
       if (m.toolCalls && m.toolCalls.length > 0) {
-        const contentBlocks: any[] = [];
-        if (m.content && m.content.trim() !== '') {
-          contentBlocks.push({ type: 'text', text: m.content });
-        }
         for (const tc of m.toolCalls) {
           let input: unknown = {};
           try {
             input = JSON.parse(tc.args || '{}');
-          } catch {
+          } catch (_err: unknown) {
             input = {};
           }
           contentBlocks.push({
@@ -38,14 +38,29 @@ export function toAnthropicMessages(messages: ChatMessage[]): unknown[] {
             input,
           });
         }
-        result.push({
-          role: 'assistant',
-          content: contentBlocks,
-        });
+      }
+
+      const lastMsg = result[result.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant') {
+        // Merge consecutive assistant messages for Anthropic role alternation
+        if (Array.isArray(lastMsg.content)) {
+          if (contentBlocks.length > 0) {
+            lastMsg.content.push(...contentBlocks);
+          } else if (m.content) {
+            lastMsg.content.push({ type: 'text', text: m.content });
+          }
+        } else {
+          if (contentBlocks.length > 0) {
+            const initialText = lastMsg.content ? [{ type: 'text', text: lastMsg.content }] : [];
+            lastMsg.content = [...initialText, ...contentBlocks];
+          } else {
+            lastMsg.content = `${lastMsg.content || ''}\n\n${m.content || ''}`.trim();
+          }
+        }
       } else {
         result.push({
           role: 'assistant',
-          content: m.content || '',
+          content: contentBlocks.length > 0 ? contentBlocks : (m.content || ''),
         });
       }
       continue;
@@ -94,6 +109,15 @@ export function toAnthropicMessages(messages: ChatMessage[]): unknown[] {
       }
       continue;
     }
+  }
+
+  // Anthropic API constraints:
+  // 1. Must not be empty
+  // 2. First message must be 'user'
+  if (result.length === 0) {
+    result.push({ role: 'user', content: 'Hello' });
+  } else if (result[0].role !== 'user') {
+    result.unshift({ role: 'user', content: 'Continue' });
   }
 
   return result;

@@ -378,7 +378,7 @@ export class ChangeSetApplier {
     let manifest: BackupManifest;
     try {
       manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    } catch {
+    } catch (_err: unknown) {
       return false;
     }
 

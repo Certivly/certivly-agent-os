@@ -13,6 +13,14 @@ class OpenAIModel implements Model {
     this.client = client;
   }
 
+  private getTokenLimitParams(request: GenerationRequest): Record<string, number> {
+    if (!request.maxOutputTokens) return {};
+    const isReasoning = this.id.startsWith('o1') || this.id.startsWith('o3');
+    return isReasoning
+      ? { max_completion_tokens: request.maxOutputTokens }
+      : { max_tokens: request.maxOutputTokens };
+  }
+
   async *stream(request: GenerationRequest): AsyncIterable<any> {
     try {
       const formattedMessages = toOpenAIMessages(request);
@@ -23,6 +31,7 @@ class OpenAIModel implements Model {
           messages: formattedMessages as any,
           stream: true,
           stream_options: { include_usage: true },
+          ...this.getTokenLimitParams(request),
           tools: request.tools?.length
             ? request.tools.map((t) => ({
                 type: 'function' as const,
@@ -72,6 +81,7 @@ class OpenAIModel implements Model {
         {
           model: this.id,
           messages: messages as any,
+          ...this.getTokenLimitParams(request),
           tools: tools && tools.length > 0 ? tools : undefined,
         },
         request.signal ? { signal: request.signal } : undefined
@@ -104,23 +114,27 @@ class OpenAIModel implements Model {
 }
 
 export class OpenAIProvider implements Provider {
-  name = 'openai';
+  name: string = 'openai';
   private client: OpenAI;
+  private baseUrl?: string;
   models: Model[];
 
-  constructor(apiKey?: string, baseUrl?: string) {
+  constructor(apiKey?: string, baseUrl?: string, defaultHeaders?: Record<string, string>, name: string = 'openai') {
+    this.name = name;
+    this.baseUrl = baseUrl;
     const key = apiKey || process.env.OPENAI_API_KEY;
-    if (!key) {
-      console.warn("Warning: OPENAI_API_KEY is missing. API calls will fail.");
+    if (!key && !baseUrl) {
+      console.warn(`Warning: API key is missing for provider ${this.name}. API calls may fail.`);
     }
     this.client = new OpenAI({
       apiKey: key || 'dummy-key',
       baseURL: baseUrl,
+      defaultHeaders,
       maxRetries: 0,
       fetch: (url, init) =>
         fetchWithRetry(url, init || {}, {
           signal: init?.signal as AbortSignal,
-          providerName: 'OpenAI',
+          providerName: this.name,
         }),
     });
     this.models = [
@@ -144,7 +158,20 @@ export class OpenAIProvider implements Provider {
       await this.client.models.list();
       return { ok: true };
     } catch (e: any) {
-      return { ok: false, error: `OpenAI unreachable: ${e.message}` };
+      if (this.baseUrl && !this.baseUrl.includes('api.openai.com')) {
+        const errMsg = `${e.message || ''} ${e.cause?.message || ''}`;
+        if (
+          e.status === 404 ||
+          e.status === 405 ||
+          e.status === 401 ||
+          errMsg.includes('404') ||
+          errMsg.includes('405') ||
+          errMsg.includes('401')
+        ) {
+          return { ok: true };
+        }
+      }
+      return { ok: false, error: `${this.name} unreachable: ${e.message}` };
     }
   }
 }

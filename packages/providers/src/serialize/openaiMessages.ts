@@ -16,16 +16,21 @@ export function toOpenAIMessages(req: GenerationRequest): unknown[] {
     messages.push({ role: 'system', content: req.systemPrompt });
   }
 
+  if (req.dynamicSystemPrompt && req.dynamicSystemPrompt.trim()) {
+    messages.push({ role: 'system', content: req.dynamicSystemPrompt.trim() });
+  }
+
   for (const m of req.messages) {
     if (m.role === 'user' || m.role === 'system') {
       messages.push({ role: m.role, content: m.content });
     } else if (m.role === 'assistant') {
+      const hasTools = Boolean(m.toolCalls && m.toolCalls.length > 0);
       const msg: any = {
         role: 'assistant',
-        content: m.content || null,
+        content: hasTools ? (m.content || null) : (m.content || ''),
       };
-      if (m.toolCalls && m.toolCalls.length > 0) {
-        msg.tool_calls = m.toolCalls.map((tc) => ({
+      if (hasTools) {
+        msg.tool_calls = m.toolCalls!.map((tc) => ({
           id: tc.id,
           type: 'function',
           function: {
@@ -38,8 +43,8 @@ export function toOpenAIMessages(req: GenerationRequest): unknown[] {
     } else if (m.role === 'tool') {
       messages.push({
         role: 'tool',
-        tool_call_id: m.toolCallId,
-        content: m.content,
+        tool_call_id: m.toolCallId || `call_${crypto.randomUUID()}`,
+        content: m.content || '',
       });
     }
   }

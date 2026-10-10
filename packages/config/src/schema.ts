@@ -4,6 +4,11 @@ export const ProviderConfigSchema = z.object({
   apiKey: z.string().optional(),
   baseUrl: z.string().optional(),
   model: z.string().optional(),
+  type: z.enum(['openai', 'anthropic', 'gemini', 'deepseek', 'lmstudio', 'ollama', 'openrouter', 'custom']).or(z.string()).optional(),
+  headers: z.record(z.string()).optional(),
+  models: z.array(z.string()).optional(),
+  contextWindow: z.number().optional(),
+  maxOutputTokens: z.number().optional(),
 });
 
 export const EvalModelConfigSchema = z.object({

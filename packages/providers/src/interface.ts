@@ -20,6 +20,7 @@ export interface CacheControl {
 export interface GenerationRequest {
   systemPrompt?: string;
   systemPromptCacheControl?: CacheControl;
+  dynamicSystemPrompt?: string;
   messages: ChatMessage[];
   tools?: { name: string; description: string; parameters?: JsonObject; cacheControl?: CacheControl }[];
   signal?: AbortSignal;

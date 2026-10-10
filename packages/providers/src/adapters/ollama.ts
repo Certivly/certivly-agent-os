@@ -31,7 +31,7 @@ export class OllamaModel implements Model {
         return true;
       }
       return false;
-    } catch {
+    } catch (_err: unknown) {
       return false;
     }
   }
@@ -52,7 +52,7 @@ export class OllamaModel implements Model {
             let parsedArgs: unknown = {};
             try {
               parsedArgs = JSON.parse(tc.args || '{}');
-            } catch {
+            } catch (_err: unknown) {
               parsedArgs = {};
             }
             return {
