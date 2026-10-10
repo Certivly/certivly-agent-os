@@ -12,13 +12,58 @@ export function getDb(dbPath: string): { db: BunSQLiteDatabase<typeof schema>; s
 
   const sqlite = new Database(dbPath);
   
-  // Basic migrations for Phase 1
+  // Basic migrations
   sqlite.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
-      created_at INTEGER DEFAULT (strftime('%s', 'now'))
+      title TEXT,
+      status TEXT DEFAULT 'active',
+      parent_id TEXT,
+      tags TEXT,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      updated_at INTEGER DEFAULT (strftime('%s', 'now'))
     );
   `);
+
+  // Migrate existing sessions table if missing columns
+  const tableInfo = sqlite.query("PRAGMA table_info(sessions)").all() as Array<{ name: string }>;
+  const colNames = new Set(tableInfo.map(c => c.name));
+  if (!colNames.has('title')) {
+    try {
+      sqlite.run("ALTER TABLE sessions ADD COLUMN title TEXT;");
+    } catch (_err) {
+      void _err;
+    }
+  }
+  if (!colNames.has('status')) {
+    try {
+      sqlite.run("ALTER TABLE sessions ADD COLUMN status TEXT DEFAULT 'active';");
+    } catch (_err) {
+      void _err;
+    }
+  }
+  if (!colNames.has('parent_id')) {
+    try {
+      sqlite.run("ALTER TABLE sessions ADD COLUMN parent_id TEXT;");
+    } catch (_err) {
+      void _err;
+    }
+  }
+  if (!colNames.has('tags')) {
+    try {
+      sqlite.run("ALTER TABLE sessions ADD COLUMN tags TEXT;");
+    } catch (_err) {
+      void _err;
+    }
+  }
+  if (!colNames.has('updated_at')) {
+    try {
+      sqlite.run("ALTER TABLE sessions ADD COLUMN updated_at INTEGER DEFAULT (strftime('%s', 'now'));");
+    } catch (_err) {
+      void _err;
+    }
+  }
+
   sqlite.run(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
@@ -55,9 +100,21 @@ export function getDb(dbPath: string): { db: BunSQLiteDatabase<typeof schema>; s
       FOREIGN KEY (session_id) REFERENCES sessions(id)
     );
   `);
+  sqlite.run(`
+    CREATE TABLE IF NOT EXISTS checkpoints (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      description TEXT NOT NULL,
+      message_id TEXT,
+      state TEXT NOT NULL,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      FOREIGN KEY (session_id) REFERENCES sessions(id)
+    );
+  `);
+
+  sqlite.run(`CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);`);
+  sqlite.run(`CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id ON tool_calls(message_id);`);
+  sqlite.run(`CREATE INDEX IF NOT EXISTS idx_checkpoints_session_id ON checkpoints(session_id);`);
 
   return { db: drizzle(sqlite, { schema }), sqlite };
 }
-
-
-

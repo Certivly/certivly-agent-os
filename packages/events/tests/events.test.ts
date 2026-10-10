@@ -15,8 +15,10 @@ describe('EventStore', () => {
   });
 
   afterEach(() => {
-    // Avoid EBUSY on Windows by not deleting the db files immediately,
-    // or just let them sit since they are randomly named.
+    try {
+      store.close();
+      if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
+    } catch {}
   });
 
   it('should append events and retain ordering', () => {

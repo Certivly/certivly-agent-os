@@ -1,9 +1,16 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
+export type SessionStatus = 'active' | 'paused' | 'completed' | 'failed' | 'archived' | 'deleted';
+
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),
+  title: text('title'),
+  status: text('status').$type<SessionStatus>().default('active'),
+  parentId: text('parent_id'),
+  tags: text('tags'), // JSON string array
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });
 
 export const messages = sqliteTable('messages', {
@@ -36,4 +43,13 @@ export const runs = sqliteTable('runs', {
   tracePath: text('trace_path'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
+});
+
+export const checkpoints = sqliteTable('checkpoints', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id),
+  description: text('description').notNull(),
+  messageId: text('message_id'),
+  state: text('state').notNull(), // JSON string
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`(strftime('%s', 'now'))`),
 });

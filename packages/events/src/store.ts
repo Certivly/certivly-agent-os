@@ -17,6 +17,7 @@ export class EventStoreError extends AgentError {
 
 export class EventStore {
   private db: BunSQLiteDatabase<typeof schema>;
+  private sqlite: Database;
 
   constructor(dbPath: string) {
     const dir = path.dirname(dbPath);
@@ -24,9 +25,9 @@ export class EventStore {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const sqlite = new Database(dbPath);
+    this.sqlite = new Database(dbPath);
     
-    sqlite.run(`
+    this.sqlite.run(`
       CREATE TABLE IF NOT EXISTS events (
         sequence_number INTEGER PRIMARY KEY AUTOINCREMENT,
         id TEXT NOT NULL UNIQUE,
@@ -42,10 +43,19 @@ export class EventStore {
     `);
     
     // Create indices for faster replay and filtering
-    sqlite.run(`CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);`);
-    sqlite.run(`CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);`);
+    this.sqlite.run(`CREATE INDEX IF NOT EXISTS idx_events_session_id ON events(session_id);`);
+    this.sqlite.run(`CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type);`);
 
-    this.db = drizzle(sqlite, { schema });
+    this.db = drizzle(this.sqlite, { schema });
+  }
+
+  public close(): void {
+    try {
+      this.sqlite.close();
+    } catch (_err) {
+      // Ignore if already closed or in-memory
+      void _err;
+    }
   }
 
   public append(event: RuntimeEvent): void {
@@ -143,7 +153,7 @@ export class EventStore {
           if (filter?.source && e.source !== filter.source) return false;
           return true;
         });
-    } catch {
+    } catch (_err: unknown) {
       return [];
     }
   }

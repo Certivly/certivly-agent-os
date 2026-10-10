@@ -1,0 +1,10 @@
+{
+  "name": "@agent-os/codemode",
+  "version": "1.0.0",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "dependencies": {
+    "@agent-os/shared": "workspace:*",
+    "@agent-os/tools": "workspace:*"
+  }
+}

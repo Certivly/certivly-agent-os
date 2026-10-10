@@ -1,16 +1,16 @@
-export interface RuntimeEvent {
+export interface RuntimeEvent<T = any> {
   id: string;
   eventType: string;
   timestamp: string;
   requestId: string;
   sessionId: string;
   source: string;
-  payload: any;
+  payload: T;
   version: string;
 }
 
-export interface EventEnvelope {
-  event: RuntimeEvent;
+export interface EventEnvelope<T = any> {
+  event: RuntimeEvent<T>;
   metadata: EventMetadata;
 }
 
