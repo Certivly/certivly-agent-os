@@ -35,20 +35,21 @@ export const Titlebar: React.FC<TitlebarProps> = ({
 
   return (
     <header
-      style={{
-        height: '42px',
-        backgroundColor: '#07090e',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 12px',
-        userSelect: 'none',
-        // Electron drag region
-        WebkitAppRegion: 'drag' as any,
-        position: 'relative',
-        zIndex: 50,
-      }}
+      style={
+        {
+          height: '42px',
+          backgroundColor: '#07090e',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 12px',
+          userSelect: 'none',
+          WebkitAppRegion: 'drag',
+          position: 'relative',
+          zIndex: 50,
+        } as any
+      }
     >
       {/* Left: Brand & Workspace Folder */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -84,20 +85,22 @@ export const Titlebar: React.FC<TitlebarProps> = ({
         <button
           onClick={onOpenDirectory}
           title={`Click to switch workspace: ${workspaceRoot}`}
-          style={{
-            WebkitAppRegion: 'no-drag' as any,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '3px 10px',
-            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '6px',
-            color: '#cbd5e1',
-            fontSize: '12px',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '3px 10px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '6px',
+              color: '#cbd5e1',
+              fontSize: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            } as any
+          }
           onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)')}
           onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)')}
         >
@@ -142,21 +145,23 @@ export const Titlebar: React.FC<TitlebarProps> = ({
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <button
           onClick={onOpenKeyVault}
-          style={{
-            WebkitAppRegion: 'no-drag' as any,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '4px 10px',
-            backgroundColor: 'rgba(99, 102, 241, 0.15)',
-            border: '1px solid rgba(99, 102, 241, 0.4)',
-            borderRadius: '6px',
-            color: '#a5b4fc',
-            fontSize: '12px',
-            fontWeight: 500,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
+          style={
+            {
+              WebkitAppRegion: 'no-drag',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 10px',
+              backgroundColor: 'rgba(99, 102, 241, 0.15)',
+              border: '1px solid rgba(99, 102, 241, 0.4)',
+              borderRadius: '6px',
+              color: '#a5b4fc',
+              fontSize: '12px',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            } as any
+          }
           onMouseEnter={(e) => {
             e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.25)';
             e.currentTarget.style.boxShadow = '0 0 12px rgba(99, 102, 241, 0.3)';
@@ -172,7 +177,7 @@ export const Titlebar: React.FC<TitlebarProps> = ({
 
         {/* Electron Window Controls (Minimize, Maximize, Close) */}
         {isElectron && (
-          <div style={{ display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' as any }}>
+          <div style={{ display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag' } as any}>
             <button
               onClick={handleMinimize}
               style={{

@@ -77,6 +77,9 @@ export class OpenApiToolBridge {
         parameters,
         readOnly,
       },
+      requiresApproval: (_args: Record<string, unknown>, _context?: any): boolean => {
+        return !readOnly;
+      },
       execute: async (args: Record<string, unknown>, _context?: ToolContext): Promise<ToolResult> => {
         try {
           let resolvedPath = endpoint.path;

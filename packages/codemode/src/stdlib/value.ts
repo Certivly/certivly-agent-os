@@ -2,6 +2,19 @@
  * Standard library value and object inspection utilities for CodeMode scripts.
  */
 
+function get<T = any>(obj: unknown, pathStr: string): T;
+function get<T>(obj: unknown, pathStr: string, defaultValue: T): T;
+function get(obj: unknown, pathStr: string, defaultValue?: any): any {
+  if (obj === null || obj === undefined) return defaultValue;
+  const segments = pathStr.split('.').filter(Boolean);
+  let curr: any = obj;
+  for (const seg of segments) {
+    if (curr === null || curr === undefined) return defaultValue;
+    curr = curr[seg];
+  }
+  return curr !== undefined ? curr : defaultValue;
+}
+
 export const ValueUtils = {
   isNil(value: unknown): value is null | undefined {
     return value === null || value === undefined;
@@ -75,14 +88,5 @@ export const ValueUtils = {
     return result as Omit<T, K>;
   },
 
-  get<T = unknown>(obj: unknown, pathStr: string, defaultValue?: T): T | undefined {
-    if (obj === null || obj === undefined) return defaultValue;
-    const segments = pathStr.split('.').filter(Boolean);
-    let curr: any = obj;
-    for (const seg of segments) {
-      if (curr === null || curr === undefined) return defaultValue;
-      curr = curr[seg];
-    }
-    return curr !== undefined ? (curr as T) : defaultValue;
-  },
+  get,
 };

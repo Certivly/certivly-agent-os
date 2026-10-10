@@ -85,7 +85,7 @@ describe('CodeMode Standard Library (packages/codemode/src/stdlib)', () => {
 
   describe('JsonUtils', () => {
     it('safeParse handles valid and invalid json without throwing', () => {
-      expect(JsonUtils.safeParse('{"valid": true}')).toEqual({ valid: true });
+      expect(JsonUtils.safeParse<any>('{"valid": true}')).toEqual({ valid: true });
       expect(JsonUtils.safeParse('invalid-json', { fallback: true })).toEqual({ fallback: true });
     });
 
@@ -162,7 +162,7 @@ describe('CodeMode Standard Library (packages/codemode/src/stdlib)', () => {
       const merged = ValueUtils.deepMerge(target, source);
       expect(merged).toEqual({ a: 1, nested: { b: 2, c: 3 }, d: 4 });
 
-      expect(ValueUtils.get(merged, 'nested.b')).toBe(2);
+      expect(ValueUtils.get<any>(merged, 'nested.b')).toBe(2);
       expect(ValueUtils.pick(merged, ['a', 'd'])).toEqual({ a: 1, d: 4 });
       expect(ValueUtils.omit(merged, ['nested'])).toEqual({ a: 1, d: 4 });
     });

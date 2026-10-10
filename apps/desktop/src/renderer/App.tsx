@@ -6,6 +6,8 @@ import { PermissionModeSwitch, PermissionMode } from './components/PermissionMod
 import { KeyVaultModal } from './components/KeyVaultModal';
 import { ChatView, ChatMessage } from './components/ChatView';
 import { PromptDock } from './components/PromptDock';
+import { CommandPaletteModal, CommandItem } from './components/CommandPaletteModal';
+import { TerminalDrawer } from './components/TerminalDrawer';
 import { ApprovalItem } from './components/VisualDiffInspector';
 import { ToolCallData } from './components/ToolExecutionCard';
 import { FileNode } from './components/FileTree';
@@ -32,8 +34,11 @@ export const App: React.FC = () => {
   const [streamingContent, setStreamingContent] = useState<string>('');
   const [activeApprovals, setActiveApprovals] = useState<ApprovalItem[]>([]);
 
-  // Modals & Skills
+  // Modals & Terminal & Palette
   const [isKeyVaultOpen, setIsKeyVaultOpen] = useState<boolean>(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+  const [isTerminalOpen, setIsTerminalOpen] = useState<boolean>(false);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [skills, setSkills] = useState<{ id: string; name: string; description: string }[]>([]);
   const [agents, setAgents] = useState<{ id: string; name: string; description: string }[]>([]);
 
@@ -58,9 +63,23 @@ export const App: React.FC = () => {
     }
     init();
 
+    // Listen to global shortcuts (Cmd/Ctrl+K for palette, Ctrl+` for terminal)
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '`') {
+        e.preventDefault();
+        setIsTerminalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+
     // Listen to native menu shortcuts from Electron
+    let unsubMenu: (() => void) | undefined;
     if (window.agentos?.onMenuAction) {
-      const unsub = window.agentos.onMenuAction((action) => {
+      unsubMenu = window.agentos.onMenuAction((action) => {
         if (action === 'open-key-vault') setIsKeyVaultOpen(true);
         if (action === 'new-session') handleNewSession();
         if (action === 'set-mode-plan') handleChangeMode('plan');
@@ -68,8 +87,12 @@ export const App: React.FC = () => {
         if (action === 'set-mode-auto') handleChangeMode('auto');
         if (action === 'open-directory') handleOpenDirectory();
       });
-      return unsub;
     }
+
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKey);
+      unsubMenu?.();
+    };
   }, []);
 
   const checkServerAndLoad = async (url: string) => {
@@ -290,6 +313,48 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleForkSession = async () => {
+    if (!activeSessionId) return;
+    const current = sessions.find((s) => s.id === activeSessionId);
+    try {
+      const res = await fetch(`${serverUrl}/api/sessions/${activeSessionId}/fork`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: `Branch of ${current?.title || 'Session'}` }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSessions((prev) => [data.session, ...prev]);
+        selectSession(data.sessionId);
+        setExportNotice(`🌿 Forked session: ${data.session.title}`);
+        setTimeout(() => setExportNotice(null), 3000);
+      }
+    } catch (_err) {
+      void _err;
+    }
+  };
+
+  const handleExportSession = async () => {
+    if (!activeSessionId) return;
+    try {
+      const res = await fetch(`${serverUrl}/api/sessions/${activeSessionId}/export`);
+      if (res.ok) {
+        const data = await res.json();
+        const blob = new Blob([data.markdown], { type: 'text/markdown;charset=utf-8' });
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${activeSessionId}.md`;
+        a.click();
+        URL.revokeObjectURL(downloadUrl);
+        setExportNotice(`📥 Exported transcript: ${activeSessionId}.md`);
+        setTimeout(() => setExportNotice(null), 3000);
+      }
+    } catch (_err) {
+      void _err;
+    }
+  };
+
   const handleSendPrompt = async (prompt: string) => {
     if (!activeSessionId) return;
 
@@ -410,6 +475,90 @@ export const App: React.FC = () => {
     }
   };
 
+  const paletteCommands: CommandItem[] = [
+    {
+      id: 'new-session',
+      title: 'New Chat Session',
+      category: 'Session',
+      icon: '➕',
+      shortcut: 'Ctrl+N',
+      action: () => handleNewSession(),
+    },
+    {
+      id: 'fork-session',
+      title: 'Fork / Branch Current Session',
+      category: 'Session',
+      icon: '🌿',
+      action: () => handleForkSession(),
+    },
+    {
+      id: 'export-session',
+      title: 'Export Session Transcript (Markdown)',
+      category: 'Session',
+      icon: '📥',
+      action: () => handleExportSession(),
+    },
+    {
+      id: 'toggle-terminal',
+      title: 'Toggle Embedded Terminal',
+      category: 'Developer',
+      icon: '💻',
+      shortcut: 'Ctrl+`',
+      action: () => setIsTerminalOpen((prev) => !prev),
+    },
+    {
+      id: 'key-vault',
+      title: 'API Keys & Provider Vault',
+      category: 'Settings',
+      icon: '🔑',
+      shortcut: 'Ctrl+,',
+      action: () => setIsKeyVaultOpen(true),
+    },
+    {
+      id: 'open-workspace',
+      title: 'Open Workspace Directory...',
+      category: 'Workspace',
+      icon: '📁',
+      shortcut: 'Ctrl+O',
+      action: () => handleOpenDirectory(),
+    },
+    {
+      id: 'refresh-files',
+      title: 'Refresh Workspace File Tree',
+      category: 'Workspace',
+      icon: '🔄',
+      action: () => loadWorkspaceTree(serverUrl),
+    },
+    {
+      id: 'mode-plan',
+      title: 'Switch Mode to: Plan (Read-Only)',
+      category: 'Modes',
+      icon: '🛡️',
+      action: () => handleChangeMode('plan'),
+    },
+    {
+      id: 'mode-manual',
+      title: 'Switch Mode to: Manual Review (Diff Gates)',
+      category: 'Modes',
+      icon: '⚡',
+      action: () => handleChangeMode('manual'),
+    },
+    {
+      id: 'mode-auto',
+      title: 'Switch Mode to: Autonomous (Speed Execution)',
+      category: 'Modes',
+      icon: '🚀',
+      action: () => handleChangeMode('auto'),
+    },
+    ...models.map((m) => ({
+      id: `model-${m.id}`,
+      title: `Switch Model to ${m.name} (${m.provider})`,
+      category: 'Models',
+      icon: '🧠',
+      action: () => handleSelectModel(m.id, m.provider),
+    })),
+  ];
+
   return (
     <div
       style={{
@@ -455,6 +604,7 @@ export const App: React.FC = () => {
             flexDirection: 'column',
             backgroundColor: '#07090e',
             overflow: 'hidden',
+            position: 'relative',
           }}
         >
           {/* Top Control Bar: Model Selector + Mode Switcher */}
@@ -480,12 +630,18 @@ export const App: React.FC = () => {
 
           {/* Interactive Chat Stream & Approvals */}
           <ChatView
+            sessionId={activeSessionId}
+            sessionTitle={sessions.find((s) => s.id === activeSessionId)?.title}
             messages={messages}
             streamingContent={streamingContent}
             isStreaming={isStreaming}
             activeApprovals={activeApprovals}
             onApprove={handleApprove}
             onReject={handleReject}
+            onForkSession={handleForkSession}
+            onExportSession={handleExportSession}
+            onToggleTerminal={() => setIsTerminalOpen((prev) => !prev)}
+            isTerminalOpen={isTerminalOpen}
             onSelectSuggestion={handleSendPrompt}
           />
 
@@ -495,6 +651,14 @@ export const App: React.FC = () => {
             onCancel={handleCancelExecution}
             isRunning={isStreaming}
             activeMode={mode}
+          />
+
+          {/* Terminal Drawer Embedded at Bottom */}
+          <TerminalDrawer
+            isOpen={isTerminalOpen}
+            onClose={() => setIsTerminalOpen(false)}
+            serverUrl={serverUrl}
+            workspaceRoot={workspaceRoot}
           />
         </main>
       </div>
@@ -506,6 +670,37 @@ export const App: React.FC = () => {
         serverUrl={serverUrl}
         onKeysChanged={() => loadModels(serverUrl)}
       />
+
+      {/* Global Command Palette (Cmd/Ctrl+K) */}
+      <CommandPaletteModal
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        commands={paletteCommands}
+      />
+
+      {/* Notification Toast for Session Fork / Export */}
+      {exportNotice && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid #6366f1',
+            boxShadow: '0 8px 32px rgba(99, 102, 241, 0.35)',
+            color: '#f8fafc',
+            padding: '8px 20px',
+            borderRadius: '20px',
+            fontSize: '13px',
+            fontWeight: 500,
+            zIndex: 100,
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          {exportNotice}
+        </div>
+      )}
 
       {/* Code Inspector Drawer for Clicked Files */}
       {selectedFileContent && (

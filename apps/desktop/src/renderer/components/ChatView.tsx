@@ -11,22 +11,34 @@ export interface ChatMessage {
 }
 
 interface ChatViewProps {
+  sessionTitle?: string;
+  sessionId?: string;
   messages: ChatMessage[];
   streamingContent?: string;
   isStreaming: boolean;
   activeApprovals: ApprovalItem[];
   onApprove: (id: string) => void;
   onReject: (id: string) => void;
+  onForkSession?: () => void;
+  onExportSession?: () => void;
+  onToggleTerminal?: () => void;
+  isTerminalOpen?: boolean;
   onSelectSuggestion?: (prompt: string) => void;
 }
 
 export const ChatView: React.FC<ChatViewProps> = ({
+  sessionTitle,
+  sessionId,
   messages,
   streamingContent,
   isStreaming,
   activeApprovals,
   onApprove,
   onReject,
+  onForkSession,
+  onExportSession,
+  onToggleTerminal,
+  isTerminalOpen,
   onSelectSuggestion,
 }) => {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -43,16 +55,119 @@ export const ChatView: React.FC<ChatViewProps> = ({
   ];
 
   return (
-    <div
-      style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '24px 32px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '20px',
-      }}
-    >
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Session Action Toolbar */}
+      {sessionId && (
+        <div
+          style={{
+            padding: '8px 24px',
+            backgroundColor: 'rgba(11, 15, 25, 0.4)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0' }}>
+              {sessionTitle || 'Active Session'}
+            </span>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              ({messages.length} messages)
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {onForkSession && (
+              <button
+                onClick={onForkSession}
+                title="Fork / Branch this session from current turn"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  color: '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)')}
+              >
+                <span>🌿</span>
+                <span>Fork</span>
+              </button>
+            )}
+
+            {onExportSession && (
+              <button
+                onClick={onExportSession}
+                title="Export session conversation to Markdown"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  color: '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.04)')}
+              >
+                <span>📥</span>
+                <span>Export</span>
+              </button>
+            )}
+
+            {onToggleTerminal && (
+              <button
+                onClick={onToggleTerminal}
+                title="Toggle Embedded Terminal Console"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  padding: '4px 10px',
+                  backgroundColor: isTerminalOpen ? 'rgba(99, 102, 241, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  border: isTerminalOpen ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  borderRadius: '6px',
+                  color: isTerminalOpen ? '#a5b4fc' : '#cbd5e1',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>💻</span>
+                <span>Terminal</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Message Stream */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '24px 32px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+        }}
+      >
       {messages.length === 0 && !streamingContent && (
         <div
           style={{
@@ -200,6 +315,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       ))}
 
       <div ref={bottomRef} />
+      </div>
     </div>
   );
 };

@@ -2,15 +2,19 @@
  * Standard library JSON manipulation utilities for CodeMode scripts.
  */
 
+function safeParse<T = any>(text: string): T;
+function safeParse<T>(text: string, fallback: T): T;
+function safeParse(text: string, fallback?: any): any {
+  try {
+    return JSON.parse(text);
+  } catch (_err: unknown) {
+    // Safe fallback on invalid JSON text
+    return fallback;
+  }
+}
+
 export const JsonUtils = {
-  safeParse<T = unknown>(text: string, fallback?: T): T | undefined {
-    try {
-      return JSON.parse(text) as T;
-    } catch (_err: unknown) {
-      // Safe fallback on invalid JSON text
-      return fallback;
-    }
-  },
+  safeParse,
 
   safeStringify(value: unknown, indent?: number): string {
     try {
@@ -40,7 +44,7 @@ export const JsonUtils = {
     return items.map(item => JSON.stringify(item)).join('\n');
   },
 
-  pruneEmpty<T extends Record<string, any>>(obj: T): Partial<T> {
+  pruneEmpty(obj: Record<string, any>): Record<string, any> {
     const result: Record<string, any> = {};
     for (const [key, value] of Object.entries(obj)) {
       if (value !== null && value !== undefined && value !== '') {
@@ -54,6 +58,6 @@ export const JsonUtils = {
         }
       }
     }
-    return result as Partial<T>;
+    return result;
   },
 };

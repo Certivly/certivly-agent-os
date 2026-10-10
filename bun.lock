@@ -48,6 +48,7 @@
         "@agent-os/events": "workspace:*",
         "@agent-os/metrics": "workspace:*",
         "@agent-os/providers": "workspace:*",
+        "@agent-os/sandbox": "workspace:*",
         "@agent-os/sessions": "workspace:*",
         "@agent-os/shared": "workspace:*",
         "@agent-os/tools": "workspace:*",

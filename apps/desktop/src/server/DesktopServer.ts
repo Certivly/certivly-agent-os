@@ -1,12 +1,17 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { ConfigManager } from '@agent-os/config';
 import { SessionManager } from '@agent-os/sessions';
 import { AgentRuntime, ApprovalRequest } from '@agent-os/agent-runtime';
 import { ModelCatalog } from '@agent-os/providers';
 import { LoggingEventBus } from '@agent-os/shared';
+import { ShadowSnapshotManager } from '@agent-os/sandbox';
 import { DESKTOP_HTML } from '../ui/template';
+
+const execAsync = promisify(exec);
 
 export interface DesktopServerOptions {
   port?: number;
@@ -35,6 +40,7 @@ export class DesktopServer {
   private workspaceRoot: string;
   private configManager: ConfigManager;
   private sessionManager: SessionManager;
+  private snapshotManager: ShadowSnapshotManager;
   private sseClients = new Map<string, Set<ReadableStreamDefaultController>>();
   private pendingApprovals = new Map<string, PendingApproval>();
   private activeRuntimes = new Map<string, AgentRuntime>();
@@ -55,6 +61,7 @@ export class DesktopServer {
     const sessionDir = path.resolve(this.workspaceRoot, config.runtime?.sessionDir || '.agentos');
     fs.mkdirSync(sessionDir, { recursive: true });
     this.sessionManager = new SessionManager(path.join(sessionDir, 'sessions.db'));
+    this.snapshotManager = new ShadowSnapshotManager(this.workspaceRoot);
   }
 
   public getPort(): number {
@@ -75,6 +82,7 @@ export class DesktopServer {
 
   public setWorkspaceRoot(newRoot: string): void {
     this.workspaceRoot = path.resolve(newRoot);
+    this.snapshotManager = new ShadowSnapshotManager(this.workspaceRoot);
   }
 
   public async start(): Promise<string> {
@@ -333,6 +341,91 @@ export class DesktopServer {
           return this.jsonResponse({ success: true, cancelled: true });
         }
         return this.jsonResponse({ success: true, cancelled: false, message: 'No active run found' });
+      }
+
+      // 10b. Fork / Branch Session (OpenCode Session Parity)
+      const forkMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/fork$/);
+      if (forkMatch && method === 'POST') {
+        const sourceSessionId = forkMatch[1];
+        const body = await req.json().catch(() => ({}));
+        const newSessionId = this.sessionManager.forkSession(sourceSessionId, {
+          title: body.title,
+          fromMessageId: body.fromMessageId,
+        });
+        const forked = this.sessionManager.getSession(newSessionId);
+        return this.jsonResponse({ success: true, sessionId: newSessionId, session: forked });
+      }
+
+      // 10c. Export Session Transcript to Markdown (OpenCode Export Parity)
+      const exportMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/export$/);
+      if (exportMatch && method === 'GET') {
+        const sessionId = exportMatch[1];
+        const session = this.sessionManager.getSession(sessionId);
+        if (!session) return this.errorResponse(`Session ${sessionId} not found`, 404);
+        const messages = this.sessionManager.getMessages(sessionId);
+        const toolCalls = this.sessionManager.getToolCallsForSession(sessionId);
+
+        let md = `# Session Export: ${session.title || sessionId}\n\n`;
+        md += `**Session ID:** \`${session.id}\`  \n`;
+        md += `**Created:** ${new Date(session.createdAt || Date.now()).toISOString()}  \n`;
+        if (session.parentId) md += `**Forked From:** \`${session.parentId}\`  \n`;
+        md += `\n---\n\n`;
+
+        for (const msg of messages) {
+          const roleTitle = msg.role === 'user' ? '👤 User' : msg.role === 'assistant' ? '⚡ Assistant' : '⚙️ System';
+          md += `### ${roleTitle}\n\n${msg.content}\n\n`;
+        }
+
+        return this.jsonResponse({
+          sessionId,
+          title: session.title,
+          markdown: md,
+          messageCount: messages.length,
+          toolCallCount: toolCalls.length,
+        });
+      }
+
+      // 10d. Shadow Git Snapshots & Checkpoints (OpenCode Snapshot & Revert Parity)
+      if (pathname === '/api/snapshots') {
+        if (method === 'GET') {
+          const list = await this.snapshotManager.listSnapshots();
+          return this.jsonResponse(list);
+        }
+        if (method === 'POST') {
+          const body = await req.json().catch(() => ({}));
+          const id = await this.snapshotManager.capture(body.message || 'Manual Checkpoint');
+          return this.jsonResponse({ success: true, snapshotId: id });
+        }
+      }
+
+      if (pathname === '/api/snapshots/rollback' && method === 'POST') {
+        const body = await req.json();
+        if (!body.snapshotId) return this.errorResponse('Missing snapshotId in request body', 400);
+        await this.snapshotManager.rollback(body.snapshotId, body.files);
+        return this.jsonResponse({ success: true, snapshotId: body.snapshotId });
+      }
+
+      // 10e. Interactive Terminal Command Execution (OpenCode Terminal Parity)
+      if (pathname === '/api/terminal/exec' && method === 'POST') {
+        const body = await req.json();
+        const command = body.command;
+        if (!command) return this.errorResponse('Missing command', 400);
+
+        try {
+          const { stdout, stderr } = await execAsync(command, {
+            cwd: this.workspaceRoot,
+            timeout: 30000,
+            maxBuffer: 5 * 1024 * 1024,
+          });
+          return this.jsonResponse({ success: true, stdout, stderr, exitCode: 0 });
+        } catch (err: any) {
+          return this.jsonResponse({
+            success: false,
+            stdout: err.stdout || '',
+            stderr: err.stderr || err.message,
+            exitCode: err.code || 1,
+          });
+        }
       }
 
       // 11. Workspace File Tree & File Content

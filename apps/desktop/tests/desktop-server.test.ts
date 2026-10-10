@@ -188,4 +188,80 @@ describe('AgentOS Desktop App Suite', () => {
     // Non-existent approval resolves to false gracefully without throwing
     expect(data.success).toBe(false);
   });
+
+  it('11. forks an existing session with cloned history and title', async () => {
+    // 1. Create a parent session
+    const createRes = await fetch(`${serverUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Original Parent Session' }),
+    });
+    expect(createRes.status).toBe(200);
+    const parent = await createRes.json();
+
+    // 2. Fork the session
+    const forkRes = await fetch(`${serverUrl}/api/sessions/${parent.id}/fork`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Branch 1: Architecture Experiment' }),
+    });
+    expect(forkRes.status).toBe(200);
+    const forkData = await forkRes.json();
+    expect(forkData.success).toBe(true);
+    expect(forkData.sessionId).toBeDefined();
+    expect(forkData.sessionId).not.toBe(parent.id);
+    expect(forkData.session.title).toBe('Branch 1: Architecture Experiment');
+    expect(forkData.session.parentId).toBe(parent.id);
+  });
+
+  it('12. exports session conversation and metadata to formatted Markdown', async () => {
+    // Create session to export
+    const createRes = await fetch(`${serverUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Exportable Session' }),
+    });
+    const session = await createRes.json();
+
+    const exportRes = await fetch(`${serverUrl}/api/sessions/${session.id}/export`);
+    expect(exportRes.status).toBe(200);
+    const exportData = await exportRes.json();
+    expect(exportData.sessionId).toBe(session.id);
+    expect(exportData.title).toBe('Exportable Session');
+    expect(typeof exportData.markdown).toBe('string');
+    expect(exportData.markdown).toContain('# Session Export: Exportable Session');
+    expect(exportData.markdown).toContain(`**Session ID:** \`${session.id}\``);
+  });
+
+  it('13. captures and lists snapshots for rollbacks', async () => {
+    const listRes = await fetch(`${serverUrl}/api/snapshots`);
+    expect(listRes.status).toBe(200);
+    const list = await listRes.json();
+    expect(Array.isArray(list)).toBe(true);
+  });
+
+  it('14. snapshots rollback validates missing snapshot id', async () => {
+    const badRollback = await fetch(`${serverUrl}/api/snapshots/rollback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(badRollback.status).toBe(400);
+    const badData = await badRollback.json();
+    expect(badData.error).toContain('Missing snapshotId');
+  });
+
+  it('15. terminal execution API executes shell commands in workspace root', async () => {
+    const termRes = await fetch(`${serverUrl}/api/terminal/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: 'echo AgentOS-Terminal-Active' }),
+    });
+    expect(termRes.status).toBe(200);
+    const termData = await termRes.json();
+    expect(termData.success).toBe(true);
+    expect(termData.stdout).toContain('AgentOS-Terminal-Active');
+    expect(termData.exitCode).toBe(0);
+  });
 });
+
