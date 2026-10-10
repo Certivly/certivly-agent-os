@@ -19,6 +19,9 @@
     "dev": "bun run build && bunx electron .",
     "server": "bun run src/server/DesktopServer.ts",
     "open": "bun run src/server/DesktopServer.ts --open",
+    "package": "bun run scripts/package.ts",
+    "package:dir": "bun run scripts/package.ts --dir",
+    "package:portable": "bun run scripts/package.ts --portable",
     "test": "bun test"
   },
   "dependencies": {

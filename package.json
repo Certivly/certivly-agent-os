@@ -1,6 +1,6 @@
 {
   "name": "agent-os",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -13,6 +13,9 @@
     "desktop": "bun run --cwd apps/desktop electron",
     "desktop:build": "bun run --cwd apps/desktop build",
     "desktop:open": "bun run --cwd apps/desktop open",
+    "desktop:package": "bun run --cwd apps/desktop package",
+    "build:bin": "bun run scripts/build-binaries.ts",
+    "install:local": "powershell -ExecutionPolicy Bypass -File install.ps1",
     "eval": "bun run apps/cli/src/index.ts eval",
     "gate": "bunx tsc --noEmit && bun test && bun run build && bun run eval --task smoke --model fake:scripted",
     "gate:smoke": "bunx tsc --noEmit && bun test && bun run build && bun run eval --task smoke --model fake:scripted",

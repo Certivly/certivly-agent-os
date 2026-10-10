@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+BIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$BIN_DIR/agentos" ] && [ -x "$BIN_DIR/agentos" ]; then
+  exec "$BIN_DIR/agentos" "$@"
+elif [ -f "$BIN_DIR/agentos.exe" ]; then
+  exec "$BIN_DIR/agentos.exe" "$@"
+else
+  exec bun run "$BIN_DIR/../apps/cli/src/index.ts" "$@"
+fi

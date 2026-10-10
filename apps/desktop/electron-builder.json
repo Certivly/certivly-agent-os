@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.agentos.desktop",
+  "productName": "AgentOS Desktop",
+  "copyright": "Copyright (c) 2026 AgentOS",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      }
+    ],
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "AgentOS Desktop"
+  },
+  "mac": {
+    "target": ["dir", "dmg"],
+    "category": "public.app-category.developer-tools"
+  },
+  "linux": {
+    "target": ["dir", "AppImage"],
+    "category": "Development"
+  }
+}

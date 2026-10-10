@@ -50,6 +50,9 @@ describe('Action 3.16: Packaging And Release Check', () => {
     const check = PackageDryRun.checkPackage(rootDir);
     expect(check.allValid).toBe(true);
     expect(check.binaryExists).toBe(true);
+    expect(check.standaloneBinExists).toBe(true);
+    expect(check.installersExist).toBe(true);
+    expect(check.desktopConfigExists).toBe(true);
     expect(check.configSchemaExists).toBe(true);
     expect(check.smokeTasksExist).toBe(true);
     expect(check.docsExist).toBe(true);

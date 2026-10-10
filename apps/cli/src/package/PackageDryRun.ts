@@ -3,6 +3,9 @@ import * as fs from 'fs';
 
 export interface PackageManifestCheck {
   binaryExists: boolean;
+  standaloneBinExists: boolean;
+  installersExist: boolean;
+  desktopConfigExists: boolean;
   configSchemaExists: boolean;
   smokeTasksExist: boolean;
   docsExist: boolean;
@@ -21,6 +24,20 @@ export class PackageDryRun {
     const distBin = path.join(workspaceRoot, 'apps', 'cli', 'dist', 'index.js');
     const binaryExists = overrides?.binaryExists ?? fs.existsSync(distBin);
     if (!binaryExists) missing.push('Built binary (apps/cli/dist/index.js)');
+
+    const isWindows = process.platform === 'win32';
+    const standaloneExe = path.join(workspaceRoot, 'bin', isWindows ? 'agentos.exe' : 'agentos');
+    const standaloneBinExists = overrides?.standaloneBinExists ?? fs.existsSync(standaloneExe);
+    if (!standaloneBinExists) missing.push('Standalone native binary (bin/agentos.exe)');
+
+    const ps1Installer = path.join(workspaceRoot, 'install.ps1');
+    const shInstaller = path.join(workspaceRoot, 'install.sh');
+    const installersExist = overrides?.installersExist ?? (fs.existsSync(ps1Installer) && fs.existsSync(shInstaller));
+    if (!installersExist) missing.push('Cross-platform installers (install.ps1, install.sh)');
+
+    const desktopConfig = path.join(workspaceRoot, 'apps', 'desktop', 'electron-builder.json');
+    const desktopConfigExists = overrides?.desktopConfigExists ?? fs.existsSync(desktopConfig);
+    if (!desktopConfigExists) missing.push('Desktop electron-builder config (apps/desktop/electron-builder.json)');
 
     const configSchema = path.join(workspaceRoot, 'packages', 'config', 'src', 'schema.ts');
     const configSchemaExists = overrides?.configSchemaExists ?? fs.existsSync(configSchema);
@@ -42,6 +59,9 @@ export class PackageDryRun {
 
     return {
       binaryExists,
+      standaloneBinExists,
+      installersExist,
+      desktopConfigExists,
       configSchemaExists,
       smokeTasksExist,
       docsExist,
@@ -60,6 +80,9 @@ export class PackageDryRun {
     lines.push('| Asset | Status |');
     lines.push('| --- | --- |');
     lines.push(`| CLI Executable (apps/cli/dist/index.js) | ${check.binaryExists ? '✓ PRESENT' : '✗ MISSING'} |`);
+    lines.push(`| Native Standalone Binary (bin/agentos) | ${check.standaloneBinExists ? '✓ PRESENT' : '✗ MISSING'} |`);
+    lines.push(`| Cross-Platform Installers (install.ps1 / .sh) | ${check.installersExist ? '✓ PRESENT' : '✗ MISSING'} |`);
+    lines.push(`| Desktop Installer Config (electron-builder.json) | ${check.desktopConfigExists ? '✓ PRESENT' : '✗ MISSING'} |`);
     lines.push(`| Default Config Schema | ${check.configSchemaExists ? '✓ PRESENT' : '✗ MISSING'} |`);
     lines.push(`| Smoke Evaluation Tasks | ${check.smokeTasksExist ? '✓ PRESENT' : '✗ MISSING'} |`);
     lines.push(`| Documentation (README.md) | ${check.docsExist ? '✓ PRESENT' : '✗ MISSING'} |`);
