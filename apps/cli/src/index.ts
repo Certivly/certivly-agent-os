@@ -1509,13 +1509,28 @@ program
 
 program
   .command('desktop')
-  .description('Launch the AgentOS Desktop App with Key Vault, Visual Diff Inspector, and Workspace Explorer')
+  .description('Launch the AgentOS Desktop App with Electron, Key Vault, Visual Diff Inspector, and Workspace Explorer')
   .option('-p, --port <port>', 'Port to listen on', '3456')
   .option('--host <host>', 'Host to bind to', '127.0.0.1')
+  .option('--no-electron', 'Run server in browser mode without launching Electron window')
   .option('--open', 'Automatically open in default browser / desktop window', true)
   .action(async (opts: any) => {
-    const { DesktopServer } = await import('@agent-os/desktop');
+    const { DesktopServer, launchElectronApp } = await import('@agent-os/desktop');
     const port = parseInt(opts.port, 10);
+
+    if (opts.electron !== false) {
+      console.log(`\n======================================================`);
+      console.log(` 🚀 Launching AgentOS Desktop (Electron + React 19)...`);
+      console.log(` 🔑 Key Vault, Permission Modes & Visual Diff Reviews`);
+      console.log(`======================================================\n`);
+      launchElectronApp({
+        port,
+        host: opts.host,
+        workspaceRoot: process.cwd(),
+      });
+      return;
+    }
+
     const server = new DesktopServer({
       port,
       host: opts.host,
@@ -1524,7 +1539,7 @@ program
     });
     const url = await server.start();
     console.log(`\n======================================================`);
-    console.log(` 🚀 AgentOS Desktop running at: ${url}`);
+    console.log(` 🚀 AgentOS Desktop Server running at: ${url}`);
     console.log(` 🔑 Manage keys, models, and interactive sessions`);
     console.log(`======================================================\n`);
 

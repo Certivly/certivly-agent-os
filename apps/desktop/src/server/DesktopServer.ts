@@ -41,7 +41,7 @@ export class DesktopServer {
   private abortControllers = new Map<string, AbortController>();
 
   constructor(options: DesktopServerOptions = {}) {
-    this.port = options.port || 3456;
+    this.port = options.port !== undefined ? options.port : 3456;
     this.host = options.host || '127.0.0.1';
     this.workspaceRoot = path.resolve(options.workspaceRoot || process.cwd());
 
@@ -67,6 +67,14 @@ export class DesktopServer {
 
   public getUrl(): string {
     return `http://${this.host}:${this.port}`;
+  }
+
+  public getWorkspaceRoot(): string {
+    return this.workspaceRoot;
+  }
+
+  public setWorkspaceRoot(newRoot: string): void {
+    this.workspaceRoot = path.resolve(newRoot);
   }
 
   public async start(): Promise<string> {
@@ -132,11 +140,28 @@ export class DesktopServer {
     }
 
     try {
-      // 1. Serve Desktop UI
+      // 1. Serve Desktop UI (React bundle if built, fallback to template)
+      const distRenderer = path.resolve(__dirname, '../../dist/renderer');
       if (pathname === '/' || pathname === '/index.html') {
+        const distIndex = path.join(distRenderer, 'index.html');
+        if (fs.existsSync(distIndex)) {
+          return new Response(fs.readFileSync(distIndex, 'utf-8'), {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
+        }
         return new Response(DESKTOP_HTML, {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
+      }
+
+      if (pathname === '/main.js' || pathname === '/main.css') {
+        const assetPath = path.join(distRenderer, pathname.slice(1));
+        if (fs.existsSync(assetPath)) {
+          const contentType = pathname.endsWith('.js') ? 'application/javascript' : 'text/css';
+          return new Response(fs.readFileSync(assetPath), {
+            headers: { 'Content-Type': contentType },
+          });
+        }
       }
 
       // 2. Health Check
