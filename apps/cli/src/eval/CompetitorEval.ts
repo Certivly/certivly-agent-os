@@ -93,7 +93,7 @@ export class CompetitorEval {
       const checkCmd = isWindows ? `where.exe "${binary}"` : `which "${binary}"`;
       const res = spawnSync(checkCmd, { shell: true, stdio: 'pipe' });
       return res.status === 0;
-    } catch {
+    } catch (_err: unknown) {
       return false;
     }
   }
@@ -156,6 +156,28 @@ export class CompetitorEval {
       .replace(/\{taskId\}/g, vars.taskId);
   }
 
+  private static killProcessTree(proc?: ReturnType<typeof spawn>): void {
+    if (!proc || proc.killed) return;
+    try {
+      if (process.platform === 'win32' && proc.pid) {
+        spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { windowsHide: true });
+      } else if (proc.pid) {
+        try {
+          process.kill(-proc.pid, 'SIGKILL');
+        } catch (_e) {
+          // Fallback to direct process kill
+          proc.kill('SIGKILL');
+        }
+      }
+    } catch (_treeErr) {
+      try {
+        proc.kill('SIGKILL');
+      } catch (_killErr) {
+        // Process may have already terminated
+      }
+    }
+  }
+
   public static async runCompetitorTask(
     competitorName: string,
     commandTemplate: string,
@@ -181,6 +203,7 @@ export class CompetitorEval {
       path.join(os.tmpdir(), `comp-${competitorName}-${task.id}-${crypto.randomUUID().slice(0, 8)}-`)
     );
     const startTime = Date.now();
+    let childProcess: ReturnType<typeof spawn> | undefined;
 
     try {
       // 1. Prepare isolated workspace
@@ -212,6 +235,7 @@ export class CompetitorEval {
           env: { ...process.env, AGENTOS_COMPETITOR_WORKSPACE: tempDir },
           windowsHide: true,
         });
+        childProcess = child;
 
         child.stdout?.on('data', (d) => {
           cmdOutput += d.toString();
@@ -233,12 +257,16 @@ export class CompetitorEval {
       const timeoutPromise = new Promise<{ code: number | null; error?: string }>((resolve) => {
         timer = setTimeout(() => {
           timedOut = true;
+          this.killProcessTree(childProcess);
           resolve({ code: 124, error: `Command timed out after ${timeoutMs}ms` });
         }, timeoutMs);
       });
 
       const execResult = await Promise.race([runPromise, timeoutPromise]);
       if (timer) clearTimeout(timer);
+      if (timedOut) {
+        this.killProcessTree(childProcess);
+      }
 
       const wallTimeMs = Date.now() - startTime;
       const filesChanged = this.countChangedFiles(initialSnapshot, tempDir);
@@ -307,6 +335,7 @@ export class CompetitorEval {
         error: err.message,
       };
     } finally {
+      this.killProcessTree(childProcess);
       try {
         fs.rmSync(tempDir, { recursive: true, force: true });
       } catch (_err) {

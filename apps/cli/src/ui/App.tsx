@@ -4,6 +4,8 @@ import { MainExecutionPanel } from './components/MainExecutionPanel';
 import { InputBar } from './components/InputBar';
 import { Sidebar } from './components/Sidebar';
 import { DiffPanel } from './components/DiffPanel';
+import { TodoPanel } from './components/TodoPanel';
+import { StatusBar } from './components/StatusBar';
 import { CommandDispatcher } from './commands/CommandDispatcher';
 import { useAgentSession } from './hooks/useAgentSession';
 import { useEventStream } from './hooks/useEventStream';
@@ -21,6 +23,7 @@ export const App: React.FC<{
   const { stdout } = useStdout();
   const [height, setHeight] = useState((stdout && stdout.rows) ? stdout.rows : 24);
   const [showDiff, setShowDiff] = useState(false);
+  const [showTodos, setShowTodos] = useState(true);
 
   const handleApprove = async (msgId: string) => {
     const msg = projection.chatHistory.find(m => m.id === msgId);
@@ -64,7 +67,13 @@ export const App: React.FC<{
   useInput((char, key) => {
     // Diff Panel Toggle (Ctrl+D)
     if (key.ctrl && char === 'd') {
-      setShowDiff((prev) => !prev);
+      setShowDiff(prev => !prev);
+      return;
+    }
+
+    // Todos Panel Toggle (Ctrl+T)
+    if (key.ctrl && char === 't') {
+      setShowTodos(prev => !prev);
       return;
     }
 
@@ -96,7 +105,11 @@ export const App: React.FC<{
         return;
       }
       if (result.action === 'toggle_diff') {
-        setShowDiff((prev) => !prev);
+        setShowDiff(prev => !prev);
+        return;
+      }
+      if (result.action === 'toggle_todos') {
+        setShowTodos(prev => !prev);
         return;
       }
     }
@@ -104,10 +117,23 @@ export const App: React.FC<{
     if (state.mode === 'command') setMode('chat');
   };
 
+  const completedTodos = projection.todos?.filter(t => t.status === 'completed').length || 0;
+  const totalTodos = projection.todos?.length || 0;
+
   return (
     <Box flexDirection="column" width="100%" height={Math.max(1, height - 1)}>
+      {/* Top Status Bar */}
+      <StatusBar
+        sessionId={sessionId}
+        mode={state.mode}
+        modelId={projection.activeModelId}
+        mcpCount={projection.activeMcpCount}
+        todosCount={totalTodos > 0 ? { completed: completedTodos, total: totalTodos } : undefined}
+      />
+
+      {/* Main Viewport */}
       <Box flexDirection="row" flexGrow={1} overflow="hidden">
-        <Box flexDirection="column" width="80%" paddingRight={2} paddingBottom={1}>
+        <Box flexDirection="column" width="80%" paddingRight={2} paddingBottom={0}>
           <MainExecutionPanel 
             executionLog={projection.chatHistory} 
             streamingBuffer={projection.streamingBuffer} 
@@ -124,12 +150,21 @@ export const App: React.FC<{
         </Box>
       </Box>
 
+      {/* Optional Interactive Diff Panel */}
       {showDiff && (
         <Box width="100%">
           <DiffPanel diff={projection.narrativeSummary || ''} />
         </Box>
       )}
 
+      {/* Optional Session Tasks Panel */}
+      {totalTodos > 0 && (
+        <Box width="100%">
+          <TodoPanel todos={projection.todos} collapsed={!showTodos} />
+        </Box>
+      )}
+
+      {/* Input Bar */}
       <Box width="100%">
         <InputBar
           mode={state.mode}

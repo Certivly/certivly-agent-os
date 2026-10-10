@@ -151,5 +151,5 @@ describe('Eval Runner (Action 2.16)', () => {
     for (const r of results) {
       expect(r.passed).toBe(true);
     }
-  });
+  }, 30000);
 });

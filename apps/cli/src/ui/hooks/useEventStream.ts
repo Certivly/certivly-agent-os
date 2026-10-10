@@ -6,12 +6,30 @@ import { projectApprovalState, type ApprovalRequestData } from '../approval/Appr
 
 export type AgentState = 'idle' | 'thinking' | 'executing_tools' | 'streaming_response' | 'complete';
 
+export type ToolExecution = {
+  id?: string;
+  name: string;
+  args?: Record<string, unknown>;
+  result?: any;
+  status: 'running' | 'completed' | 'error';
+  durationMs?: number;
+};
+
+export type TodoItem = {
+  id: string;
+  title: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  priority?: 'low' | 'normal' | 'high';
+};
+
 export type ChatMessage = {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   streaming?: boolean;
-  toolExecutions?: { name: string; result?: any; status: 'running' | 'completed' }[];
+  toolExecutions?: ToolExecution[];
+  turn?: number;
+  antiLoopIntervention?: string;
 };
 
 export type TraceNode = {
@@ -35,6 +53,10 @@ export type UIProjection = {
   providerStatus: 'unknown' | 'ok' | 'error';
   providerError?: string;
   pendingApproval?: ApprovalRequestData | null;
+  todos: TodoItem[];
+  turnCount: number;
+  tokenStats?: { input: number; output: number; total: number };
+  activeModelId?: string;
 };
 
 
@@ -61,10 +83,11 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
       newState.agentState = 'thinking';
       normalizedEvent.type = 'ui.thinking';
       normalizedEvent.payload = { text: 'Agent is thinking...' };
-    } else if (event.type === 'tool.execution.started') {
+    } else if (event.type === 'tool.execution.started' || event.type === 'tool.call.started') {
       newState.agentState = 'executing_tools';
       normalizedEvent.type = 'ui.tool_run';
-      normalizedEvent.payload = { text: `Running tool: ${event.payload?.toolName || 'unknown'}` };
+      const toolName = event.payload?.toolName || 'unknown';
+      normalizedEvent.payload = { text: `Running tool: ${toolName}` };
       
       let targetMsgIdx = newState.chatHistory.findIndex(m => m.id === newState.activeStreamingMessageId);
       if (targetMsgIdx === -1) targetMsgIdx = newState.chatHistory.length - 1;
@@ -72,29 +95,46 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
       const lastMsg = newState.chatHistory[targetMsgIdx];
       if (lastMsg && lastMsg.role === 'assistant') {
         const newToolExecutions = lastMsg.toolExecutions ? [...lastMsg.toolExecutions] : [];
-        newToolExecutions.push({ name: event.payload?.toolName || 'unknown', status: 'running' });
+        newToolExecutions.push({
+          id: event.payload?.toolCallId || event.id,
+          name: toolName,
+          args: event.payload?.args,
+          status: 'running',
+        });
         newState.chatHistory[targetMsgIdx] = {
           ...lastMsg,
           toolExecutions: newToolExecutions
         };
       }
-    } else if (event.type === 'tool.execution.result.captured') {
+    } else if (event.type === 'tool.execution.result.captured' || event.type === 'tool.call.completed') {
       let targetMsgIdx = newState.chatHistory.findIndex(m => m.id === newState.activeStreamingMessageId);
       if (targetMsgIdx === -1) targetMsgIdx = newState.chatHistory.length - 1;
 
       const lastMsg = newState.chatHistory[targetMsgIdx];
       if (lastMsg && lastMsg.role === 'assistant' && lastMsg.toolExecutions) {
-        const newToolExecutions = lastMsg.toolExecutions.map(t => 
-          t.status === 'running' ? { ...t, status: 'completed' as const, result: event.payload } : t
-        );
+        const callId = event.payload?.toolCallId;
+        const toolName = event.payload?.toolName;
+        const newToolExecutions = lastMsg.toolExecutions.map(t => {
+          const isMatch = callId ? (t.id === callId || t.name === toolName) : (t.name === toolName && t.status === 'running');
+          if (isMatch && t.status === 'running') {
+            const isError = event.payload?.result?.isError || event.payload?.isError;
+            return {
+              ...t,
+              status: isError ? ('error' as const) : ('completed' as const),
+              result: event.payload?.result ?? event.payload
+            };
+          }
+          return t;
+        });
         newState.chatHistory[targetMsgIdx] = {
           ...lastMsg,
           toolExecutions: newToolExecutions
         };
       }
-    } else if (event.type === 'llm.token.stream') {
+    } else if (event.type === 'llm.token.stream' || event.type === 'message.delta') {
       newState.agentState = 'streaming_response';
-      newState.streamingBuffer += event.payload?.token || '';
+      const delta = event.payload?.delta || event.payload?.token || '';
+      newState.streamingBuffer += delta;
       
       let targetMsgIdx = newState.chatHistory.findIndex(m => m.id === newState.activeStreamingMessageId);
       if (targetMsgIdx === -1) targetMsgIdx = newState.chatHistory.length - 1;
@@ -107,6 +147,47 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
           streaming: true
         };
       }
+    } else if (event.type === 'todo.updated') {
+      if (Array.isArray(event.payload?.todos)) {
+        newState.todos = event.payload.todos;
+      }
+    } else if (event.type === 'agent.loop.turn.started') {
+      newState.turnCount = event.payload?.turn ?? (newState.turnCount + 1);
+    } else if (event.type === 'agent.loop.anti_loop_triggered') {
+      const intervention = event.payload?.intervention || 'Anti-loop intervention triggered';
+      let targetMsgIdx = newState.chatHistory.findIndex(m => m.id === newState.activeStreamingMessageId);
+      if (targetMsgIdx === -1) targetMsgIdx = newState.chatHistory.length - 1;
+      const lastMsg = newState.chatHistory[targetMsgIdx];
+      if (lastMsg) {
+        newState.chatHistory[targetMsgIdx] = {
+          ...lastMsg,
+          antiLoopIntervention: intervention,
+        };
+      }
+    } else if (event.type === 'agent.loop.completed') {
+      newState.agentState = 'idle';
+      const summary = event.payload?.summary;
+      if (summary) {
+        if (summary.approxInputTokens || summary.approxOutputTokens) {
+          newState.tokenStats = {
+            input: summary.approxInputTokens || 0,
+            output: summary.approxOutputTokens || 0,
+            total: (summary.approxInputTokens || 0) + (summary.approxOutputTokens || 0),
+          };
+        }
+      }
+      let targetMsgIdx = newState.chatHistory.findIndex(m => m.id === newState.activeStreamingMessageId);
+      if (targetMsgIdx === -1) targetMsgIdx = newState.chatHistory.length - 1;
+      const lastMsg = newState.chatHistory[targetMsgIdx];
+      if (lastMsg && lastMsg.role === 'assistant') {
+        newState.chatHistory[targetMsgIdx] = {
+          ...lastMsg,
+          content: lastMsg.content || summary?.finalText || '',
+          streaming: false,
+        };
+      }
+      newState.streamingBuffer = '';
+      newState.activeStreamingMessageId = null;
     } else if (event.type === 'provider.request.completed') {
       newState.agentState = 'complete';
       newState.streamingBuffer = ''; // reset buffer after completion
@@ -164,7 +245,7 @@ export const reduceBatch = (batch: UIEvent[], state: UIProjection): UIProjection
 
     
     // Developer mode filtered logs
-    if (event.type !== 'llm.token.stream') {
+    if (event.type !== 'llm.token.stream' && event.type !== 'message.delta') {
       newState.lastEvents.push(normalizedEvent);
     }
   } // END OF FOR LOOP
@@ -195,7 +276,9 @@ export const useEventStream = (source: EventBatcher | ReplayAdapter | null) => {
     activeStreamingMessageId: null,
     activeMcpCount: 0,
     agentState: 'idle',
-    providerStatus: 'unknown'
+    providerStatus: 'unknown',
+    todos: [],
+    turnCount: 0,
   });
 
   useEffect(() => {

@@ -52,19 +52,163 @@ bun install
 
 ## Usage
 
-### 1. Interactive Chat
+### 1. Interactive Chat & Direct Invocation
 
-Start the interactive developer chat:
+Start the interactive developer chat or submit a goal directly from your shell:
 
 ```bash
-# Start CLI session
-bun run start
+# Start interactive console
+agentos
 
-# Or directly
-bun run apps/cli/src/index.ts
+# Submit initial goal directly (launches interactive console with task queued)
+agentos "refactor auth middleware to use jwt verification"
+
+# Non-interactive / headless run (ideal for CI, scripts, and automation)
+agentos "run tests and fix failures" --non-interactive
+
+# Start with specific reasoning model
+agentos -m claude-3-5-sonnet
+
+# Start in Plan Mode (read-only architectural exploration)
+agentos --plan "audit database migration queries"
+
+# Continue from a previous session
+agentos --continue
+agentos --continue session_1728500000000
 ```
 
-### 2. Evaluation Harness
+In interactive chat, AgentOS supports rich slash commands:
+- `/help` — Display interactive help and available slash commands
+- `/plan` / `/build` — Hot-switch between Plan mode (read-only) and Build mode (mutations)
+- `/model <id>` — Hot-switch active reasoning model
+- `/undo` or `/revert [id]` — Surgically roll back file changes made during a run
+- `/snapshots` — Inspect historical shadow checkpoints and snapshot timestamps
+- `/diff` — Display pending unified diffs (or `Ctrl+D`)
+- `/todos` — Toggle interactive task checklist (or `Ctrl+T`)
+- `/research <query>` — Autonomous deep research with verified citations
+- `/bugfix [target]` — Run project verifier, isolate errors, and propose minimal repair
+- `/team <workflow> <goal>` — Dispatch multi-agent team (`deep-research`, `research-and-implement`, `investigate-and-fix`)
+- `/clear` — Clear current conversation context
+
+---
+
+### 2. Complete CLI Command Reference
+
+AgentOS implements the gold-standard CLI architectures from **Freebuff**, **OpenCode**, and **Qwen-Code**:
+
+#### Project Initialization (`agentos init`)
+Inspects the repository, detects ecosystem (`node`, `python`, `rust`, `go`), builds, tests, and scaffolds configuration:
+```bash
+agentos init
+# Scaffolds .agentos/config.json, .agents/rules, .agents/subagents, and AGENTS.md
+```
+
+#### Model & Provider Management (`agentos models`)
+Inspect, switch, and test reasoning models across Anthropic, OpenAI, DeepSeek, Google Gemini, Qwen/DashScope, Ollama, and LM Studio:
+```bash
+agentos models list                     # List all 24+ catalog models and active model
+agentos models list -p anthropic        # Filter models by provider
+agentos models set claude-3-5-sonnet    # Switch active reasoning model
+agentos models test deepseek-chat       # Test provider API connectivity
+agentos models providers                # Inspect supported providers and required env vars
+```
+
+#### Authentication & Credentials (`agentos auth` / `agentos login`)
+Safely configure, inspect, and remove provider API keys:
+```bash
+agentos auth status                     # Show configured keys (masked) and environment sources
+agentos auth set anthropic --key sk-*** # Save API key into ~/.agentos/config.json
+agentos auth logout openai              # Clear saved credentials
+```
+
+#### Sessions & Conversation History (`agentos sessions`)
+Inspect, resume, and export past conversational runs:
+```bash
+agentos sessions list                   # List past sessions, turns, and prompt snippets
+agentos sessions show <session-id>      # Inspect turn details, messages, and tool executions
+agentos sessions export <session-id>    # Export session transcript to Markdown or JSON
+agentos sessions resume <session-id>    # Continue conversation in interactive console
+```
+
+#### Background Service & Daemon (`agentos service`)
+Manage the background HTTP daemon:
+```bash
+agentos service status                  # Check if daemon is running on port 7070
+agentos service start --background      # Start daemon in background
+agentos service stop                    # Gracefully stop daemon
+agentos service restart                 # Restart running daemon
+```
+
+#### Transcript Export (`agentos export`)
+```bash
+agentos export <sessionId> -o report.md # Export complete conversation to Markdown file
+```
+
+### 2. Multi-Harness Instruction Auto-Discovery
+
+AgentOS seamlessly integrates with rules from other industry coding harnesses. On startup, it automatically discovers, parses, and incorporates project instructions from:
+- `AGENTS.md` or `.agentos/instructions.md` (AgentOS native standard)
+- `CLAUDE.md` (Claude Code instructions)
+- `.cursorrules` or `.cursor/rules/*.md` (Cursor rules)
+- `QWEN.md` or `.qwen/instructions.md` (Qwen Code rules)
+- `GEMINI.md` (Gemini CLI instructions)
+
+Instructions are parsed, attributed, and injected into the agent system context with clear origin markers.
+
+### 3. Checkpoints & Surgical Rollback
+
+AgentOS provides git-backed shadow snapshots and surgical change set backups:
+- **Shadow Snapshots**: A lightweight git shadow tree checkpoint is created on every run turn without modifying user branches or commit history.
+- **Surgical Rollback**: If you reject a change or run `/undo`, AgentOS prioritizes targeted change set backups (restoring only touched files) before falling back to shadow snapshot restoration. User uncommitted changes outside the agent's edits are never destroyed.
+
+CLI rollback commands:
+```bash
+# List available shadow checkpoints and run backups
+agentos snapshots
+
+# Revert working directory to a specific snapshot
+agentos revert <snapshot-id>
+```
+
+### 4. Interactive Terminal Multiplexer
+
+For background tasks, dev servers, interactive debuggers, or test runners, AgentOS provides the `terminal_interactive` tool backed by `TerminalSessionManager`:
+- `start`: Spawn a long-running process with persistent pseudo-terminal sessions
+- `send`: Send input or control keys (including `Ctrl+C`)
+- `capture`: Read buffered terminal output
+- `wait`: Poll for specific output patterns or process completion
+- `stop`: Gracefully terminate the process session
+
+### 5. Multi-Agent Specialist Delegation & Deep Research
+
+Complex tasks and external investigations are delegated to specialized subagents via `delegate_subagent`:
+- `researcher-web`: Deep web researcher executing multi-round search, SSRF-safe page inspection, and primary source verification with URL citations
+- `researcher-docs`: Specialized technical documentation researcher for major frameworks, libraries, runtimes, and APIs
+- `explore`: Read-only codebase explorer for fast symbol reconnaissance
+- `code-search`: Semantic and structural symbol search across files
+- `analyzer`: In-depth AST and dependency diagnostic engine
+- `test-runner`: Isolated test suite runner with failure attribution
+- `browser_verifier`: Headless browser verification via Chrome DevTools snapshots, DOM inspection, and console error monitoring
+
+### 6. Autonomous Deep Research
+
+AgentOS replicates the multi-round research protocol from Freebuff and Qwen-Agent:
+- **SSRF Protection**: `read_url` blocks loopback, private IPv4/IPv6, and cloud metadata endpoints (`169.254.169.254`, `metadata.google.internal`) across all redirect hops.
+- **Reader Extraction**: HTML parser strips advertising, tracking scripts, and stylesheets, extracting readable article/main prose with decoded entities.
+- **Primary Source Hard Rule**: The agent is forbidden from relying solely on search snippets. It must read authoritative source pages before synthesizing its final answer.
+- **Autonomous Dossiers**: Dispatches parallel web research, library documentation lookups, and codebase cross-checks, producing cited research dossiers.
+
+Run research directly:
+```bash
+# Via CLI command
+agentos research "Bun 1.1 cross-platform terminal shell"
+
+# Or in interactive chat
+/research Next.js 15 Server Actions best practices
+/team deep-research React 19 compiler migration
+```
+
+### 7. Evaluation Harness
 
 AgentOS features an evaluation harness capable of loading isolated benchmark tasks, executing agents in headless sandboxes, and verifying code patches truthfully.
 

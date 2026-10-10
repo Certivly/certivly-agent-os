@@ -76,19 +76,30 @@ export class EventStreamAdapter {
          const isCoreUiEvent = [
            'message.received',
            'message.responded',
+           'message.delta',
            'llm.token.stream',
            'provider.request.started',
            'provider.request.completed',
            'provider.health.ok',
            'provider.health.failed',
+           'tool.execution.started',
+           'tool.execution.result.captured',
+           'tool.call.started',
+           'tool.call.completed',
+           'agent.loop.turn.started',
+           'agent.loop.completed',
+           'agent.loop.anti_loop_triggered',
            'approval.requested',
-           'approval.decided'
-         ].includes(rawEvent.type);
-
+           'approval.requested.edit',
+           'approval.decided',
+           'todo.updated',
+         ].includes(rawEvent.type) ||
+         rawEvent.type.startsWith('approval.') ||
+         rawEvent.type.startsWith('tool.') ||
+         rawEvent.type.startsWith('agent.loop.') ||
+         rawEvent.type.startsWith('narrative.');
          
-         const isNarrativeEvent = rawEvent.type.startsWith('narrative.');
-         
-         if (!isCoreUiEvent && !isNarrativeEvent) {
+         if (!isCoreUiEvent) {
            return; // Drop internal event from UI stream in normal mode
          }
       }

@@ -3,6 +3,10 @@
     "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "@agent-os/*": ["packages/*/src", "packages/*"]
+    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

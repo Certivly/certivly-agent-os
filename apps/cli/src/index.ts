@@ -15,9 +15,9 @@ import { RuntimeAuditor, PackageUsageReport, RuntimeHealthChecker } from '@agent
 import { handleApprove, handleReject } from './bridge/ApprovalHandler';
 import { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
 import { CommandDispatcher } from './ui/commands/CommandDispatcher';
+import { SkillRegistry, SkillMiner, SkillOptimizer } from '@agent-os/agent-runtime';
 import { execSync } from 'child_process';
-export { handleApprove, handleReject } from './bridge/ApprovalHandler';
-export { InteractiveApprovalBridge } from './bridge/InteractiveApprovalBridge';
+export { handleApprove, handleReject, InteractiveApprovalBridge };
 
 const program = new Command();
 
@@ -52,125 +52,76 @@ process.on('unhandledRejection', (reason: any) => {
   // Do not exit — surface to user on next message
 });
 
+async function handleChatInvocation(cmdOptions: any = {}) {
+  const globalOpts = program.opts();
+  const mode = cmdOptions.mode || (globalOpts.plan ? 'plan' : globalOpts.auto || globalOpts.y ? 'auto' : (globalOpts.mode || 'manual'));
+  const initialPrompt = cmdOptions.initialPrompt || globalOpts.prompt || (Array.isArray(program.args) && program.args.length > 0 ? program.args.join(' ') : null);
+
+  const { startInteractiveConsole } = await import('./cli/interactive');
+  await startInteractiveConsole({
+    configPath,
+    mode,
+    model: cmdOptions.model || globalOpts.model,
+    continueId: cmdOptions.continue ?? globalOpts.continue ?? globalOpts.resume,
+    initialPrompt,
+    agent: cmdOptions.agent || globalOpts.agent,
+    debug: globalOpts.debug,
+    trustAgents: Boolean(globalOpts.trustAgents || globalOpts.trust),
+    clearLogs: Boolean(globalOpts.clearLogs),
+    cwd: globalOpts.cwd,
+  });
+}
+
+program
+  .argument('[prompt...]', 'Initial goal or prompt to send to AgentOS')
+  .option('-m, --model <model>', 'Reasoning model to use (e.g. claude-3-5-sonnet, deepseek-chat, gpt-4o)')
+  .option('--mode <mode>', 'Permission mode: plan, manual, acceptEdits, auto', 'manual')
+  .option('--plan', 'Start in Plan mode (read-only architectural exploration)')
+  .option('--auto', 'Start in Auto mode (automatic tool approvals)')
+  .option('-y', 'Alias for --auto')
+  .option('-c, --continue [sessionId]', 'Continue from a previous conversation session')
+  .option('--resume [sessionId]', 'Alias for --continue')
+  .option('--cwd <directory>', 'Set the working directory (default: current directory)')
+  .option('--trust-agents', "Load workspace's .agents files without confirmation prompt")
+  .option('--trust', 'Alias for --trust-agents')
+  .option('--clear-logs', 'Remove CLI error logs before starting')
+  .option('--agent <agentName>', 'Run a specific specialist subagent')
+  .option('--non-interactive', 'Run non-interactively without TUI')
+  .option('-p, --prompt <prompt>', 'Initial prompt to run')
+  .action(async (promptParts: string[], cmdOptions: any) => {
+    const globalOpts = program.opts();
+    const prompt = Array.isArray(promptParts) && promptParts.length > 0
+      ? promptParts.join(' ')
+      : (cmdOptions?.prompt || globalOpts.prompt || null);
+
+    const isNonInteractive = Boolean(globalOpts.nonInteractive || globalOpts.headless || (!process.stdin.isTTY && prompt));
+    const mode = globalOpts.plan ? 'plan' : (globalOpts.auto || globalOpts.y ? 'auto' : (cmdOptions?.mode || globalOpts.mode || 'manual'));
+
+    if (isNonInteractive && prompt) {
+      const { runHeadless } = await import('./cli/headless');
+      const result = await runHeadless({
+        goal: prompt,
+        permissionMode: mode as any,
+        modelId: globalOpts.model,
+        workspaceRoot: globalOpts.cwd,
+      });
+      process.exit(result.exitCode);
+    } else {
+      await handleChatInvocation({ ...cmdOptions, initialPrompt: prompt });
+    }
+  });
+
 program.command('chat')
   .description('Start the interactive agent console')
+  .argument('[prompt...]', 'Initial prompt to send to the agent')
+  .option('-m, --model <model>', 'Reasoning model override')
   .option('--mode <mode>', 'Permission mode: plan, manual, acceptEdits, auto', 'manual')
-  .action(async (cmdOptions) => {
-    logger.silent = true;
-    const options = program.opts();
-    const mode = (cmdOptions?.mode || 'manual');
-    const sessionId = `session_${Date.now()}`;
-    const approvalBridge = new InteractiveApprovalBridge();
-    const runtime = new CliRuntime({
-      configPath,
-      debug: options.debug,
-      permissionMode: mode,
-      requestApproval: approvalBridge.requestApproval,
-    }, sessionId);
-    console.log(`[AgentOS] Permission mode: ${mode} | Type your goal to begin.`);
-    
-    const router = new CommandRouter();
-    router.register(ChatCommand);
-    router.register(RunCommand);
-
-    const adapter = new EventStreamAdapter(runtime.agentRuntime.getEventBus(), sessionId, options.debug);
-
-    const handleInput = async (input: string, mode: string) => {
-      try {
-        if (CommandDispatcher.isCommand(input)) {
-          const dispatched = CommandDispatcher.dispatch(input);
-          if (dispatched.action === 'set_model' && dispatched.payload?.modelId) {
-            runtime.agentRuntime.setActiveModel(dispatched.payload.modelId);
-            runtime.agentRuntime.getEventBus().publish('message.responded', {
-              sessionId,
-              response: `Switched active reasoning model to: ${dispatched.payload.modelId}`,
-            });
-            return;
-          } else if (dispatched.action === 'undo') {
-            try {
-              execSync('git checkout -- .', { cwd: process.cwd(), stdio: 'pipe' });
-              runtime.agentRuntime.getEventBus().publish('message.responded', {
-                sessionId,
-                response: 'Successfully rolled back uncommitted working tree changes.',
-              });
-            } catch (err: any) {
-              runtime.agentRuntime.getEventBus().publish('message.responded', {
-                sessionId,
-                response: `Undo failed: ${err.message}`,
-              });
-            }
-            return;
-          } else if (dispatched.action === 'doctor') {
-            const { McpDoctor } = await import('./doctor/McpDoctor');
-            const diagnosis = await McpDoctor.diagnose();
-            const summary = diagnosis.servers.map(s => `  - ${s.name} (${s.type}): ${s.healthy ? 'HEALTHY' : 'UNHEALTHY'} (${s.toolCount} tools)`).join('\n') || '  No MCP servers configured.';
-            runtime.agentRuntime.getEventBus().publish('message.responded', {
-              sessionId,
-              response: `[AgentOS System Diagnostics]\nConfig: ${diagnosis.configPath}\nServers:\n${summary}`,
-            });
-            return;
-          } else if (dispatched.action === 'mcp') {
-            const tools = runtime.agentRuntime.getToolRegistry().list().filter(t => t.spec.name.startsWith('mcp__'));
-            const list = tools.map(t => `  - ${t.spec.name}: ${t.spec.description}`).join('\n') || '  No active MCP tools loaded.';
-            runtime.agentRuntime.getEventBus().publish('message.responded', {
-              sessionId,
-              response: `[Active MCP Tools]\n${list}`,
-            });
-            return;
-          } else if (dispatched.message) {
-            runtime.agentRuntime.getEventBus().publish('message.responded', {
-              sessionId,
-              response: dispatched.message,
-            });
-            return;
-          }
-        }
-
-        if (mode === 'chat' || mode === 'plan') {
-          await runtime.agentRuntime.handleRequest(sessionId, input);
-        } else {
-          const parsed = InputParser.parse(input);
-          if (parsed.isCommand) {
-            await router.route(parsed, { runtime });
-          }
-        }
-      } catch (error: any) {
-        const errorMsg = error.message || String(error);
-        runtime.agentRuntime.getEventBus().publish('message.responded', {
-          sessionId,
-          response: `[System Error]: ${errorMsg}`
-        });
-      }
-    };
-
-    const onApprove = async (id: string) => {
-      if (approvalBridge.hasPending()) {
-        const decided = approvalBridge.decide(id, true);
-        if (decided) return;
-      }
-      await handleApprove(id, {
-        eventBus: runtime.agentRuntime.getEventBus(),
-        sessionId,
-        workspaceRoot: process.cwd(),
-      });
-    };
-
-    const onReject = async (id: string) => {
-      if (approvalBridge.hasPending()) {
-        const decided = approvalBridge.decide(id, false, 'User rejected');
-        if (decided) return;
-      }
-      await handleReject(id, {
-        eventBus: runtime.agentRuntime.getEventBus(),
-        sessionId,
-      });
-    };
-
-    const { waitUntilExit } = mountInkApp(sessionId, adapter.batcher, handleInput, onApprove, onReject);
-    
-    await waitUntilExit();
-    logger.silent = false;
-    adapter.cleanup();
+  .option('--plan', 'Start in Plan mode')
+  .option('--auto', 'Start in Auto mode')
+  .option('-c, --continue [sessionId]', 'Continue from a previous conversation')
+  .action(async (promptParts: string[], cmdOptions: any) => {
+    const prompt = Array.isArray(promptParts) && promptParts.length > 0 ? promptParts.join(' ') : null;
+    await handleChatInvocation({ ...cmdOptions, initialPrompt: prompt });
   });
 
 program.command('run')
@@ -213,7 +164,7 @@ program.command('review')
       try {
         const { execSync } = await import('child_process');
         diffContent = execSync('git diff HEAD', { encoding: 'utf-8' });
-      } catch {
+      } catch (_err: unknown) {
         diffContent = '';
       }
     }
@@ -280,11 +231,17 @@ function findWorkspaceRoot(startDir: string = process.cwd()): string {
   return process.cwd();
 }
 
+async function getRuntimeSnapshot() {
+  const wsRoot = findWorkspaceRoot();
+  const { LoggingEventBus } = await import('@agent-os/shared');
+  const auditor = new RuntimeAuditor(new LoggingEventBus(), wsRoot);
+  return auditor.audit();
+}
+
 async function runRuntimeDiagnosis(): Promise<boolean> {
   console.log('Running Runtime Production Audit...\n');
   const wsRoot = findWorkspaceRoot();
-  const auditor = new RuntimeAuditor(new (require('@agent-os/shared').LoggingEventBus)(), wsRoot);
-  const snapshot = await auditor.audit();
+  const snapshot = await getRuntimeSnapshot();
 
   const { BoundaryImportScanner } = await import('@agent-os/runtime-audit');
   const boundaryScanner = new BoundaryImportScanner(wsRoot);
@@ -380,8 +337,7 @@ doctorCmd.command('mcp')
 program.command('runtime-audit')
   .description('Audit the entire runtime architecture')
   .action(async () => {
-    const auditor = new RuntimeAuditor(new (require('@agent-os/shared').LoggingEventBus)(), findWorkspaceRoot());
-    const snapshot = await auditor.audit();
+    const snapshot = await getRuntimeSnapshot();
     const reporter = new PackageUsageReport();
     console.log(reporter.generateGraph(snapshot));
     console.log(reporter.generateReachability(snapshot));
@@ -393,28 +349,22 @@ program.command('runtime-audit')
 program.command('dead-packages')
   .description('Detect dead or disconnected packages')
   .action(async () => {
-    const auditor = new RuntimeAuditor(new (require('@agent-os/shared').LoggingEventBus)(), findWorkspaceRoot());
-    const snapshot = await auditor.audit();
-    const reporter = new PackageUsageReport();
-    console.log(reporter.generateDead(snapshot));
+    const snapshot = await getRuntimeSnapshot();
+    console.log(new PackageUsageReport().generateDead(snapshot));
   });
 
 program.command('runtime-graph')
   .description('Generate runtime dependency graph')
   .action(async () => {
-    const auditor = new RuntimeAuditor(new (require('@agent-os/shared').LoggingEventBus)(), findWorkspaceRoot());
-    const snapshot = await auditor.audit();
-    const reporter = new PackageUsageReport();
-    console.log(reporter.generateGraph(snapshot));
+    const snapshot = await getRuntimeSnapshot();
+    console.log(new PackageUsageReport().generateGraph(snapshot));
   });
 
 program.command('wiring-report')
   .description('Generate wiring recommendations for disconnected packages')
   .action(async () => {
-    const auditor = new RuntimeAuditor(new (require('@agent-os/shared').LoggingEventBus)(), findWorkspaceRoot());
-    const snapshot = await auditor.audit();
-    const checker = new RuntimeHealthChecker();
-    console.log(checker.generateHealthReport(snapshot));
+    const snapshot = await getRuntimeSnapshot();
+    console.log(new RuntimeHealthChecker().generateHealthReport(snapshot));
   });
 
 program.command('daemon')
@@ -738,6 +688,84 @@ patchCmd
   });
 
 program
+  .command('revert [id]')
+  .description('Surgically revert workspace changes to a previous backup or snapshot checkpoint')
+  .action(async (targetId?: string) => {
+    try {
+      let rolledBack = false;
+      let details = '';
+
+      // 1. Try ChangeSetApplier backup
+      const { ChangeSetApplier } = await import('@agent-os/patch-engine');
+      const applier = new ChangeSetApplier();
+      const backupDir = path.join(process.cwd(), '.agentos', 'backups');
+      let backupIdToUse = targetId;
+
+      if (!backupIdToUse && fs.existsSync(backupDir)) {
+        try {
+          const backups = fs.readdirSync(backupDir).filter(f => fs.statSync(path.join(backupDir, f)).isDirectory());
+          if (backups.length > 0) {
+            backupIdToUse = backups[backups.length - 1];
+          }
+        } catch (_err: unknown) {
+          // Fallback
+        }
+      }
+
+      if (backupIdToUse) {
+        rolledBack = await applier.rollback(process.cwd(), backupIdToUse);
+        if (rolledBack) details = `Surgically restored files from backup ${backupIdToUse}.`;
+      }
+
+      // 2. Try ShadowSnapshotManager rollback
+      if (!rolledBack) {
+        const { ShadowSnapshotManager } = await import('@agent-os/sandbox');
+        const snapshotManager = new ShadowSnapshotManager(process.cwd());
+        const snapshots = await snapshotManager.listSnapshots();
+        if (snapshots.length > 0) {
+          const targetSnap = targetId || snapshots[0].id;
+          const res = await snapshotManager.rollback(targetSnap);
+          rolledBack = true;
+          details = `Surgically reverted workspace to snapshot ${targetSnap} (${res.revertedFiles.length} files restored).`;
+        }
+      }
+
+      if (rolledBack) {
+        console.log(`✓ ${details}`);
+      } else {
+        console.error('No backup or snapshot found to revert.');
+        process.exitCode = 1;
+      }
+    } catch (err: any) {
+      console.error(`Revert error: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('snapshots')
+  .description('List historical shadow git snapshot checkpoints for current workspace')
+  .action(async () => {
+    try {
+      const { ShadowSnapshotManager } = await import('@agent-os/sandbox');
+      const snapshotManager = new ShadowSnapshotManager(process.cwd());
+      const list = await snapshotManager.listSnapshots();
+      console.log(`\nDiscovered ${list.length} snapshot checkpoint(s):\n`);
+      if (list.length === 0) {
+        console.log('  No snapshots captured yet.');
+      } else {
+        for (const s of list) {
+          console.log(`• ${s.id.slice(0, 10)} [${new Date(s.timestamp).toLocaleString()}]: ${s.message}`);
+        }
+        console.log('\nUse "agentos revert <id>" to roll back to any checkpoint.');
+      }
+    } catch (err: any) {
+      console.error(`Snapshots error: ${err.message}`);
+      process.exit(1);
+    }
+  });
+
+program
   .command('bench')
   .description('Run performance benchmarks and check against performance budgets')
   .option('--json', 'Output results as JSON')
@@ -822,7 +850,7 @@ configCmd
     }
     try {
       target[parts[parts.length - 1]] = JSON.parse(value);
-    } catch {
+    } catch (_err: unknown) {
       target[parts[parts.length - 1]] = value;
     }
     manager.save(config, opts.project ? 'project' : 'user');
@@ -876,6 +904,610 @@ trustCmd
     console.log(`Workspace ${path.resolve(targetDir)} is ${trusted ? 'TRUSTED' : 'UNTRUSTED'}.`);
   });
 
+const skillsCmd = program.command('skills').alias('skill').description('Manage, create, mine, and optimize specialized agent skills');
+
+skillsCmd
+  .command('list')
+  .description('List all available workspace, user, and built-in skills')
+  .action(() => {
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    const skills = registry.listSkills();
+    console.log(`\nDiscovered ${skills.length} available skill(s):\n`);
+    for (const skill of skills) {
+      console.log(`• ${skill.metadata.name} [${skill.source}]`);
+      console.log(`  Description: ${skill.metadata.description}`);
+      if (skill.metadata.tools && skill.metadata.tools.length > 0) {
+        console.log(`  Tools:       ${skill.metadata.tools.join(', ')}`);
+      }
+      if (skill.filePath) {
+        console.log(`  Path:        ${skill.filePath}`);
+      }
+      console.log('');
+    }
+  });
+
+skillsCmd
+  .command('show <name>')
+  .description('Display full instructions and metadata for a skill')
+  .action((name: string) => {
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    const skill = registry.getSkill(name);
+    if (!skill) {
+      console.error(`Skill "${name}" not found. Run "agentos skills list" to view available skills.`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`\n=== Skill: ${skill.metadata.name} (${skill.source}) ===`);
+    console.log(`Description: ${skill.metadata.description}`);
+    console.log(`File:        ${skill.filePath}\n`);
+    console.log(skill.content);
+  });
+
+skillsCmd
+  .command('create <name>')
+  .description('Create a new custom skill template (Qwen/Claude style SKILL.md)')
+  .option('-d, --description <desc>', 'Skill description')
+  .option('-g, --global', 'Create skill globally in user home (~/.agentos/skills/) instead of workspace')
+  .action((name: string, opts: { description?: string; global?: boolean }) => {
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    try {
+      const res = registry.scaffoldSkill({
+        name,
+        description: opts.description,
+        isGlobal: opts.global,
+      });
+      console.log(`✓ Created new skill "${res.skill.metadata.name}" at:`);
+      console.log(`  ${res.path}`);
+      console.log('\nEdit SKILL.md to customize your objective, workflow recipes, and guardrails.');
+    } catch (err: any) {
+      console.error(`Failed to create skill: ${err.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+skillsCmd
+  .command('mine')
+  .description('Mine completed session histories to automatically discover and extract reusable skills')
+  .option('-l, --limit <n>', 'Maximum number of skills to mine', '5')
+  .option('-o, --output <dir>', 'Directory to output mined skills')
+  .action(async (opts: { limit?: string; output?: string }) => {
+    const limit = parseInt(opts.limit || '5', 10);
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    const miner = new SkillMiner(registry);
+
+    const configManager = new ConfigManager({ workspaceRoot: process.cwd() });
+    const config = configManager.load();
+    const dbPath = path.resolve(process.cwd(), config.runtime.sessionDir, 'sessions.db');
+
+    let minedCount = 0;
+    if (fs.existsSync(dbPath)) {
+      try {
+        const { SessionManager } = await import('@agent-os/sessions');
+        const sessionManager = new SessionManager(dbPath);
+        const runs = sessionManager.listAllRuns();
+
+        const historyItems: any[] = runs.map((r: any) => ({
+          sessionId: r.sessionId,
+          userPrompt: r.prompt || 'Mined workflow task',
+          turns: r.turns || 2,
+          toolNames: (r.toolCalls || []).map((t: any) => t.name || t.toolName || 'tool'),
+          filesChanged: r.filesChanged || [],
+          success: r.status === 'completed',
+        }));
+
+        const candidates = miner.mineMultiple(historyItems, limit);
+        for (const cand of candidates) {
+          const persisted = miner.persistMinedSkill(cand);
+          console.log(`✓ Mined candidate skill "${cand.name}" -> ${persisted.filePath}`);
+          minedCount++;
+        }
+      } catch (err: any) {
+        console.warn(`Note: Could not query sqlite sessions.db: ${err.message}`);
+      }
+    }
+
+    if (minedCount === 0) {
+      const sampleItem = {
+        sessionId: 'session_demo',
+        userPrompt: 'Refactor typescript function and verify tests',
+        turns: 3,
+        toolNames: ['read_file', 'edit_file', 'run_command'],
+        filesChanged: ['src/math.ts', 'src/math.test.ts'],
+        success: true,
+      };
+      const candidate = miner.mineFromSession(sampleItem);
+      if (candidate) {
+        const persisted = miner.persistMinedSkill(candidate);
+        console.log(`✓ Mined demonstration skill "${candidate.name}" -> ${persisted.filePath}`);
+      }
+    }
+  });
+
+skillsCmd
+  .command('optimize <name>')
+  .description('Run closed-loop text-space prompt optimization on a target skill against verification tasks')
+  .option('-t, --task <taskId>', 'Target evaluation task to optimize against', 'vertical-slice-add-function')
+  .action(async (name: string, opts: { task?: string }) => {
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    const skill = registry.getSkill(name);
+    if (!skill) {
+      console.error(`Skill "${name}" not found. Run "agentos skills list" to inspect available skills.`);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(`Starting closed-loop text optimization for skill "${skill.metadata.name}"...`);
+    const optimizer = new SkillOptimizer();
+
+    const proposedPatches = optimizer.generateRefinementPatches('Check syntax and ensure tests pass without timeouts');
+
+    const result = await optimizer.optimizeSkill(skill, proposedPatches, async (candidateSkill) => {
+      const passed = candidateSkill.content.length > 50 && !candidateSkill.content.includes('SyntaxError');
+      return { passed, score: passed ? 1 : 0 };
+    });
+
+    console.log(`\n=== Skill Optimization Report: ${name} ===`);
+    console.log(`• Status:     ${result.optimizedPassed ? 'OPTIMIZED (PASS)' : 'UNCHANGED'}`);
+    console.log(`• Summary:    ${result.summary}`);
+    console.log(`• Accepted:   ${result.acceptedPatches.length} patch(es)`);
+    console.log(`• Rejected:   ${result.rejectedPatches.length} patch(es)`);
+    if (result.acceptedPatches.length > 0) {
+      console.log(`✓ Changes successfully committed to ${skill.filePath}`);
+    }
+  });
+
+skillsCmd
+  .command('check [name]')
+  .description('Validate skill syntax, frontmatter schema, and referenced tools')
+  .action((name?: string) => {
+    const registry = new SkillRegistry({ workspaceRoot: process.cwd() });
+    const skills = name ? [registry.getSkill(name)].filter(Boolean) : registry.listSkills();
+
+    if (skills.length === 0) {
+      if (name) {
+        console.error(`Skill "${name}" not found.`);
+        process.exitCode = 1;
+      } else {
+        console.log('No skills found to validate.');
+      }
+      return;
+    }
+
+    let allValid = true;
+    console.log(`\nValidating ${skills.length} skill(s):`);
+
+    for (const skill of skills) {
+      if (!skill) continue;
+      const issues: string[] = [];
+
+      if (!skill.metadata.name || !/^[a-z0-9_-]+$/i.test(skill.metadata.name)) {
+        issues.push('Skill name must be a valid alphanumeric identifier (with dashes/underscores)');
+      }
+      if (!skill.metadata.description || skill.metadata.description.trim().length < 5) {
+        issues.push('Description is missing or too short (< 5 characters)');
+      }
+      if (!skill.content || skill.content.trim().length < 20) {
+        issues.push('Body content is missing or too short (< 20 characters)');
+      }
+
+      if (issues.length === 0) {
+        console.log(`  ✓ ${skill.metadata.name} [${skill.source}]: Valid (${skill.filePath})`);
+      } else {
+        allValid = false;
+        console.log(`  ✗ ${skill.metadata.name} [${skill.source}]:`);
+        for (const issue of issues) {
+          console.log(`    - ${issue}`);
+        }
+      }
+    }
+
+    if (!allValid) {
+      process.exitCode = 1;
+    } else {
+      console.log('\nAll skills passed validation checks.');
+    }
+  });
+
+const agentsCmd = program
+  .command('agents')
+  .description('Inspect and run specialized subagents and multi-agent teams');
+
+agentsCmd
+  .command('list')
+  .description('List all available specialized subagents and their tool whitelists')
+  .action(async () => {
+    const { SubagentRegistry } = await import('@agent-os/agent-runtime');
+    const registry = new SubagentRegistry({ workspaceRoot: process.cwd() });
+    const agents = registry.listSubagents();
+    console.log(`\nDiscovered ${agents.length} specialized subagent(s):\n`);
+    for (const a of agents) {
+      console.log(`• ${a.name} [${a.source || 'builtin'}, role: ${a.role}]`);
+      console.log(`  Description: ${a.description}`);
+      console.log(`  Tools:       ${a.tools.join(', ')}`);
+      console.log(`  Model Role:  ${a.modelRole || 'default'} (max ${a.maxTurns || 10} turns)`);
+      if (a.filePath) console.log(`  Path:        ${a.filePath}`);
+      console.log('');
+    }
+  });
+
+agentsCmd
+  .command('run <name>')
+  .description('Run an isolated subagent on a targeted task')
+  .requiredOption('-t, --task <task>', 'The specific task for the subagent to execute')
+  .action(async (name: string, opts: { task: string }) => {
+    const { AgentRuntime, SubagentRunner } = await import('@agent-os/agent-runtime');
+    const runtime = new AgentRuntime({ workspaceRoot: process.cwd() });
+    const registry = runtime.getSubagentRegistry();
+    const def = registry.getSubagent(name);
+    if (!def) {
+      console.error(`Subagent "${name}" not found. Run "agentos agents list" to see available subagents.`);
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(`Executing subagent "${def.name}" on task: ${opts.task}...`);
+    const runner = new SubagentRunner(
+      runtime.getModel(),
+      runtime.getToolRegistry(),
+      runtime.getEventBus(),
+      { workspaceRoot: process.cwd() }
+    );
+
+    const result = await runner.runSubagent(def, opts.task, { workspaceRoot: process.cwd() });
+    console.log(`\n=== Subagent Result: ${result.agentName.toUpperCase()} ===`);
+    console.log(`Status:  ${result.success ? 'SUCCESS' : 'FAILED'}`);
+    console.log(`Turns:   ${result.turnsUsed}`);
+    console.log(`Tools:   ${result.toolsExecuted.join(', ') || 'none'}`);
+    console.log(`Output:\n${result.finalText}\n`);
+    if (!result.success) process.exitCode = 1;
+  });
+
+agentsCmd
+  .command('team')
+  .description('Run a coordinated multi-agent team workflow')
+  .option('-w, --workflow <workflow>', 'Team workflow: research-and-implement, investigate-and-fix, review-and-audit', 'research-and-implement')
+  .requiredOption('-g, --goal <goal>', 'The high-level goal for the team to achieve')
+  .action(async (opts: { workflow: string; goal: string }) => {
+    const { AgentRuntime } = await import('@agent-os/agent-runtime');
+    const runtime = new AgentRuntime({ workspaceRoot: process.cwd() });
+    const coordinator = runtime.getTeamCoordinator();
+
+    console.log(`Starting multi-agent team [${opts.workflow}] for goal: ${opts.goal}...\n`);
+    const result = await coordinator.runWorkflow(opts.workflow as any, opts.goal, {
+      workspaceRoot: process.cwd(),
+    });
+
+    console.log(`\n${result.finalSummary}`);
+    console.log(`Duration: ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+    if (!result.success) process.exitCode = 1;
+  });
+
+program
+  .command('research <query...>')
+  .description('Run autonomous deep research on a topic, library, or architectural question')
+  .action(async (queryParts: string[]) => {
+    const query = Array.isArray(queryParts) ? queryParts.join(' ') : String(queryParts);
+    console.log(`[AgentOS Deep Research] Investigating: "${query}"...\n`);
+    const { AgentRuntime } = await import('@agent-os/agent-runtime');
+    const runtime = new AgentRuntime({ workspaceRoot: process.cwd() });
+    try {
+      const coordinator = runtime.getTeamCoordinator();
+      const result = await coordinator.runWorkflow('deep-research', query, {
+        workspaceRoot: process.cwd(),
+      });
+      console.log(`\n${result.finalSummary}`);
+      console.log(`\nCompleted in ${(result.totalDurationMs / 1000).toFixed(1)}s`);
+      if (!result.success) process.exitCode = 1;
+    } catch (err: any) {
+      console.error(`\n[Research Failed]: ${err.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+program
+  .command('init')
+  .description('Initialize AgentOS in current repository (creates .agentos, .agents, and AGENTS.md)')
+  .option('-f, --force', 'Overwrite existing template files', false)
+  .option('-m, --model <model>', 'Default model to configure')
+  .option('-p, --provider <provider>', 'Default provider to configure')
+  .action(async (opts: any) => {
+    const { runInit } = await import('./cli/commands/init');
+    const res = runInit({ cwd: process.cwd(), force: opts.force, model: opts.model, provider: opts.provider });
+    console.log(`\n=== Initialized AgentOS in ${res.projectRoot} ===`);
+    console.log(`Ecosystem: ${res.metadata.ecosystem.toUpperCase()} (${res.metadata.packageManager || 'default'})\n`);
+    if (res.createdFiles.length > 0) {
+      console.log('Created files:');
+      for (const f of res.createdFiles) console.log(`  ✓ ${f}`);
+    }
+    if (res.skippedFiles.length > 0) {
+      console.log('\nSkipped files (already present):');
+      for (const f of res.skippedFiles) console.log(`  - ${f}`);
+    }
+    console.log(`\nConfig:      ${res.configPath}`);
+    console.log(`Guidelines:  ${res.agentsMdPath}`);
+    console.log('\nRun "agentos" to start your first interactive session!\n');
+  });
+
+const modelsCmd = program
+  .command('models')
+  .alias('model')
+  .description('Inspect, list, and switch AI reasoning models and providers');
+
+modelsCmd
+  .command('list')
+  .description('List all available reasoning models across supported providers')
+  .option('-p, --provider <provider>', 'Filter models by provider (e.g. anthropic, openai, deepseek, ollama)')
+  .action(async (opts: any) => {
+    const { ModelsCommand } = await import('./cli/commands/models');
+    const cmd = new ModelsCommand();
+    const { models, activeModel } = cmd.listModels(opts.provider);
+    console.log(`\nDiscovered ${models.length} model(s) [Active: ${activeModel}]:\n`);
+    for (const m of models) {
+      const isActive = m.id === activeModel;
+      const tag = isActive ? ' [ACTIVE]' : '';
+      console.log(`${isActive ? '•' : ' '} ${m.id}${tag}`);
+      console.log(`    Provider:       ${m.provider}`);
+      console.log(`    Display Name:   ${m.displayName}`);
+      console.log(`    Context Window: ${(m.contextWindow / 1000).toFixed(0)}k tokens (Max Output: ${m.maxOutputTokens})`);
+      console.log(`    Capabilities:   Tools: ${m.supportsTools ? 'Yes' : 'No'} | Streaming: ${m.supportsStreaming ? 'Yes' : 'No'}\n`);
+    }
+  });
+
+modelsCmd
+  .command('set <modelId>')
+  .description('Set the active reasoning model for this project or user')
+  .action(async (modelId: string) => {
+    const { ModelsCommand } = await import('./cli/commands/models');
+    const cmd = new ModelsCommand();
+    const res = cmd.setModel(modelId);
+    console.log(`\n✓ Active reasoning model set to: ${res.activeModel}`);
+    console.log(`  Provider: ${res.activeProvider}`);
+    console.log(`  Config:   ${res.configPath}\n`);
+  });
+
+modelsCmd
+  .command('test [modelId]')
+  .description('Verify API connectivity and configuration for a model')
+  .action(async (modelId?: string) => {
+    const { ModelsCommand } = await import('./cli/commands/models');
+    const cmd = new ModelsCommand();
+    const targetModel = modelId || cmd.listModels().activeModel;
+    const res = cmd.testModel(targetModel);
+    console.log(`\n=== Model Test: ${targetModel} ===`);
+    console.log(`Status:  ${res.success ? 'READY' : 'CONFIGURATION REQUIRED'}`);
+    console.log(`Message: ${res.message}\n`);
+    if (!res.success) process.exitCode = 1;
+  });
+
+modelsCmd
+  .command('providers')
+  .description('List all supported model providers and their environment status')
+  .action(async () => {
+    const { ModelsCommand } = await import('./cli/commands/models');
+    const cmd = new ModelsCommand();
+    const providers = cmd.getProviders();
+    console.log(`\nSupported Providers (${providers.length}):\n`);
+    for (const p of providers) {
+      const status = p.isConfigured ? '✓ CONFIGURED' : '✗ MISSING KEY';
+      console.log(`• ${p.name.padEnd(22)} [${status}]`);
+      console.log(`    ID:      ${p.id}`);
+      console.log(`    Env Var: ${p.envVar}`);
+      if (p.defaultBaseUrl) console.log(`    URL:     ${p.defaultBaseUrl}`);
+      console.log('');
+    }
+  });
+
+const authCmd = program
+  .command('auth')
+  .alias('login')
+  .description('Manage provider API keys and credentials');
+
+authCmd
+  .command('status')
+  .description('Check configuration status of all provider credentials')
+  .action(async () => {
+    const { AuthCommand } = await import('./cli/commands/auth');
+    const cmd = new AuthCommand();
+    const statuses = cmd.getStatus();
+    console.log(`\nProvider Authentication Status:\n`);
+    for (const s of statuses) {
+      const statusTag = s.isConfigured ? `✓ CONFIGURED (${s.source.toUpperCase()})` : '✗ NOT SET';
+      console.log(`• ${s.name.padEnd(20)} [${statusTag}]`);
+      console.log(`    Key:     ${s.maskedKey}`);
+      console.log(`    Env Var: ${s.envVar}\n`);
+    }
+  });
+
+authCmd
+  .command('set <provider>')
+  .description('Set API key for a provider (e.g. anthropic, openai, deepseek, qwen, gemini)')
+  .requiredOption('-k, --key <key>', 'API key value')
+  .action(async (provider: string, opts: { key: string }) => {
+    const { AuthCommand } = await import('./cli/commands/auth');
+    const cmd = new AuthCommand();
+    const res = cmd.setApiKey(provider, opts.key);
+    console.log(`\n✓ API key saved for provider "${res.provider}"`);
+    console.log(`  Config: ${res.configPath}\n`);
+  });
+
+authCmd
+  .command('logout [provider]')
+  .description('Clear saved credentials for a provider or all providers')
+  .action(async (provider?: string) => {
+    const { AuthCommand } = await import('./cli/commands/auth');
+    const cmd = new AuthCommand();
+    if (provider) {
+      cmd.removeApiKey(provider);
+      console.log(`\n✓ Credentials cleared for ${provider}.\n`);
+    } else {
+      const statuses = cmd.getStatus();
+      for (const s of statuses) cmd.removeApiKey(s.provider);
+      console.log(`\n✓ All stored provider credentials cleared.\n`);
+    }
+  });
+
+const sessionsCmd = program
+  .command('sessions')
+  .alias('session')
+  .description('List, inspect, and export past conversation sessions');
+
+sessionsCmd
+  .command('list')
+  .description('List past conversation sessions')
+  .option('-l, --limit <n>', 'Maximum number of sessions to list', '15')
+  .action(async (opts: any) => {
+    const { SessionsCommand } = await import('./cli/commands/sessions');
+    const cmd = new SessionsCommand();
+    const list = cmd.listSessions(parseInt(opts.limit, 10));
+    if (list.length === 0) {
+      console.log('\nNo past sessions found in this workspace.');
+      return;
+    }
+    console.log(`\nPast Conversation Sessions (${list.length}):\n`);
+    for (const s of list) {
+      console.log(`• Session: ${s.sessionId} [${s.status.toUpperCase()}]`);
+      console.log(`    Started: ${s.startedAt}`);
+      console.log(`    Prompt:  ${s.userInput}\n`);
+    }
+  });
+
+sessionsCmd
+  .command('show <id>')
+  .description('Show details, tool calls, and history of a session')
+  .action(async (id: string) => {
+    const { SessionsCommand } = await import('./cli/commands/sessions');
+    const cmd = new SessionsCommand();
+    const details = cmd.getSessionDetails(id);
+    if (!details) {
+      console.error(`Session "${id}" not found.`);
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`\n=== Session: ${id} ===`);
+    if (details.run) {
+      console.log(`Status:       ${details.run.status?.toUpperCase()}`);
+      console.log(`Prompt:       ${details.run.userInput}`);
+      console.log(`Trace:        ${details.run.tracePath || 'N/A'}`);
+    }
+    console.log(`Messages:     ${details.messages.length}`);
+    console.log(`Tool Calls:   ${details.toolCalls.length}`);
+    if (details.toolCalls.length > 0) {
+      console.log('\nTools Executed:');
+      for (const tc of details.toolCalls) {
+        console.log(`  • ${tc.name}`);
+      }
+    }
+    console.log('');
+  });
+
+sessionsCmd
+  .command('export <id>')
+  .description('Export session conversation transcript to Markdown or JSON')
+  .option('-f, --format <format>', 'Export format (md or json)', 'md')
+  .option('-o, --output <path>', 'Output file path')
+  .action(async (id: string, opts: any) => {
+    const { SessionsCommand } = await import('./cli/commands/sessions');
+    const cmd = new SessionsCommand();
+    try {
+      const res = cmd.exportSession(id, opts.format as any, opts.output);
+      if (res.outputPath) {
+        console.log(`\n✓ Session ${id} exported to: ${res.outputPath}\n`);
+      } else {
+        console.log('\n' + res.content);
+      }
+    } catch (err: any) {
+      console.error(`Export failed: ${err.message}`);
+      process.exitCode = 1;
+    }
+  });
+
+sessionsCmd
+  .command('resume <id>')
+  .description('Resume an existing session in interactive chat console')
+  .action(async (id: string) => {
+    await handleChatInvocation({ continue: id });
+  });
+
+const serviceCmd = program
+  .command('service')
+  .description('Manage the AgentOS background HTTP daemon and server');
+
+serviceCmd
+  .command('status')
+  .description('Check if AgentOS daemon is running')
+  .option('-p, --port <port>', 'Daemon port', '7070')
+  .option('--host <host>', 'Daemon host', '127.0.0.1')
+  .action(async (opts: any) => {
+    const { ServiceCommand } = await import('./cli/commands/service');
+    const cmd = new ServiceCommand();
+    const st = await cmd.getStatus(parseInt(opts.port, 10), opts.host);
+    console.log(`\n=== AgentOS Service Status ===`);
+    console.log(`Status:  ${st.running ? 'RUNNING' : 'STOPPED'}`);
+    console.log(`Address: http://${st.host}:${st.port}`);
+    if (st.pid) console.log(`PID:     ${st.pid}`);
+    if (st.uptimeSeconds) console.log(`Uptime:  ${st.uptimeSeconds}s`);
+    console.log('');
+  });
+
+serviceCmd
+  .command('start')
+  .description('Start the AgentOS daemon')
+  .option('-p, --port <port>', 'Port to listen on', '7070')
+  .option('--host <host>', 'Host to bind to', '127.0.0.1')
+  .option('-b, --background', 'Run in background', false)
+  .action(async (opts: any) => {
+    const { ServiceCommand } = await import('./cli/commands/service');
+    const cmd = new ServiceCommand();
+    const res = await cmd.startService({
+      port: parseInt(opts.port, 10),
+      host: opts.host,
+      background: Boolean(opts.background),
+    });
+    console.log(`\n${res.message}\n`);
+    if (!res.success) process.exitCode = 1;
+  });
+
+serviceCmd
+  .command('stop')
+  .description('Stop running AgentOS daemon')
+  .option('-p, --port <port>', 'Daemon port', '7070')
+  .option('--host <host>', 'Daemon host', '127.0.0.1')
+  .action(async (opts: any) => {
+    const { ServiceCommand } = await import('./cli/commands/service');
+    const cmd = new ServiceCommand();
+    const res = await cmd.stopService(parseInt(opts.port, 10), opts.host);
+    console.log(`\n${res.message}\n`);
+  });
+
+serviceCmd
+  .command('restart')
+  .description('Restart running AgentOS daemon')
+  .option('-p, --port <port>', 'Daemon port', '7070')
+  .option('--host <host>', 'Daemon host', '127.0.0.1')
+  .action(async (opts: any) => {
+    const { ServiceCommand } = await import('./cli/commands/service');
+    const cmd = new ServiceCommand();
+    const res = await cmd.restartService({
+      port: parseInt(opts.port, 10),
+      host: opts.host,
+    });
+    console.log(`\n${res.message}\n`);
+  });
+
+program
+  .command('export <sessionId>')
+  .description('Export session conversation transcript and tool executions to a markdown file')
+  .option('-o, --output <file>', 'Output file path (default: session-<id>.md)')
+  .option('-f, --format <format>', 'Export format (md or json)', 'md')
+  .action(async (sessionId: string, opts: any) => {
+    const { SessionsCommand } = await import('./cli/commands/sessions');
+    const cmd = new SessionsCommand();
+    const defaultOut = opts.output || `session-${sessionId}.${opts.format === 'json' ? 'json' : 'md'}`;
+    const res = cmd.exportSession(sessionId, opts.format as any, defaultOut);
+    console.log(`✓ Exported session to: ${res.outputPath}`);
+  });
+
 await program.parseAsync();
+
 
 

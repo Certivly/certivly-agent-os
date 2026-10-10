@@ -1,7 +1,43 @@
 import React, { memo, useState, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
-import { ChatMessage, AgentState } from '../hooks/useEventStream';
+import { ChatMessage, AgentState, ToolExecution } from '../hooks/useEventStream';
 import { ApprovalView } from './ApprovalView';
+
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+export const useSpinner = (active: boolean) => {
+  const [frameIdx, setFrameIdx] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!active) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setFrameIdx(f => (f + 1) % SPINNER_FRAMES.length);
+    }, 80);
+    const elapsedTimer = setInterval(() => {
+      setElapsedSeconds(s => s + 1);
+    }, 1000);
+    return () => {
+      clearInterval(timer);
+      clearInterval(elapsedTimer);
+    };
+  }, [active]);
+
+  return { frame: SPINNER_FRAMES[frameIdx], elapsed: elapsedSeconds };
+};
+
+const formatToolArgs = (args?: Record<string, unknown>): string => {
+  if (!args || Object.keys(args).length === 0) return '';
+  const entries = Object.entries(args).slice(0, 2);
+  const parts = entries.map(([k, v]) => {
+    const valStr = typeof v === 'string' ? `"${v.length > 25 ? v.slice(0, 22) + '...' : v}"` : String(v);
+    return `${k}: ${valStr}`;
+  });
+  return parts.join(', ');
+};
 
 export const ChatRenderer = memo(({
   msg,
@@ -16,7 +52,7 @@ export const ChatRenderer = memo(({
     return (
       <Box marginY={1}>
         <Text color="cyan" bold>You  </Text>
-        <Text>{msg.content}</Text>
+        <Text color="white">{msg.content}</Text>
       </Box>
     );
   }
@@ -85,22 +121,52 @@ export const ChatRenderer = memo(({
   }
 
   // Empty placeholder while streaming hasn't started yet
-  if (!msg.content && msg.streaming === false) return null;
+  if (!msg.content && msg.streaming === false && (!msg.toolExecutions || msg.toolExecutions.length === 0)) return null;
 
   // Normal assistant text / streaming
   return (
     <Box flexDirection="column" marginY={1}>
+      {/* Tool executions list */}
       {msg.toolExecutions && msg.toolExecutions.length > 0 && (
         <Box flexDirection="column" marginBottom={1}>
-          {msg.toolExecutions.map((tool, i) => (
-            <Text key={i} color={tool.status === 'completed' ? 'green' : 'blue'} dimColor>
-              {tool.status === 'completed' ? '✓' : '●'} {tool.name}
-            </Text>
-          ))}
+          {msg.toolExecutions.map((tool: ToolExecution, i: number) => {
+            const argText = formatToolArgs(tool.args);
+            const argDisplay = argText ? ` (${argText})` : '';
+
+            if (tool.status === 'running') {
+              return (
+                <Text key={i} color="cyan">
+                  ● running {tool.name}{argDisplay}...
+                </Text>
+              );
+            }
+            if (tool.status === 'error') {
+              return (
+                <Text key={i} color="red">
+                  ✗ {tool.name}{argDisplay} (error)
+                </Text>
+              );
+            }
+            return (
+              <Text key={i} color="green" dimColor>
+                ✓ {tool.name}{argDisplay}
+              </Text>
+            );
+          })}
         </Box>
       )}
-      {msg.content && <Text>{msg.content}</Text>}
-      {msg.streaming && <Text color="yellow" dimColor>▌</Text>}
+
+      {/* Anti-loop intervention banner */}
+      {msg.antiLoopIntervention && (
+        <Box borderStyle="round" borderColor="yellow" paddingX={1} marginY={1}>
+          <Text color="yellow" bold>⚠️ [Anti-Loop Monitor] </Text>
+          <Text color="yellow">{msg.antiLoopIntervention}</Text>
+        </Box>
+      )}
+
+      {/* Assistant textual response */}
+      {msg.content && <Text color="white">{msg.content}</Text>}
+      {msg.streaming && <Text color="cyan" dimColor>▌</Text>}
     </Box>
   );
 });
@@ -115,6 +181,8 @@ export const MainExecutionPanel: React.FC<{
   onReject?: (msgId: string) => void
 }> = ({ executionLog, streamingBuffer, agentState, narrativeState, narrativeSummary, onApprove, onReject }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
+  const isBusy = agentState === 'thinking' || agentState === 'executing_tools';
+  const spinner = useSpinner(isBusy);
 
   useInput((char, key) => {
     if (key.pageUp) setScrollOffset(s => s + 5);
@@ -173,10 +241,14 @@ export const MainExecutionPanel: React.FC<{
           {renderNarrative()}
           {renderSummary()}
           {scrollOffset === 0 && agentState === 'thinking' && (
-            <Text color="yellow" dimColor>● thinking...</Text>
+            <Text color="yellow">
+              {spinner.frame} Thinking... ({spinner.elapsed}s)
+            </Text>
           )}
           {scrollOffset === 0 && agentState === 'executing_tools' && (
-            <Text color="blue" dimColor>● running tools...</Text>
+            <Text color="blue">
+              {spinner.frame} Running tools... ({spinner.elapsed}s)
+            </Text>
           )}
         </Box>
       </Box>

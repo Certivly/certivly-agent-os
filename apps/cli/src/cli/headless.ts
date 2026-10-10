@@ -71,7 +71,7 @@ export async function runHeadless(options: HeadlessOptions): Promise<HeadlessRes
 
     try {
       await runtime.handleRequest(sessionId, options.goal);
-    } catch {
+    } catch (_err: unknown) {
       // Loop failures are captured in lastRunSummary
     }
     const summary = runtime.getLastRunSummary();

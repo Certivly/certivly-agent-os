@@ -2,6 +2,8 @@
   "competitors": {
     "codex": "codex \"{prompt}\"",
     "claude": "claude -p \"{prompt}\"",
-    "aider": "aider --message \"{prompt}\""
+    "aider": "aider --message \"{prompt}\"",
+    "opencode": "opencode run \"{prompt}\"",
+    "codebuff": "codebuff --prompt \"{prompt}\""
   }
 }

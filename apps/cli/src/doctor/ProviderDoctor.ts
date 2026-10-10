@@ -290,6 +290,55 @@ export class ProviderDoctor {
       error: openrouterError,
     });
 
+    // 8. Custom configured providers
+    const standardProviders = new Set([
+      'openai', 'anthropic', 'lmstudio', 'ollama', 'gemini', 'deepseek', 'openrouter'
+    ]);
+    if (config.providers) {
+      for (const [name, pConfig] of Object.entries(config.providers)) {
+        if (!standardProviders.has(name) && pConfig) {
+          const type = (pConfig.type || '').toLowerCase();
+          const baseUrl = pConfig.baseUrl;
+          const apiKey = pConfig.apiKey;
+          const model = pConfig.model;
+          const configured = !!apiKey || !!baseUrl;
+
+          let customProbe: 'ok' | 'failed' | 'skipped' = 'skipped';
+          let customError: string | undefined;
+
+          if (probe && configured) {
+            try {
+              let p: any;
+              if (type === 'anthropic' || (!type && (baseUrl?.includes('anthropic') || model?.startsWith('claude')))) {
+                p = new AnthropicProvider(apiKey, baseUrl, pConfig.headers, name);
+              } else {
+                p = new OpenAIProvider(apiKey, baseUrl, pConfig.headers, name);
+              }
+              const health = await p.checkHealth();
+              if (health.ok) {
+                customProbe = 'ok';
+              } else {
+                customProbe = 'failed';
+                customError = health.error;
+              }
+            } catch (err: any) {
+              customProbe = 'failed';
+              customError = err.message;
+            }
+          }
+
+          results.push({
+            provider: name,
+            configured,
+            model,
+            baseUrl,
+            probeStatus: customProbe,
+            error: customError,
+          });
+        }
+      }
+    }
+
     return results;
   }
 

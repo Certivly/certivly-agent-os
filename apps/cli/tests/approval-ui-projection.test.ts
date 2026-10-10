@@ -20,6 +20,8 @@ describe('Approval UI Projection and Warnings', () => {
       activeMcpCount: 0,
       agentState: 'idle',
       providerStatus: 'ok',
+      todos: [],
+      turnCount: 0,
     };
 
     const approvalPayload = {

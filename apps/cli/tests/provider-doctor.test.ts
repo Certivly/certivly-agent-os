@@ -111,4 +111,51 @@ describe('Provider Doctor', () => {
       server.stop();
     }
   });
+
+  it('diagnoses and probes custom user-configured providers', async () => {
+    const server = Bun.serve({
+      port: 0,
+      async fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === '/v1/models') {
+          return Response.json({ data: [{ id: 'custom-model' }] });
+        }
+        return new Response('Not found', { status: 404 });
+      },
+    });
+
+    try {
+      const mockConfig: AgentConfig = {
+        activeProvider: 'my-custom-proxy',
+        activeModel: 'custom-model',
+        evalModels: [],
+        runtime: { logLevel: 'info', sessionDir: '.agentos/sessions' },
+        agent: { maxTurns: 40, maxWallTimeMs: 300_000, maxApproxTokens: 100_000, maxVerificationFixAttempts: 3, selfReview: false, parallelExploration: false, planningMode: 'auto' },
+        providers: {
+          'my-custom-proxy': {
+            type: 'openai',
+            baseUrl: `http://127.0.0.1:${server.port}/v1`,
+            apiKey: 'token-xyz',
+            model: 'custom-model',
+          },
+        },
+      };
+
+      const results = await ProviderDoctor.diagnose({
+        config: mockConfig,
+        probe: true,
+      });
+
+      const customProv = results.find((r) => r.provider === 'my-custom-proxy');
+      expect(customProv).toBeDefined();
+      expect(customProv?.configured).toBe(true);
+      expect(customProv?.probeStatus).toBe('ok');
+
+      const report = ProviderDoctor.formatReport(results, true);
+      expect(report).toContain('my-custom-proxy');
+      expect(report).toContain('probe: OK (reachable)');
+    } finally {
+      server.stop();
+    }
+  });
 });

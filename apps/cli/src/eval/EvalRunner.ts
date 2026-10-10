@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { SessionManager } from '@agent-os/sessions';
 import { LoggingEventBus } from '@agent-os/shared';
 import {
@@ -211,7 +211,8 @@ export class EvalRunner {
   public static async executeVerifier(
     verifierPath: string,
     cwd: string,
-    type: string
+    type: string,
+    timeoutMs: number = 60_000
   ): Promise<{ exitCode: number; output: string }> {
     let command: string;
     if (type === 'sh' || verifierPath.endsWith('.sh')) {
@@ -222,12 +223,49 @@ export class EvalRunner {
 
     return new Promise((resolve) => {
       let output = '';
+      let settled = false;
       const child = spawn(command, {
         shell: true,
         cwd,
         env: process.env,
         windowsHide: true,
       });
+
+      const killProc = () => {
+        if (!child || child.killed) return;
+        try {
+          if (process.platform === 'win32' && child.pid) {
+            spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { windowsHide: true });
+          } else if (child.pid) {
+            try {
+              process.kill(-child.pid, 'SIGKILL');
+            } catch (_e) {
+              child.kill('SIGKILL');
+            }
+          }
+        } catch (_treeErr) {
+          try {
+            child.kill('SIGKILL');
+          } catch (_killErr) {
+            // Process may have already terminated
+          }
+        }
+      };
+
+      const finish = (result: { exitCode: number; output: string }) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        resolve(result);
+      };
+
+      const timer = timeoutMs > 0 ? setTimeout(() => {
+        killProc();
+        finish({
+          exitCode: 124,
+          output: (output + `\n[Verifier timed out after ${timeoutMs}ms]`).trim(),
+        });
+      }, timeoutMs) : null;
 
       child.stdout?.on('data', (d) => {
         output += d.toString();
@@ -239,11 +277,11 @@ export class EvalRunner {
 
       child.on('error', (err) => {
         output += `\n${err.message}`;
-        resolve({ exitCode: 1, output: output.trim() });
+        finish({ exitCode: 1, output: output.trim() });
       });
 
       child.on('close', (code) => {
-        resolve({ exitCode: code ?? 1, output: output.trim() });
+        finish({ exitCode: code ?? 1, output: output.trim() });
       });
     });
   }
@@ -281,6 +319,30 @@ export class EvalRunner {
       const prov = new AnthropicProvider(process.env.ANTHROPIC_API_KEY || '');
       return prov.getModel(modelId || 'claude-3-5-sonnet-20241022');
     }
+    if (provider === 'openrouter') {
+      const { OpenRouterProvider } = require('@agent-os/providers');
+      const prov = new OpenRouterProvider(process.env.OPENROUTER_API_KEY || '');
+      return prov.getModel(modelId || 'anthropic/claude-3.5-sonnet');
+    }
+    if (provider === 'ollama') {
+      const { OllamaProvider } = require('@agent-os/providers');
+      const prov = new OllamaProvider(process.env.OLLAMA_API_KEY || '', process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434');
+      return prov.getModel(modelId || 'qwen2.5-coder:7b');
+    }
+    if (provider === 'lmstudio') {
+      const { LMStudioProvider } = require('@agent-os/providers');
+      const prov = new LMStudioProvider(process.env.LMSTUDIO_API_KEY || '', process.env.LMSTUDIO_BASE_URL || 'http://127.0.0.1:1234/v1');
+      return prov.getModel(modelId || 'qwen2.5-coder-7b');
+    }
+
+    if (modelName.startsWith('http://') || modelName.startsWith('https://')) {
+      const lastSlash = modelName.lastIndexOf('/');
+      const baseUrl = lastSlash > 8 ? modelName.substring(0, lastSlash) : modelName;
+      const id = lastSlash > 8 ? modelName.substring(lastSlash + 1) : 'default';
+      const { OpenAIProvider } = require('@agent-os/providers');
+      const prov = new OpenAIProvider(undefined, baseUrl, undefined, 'custom-url');
+      return prov.getModel(id);
+    }
 
     // Fallback to FakeScriptedModel for eval harness
     return new FakeScriptedModel({ taskId });
@@ -297,6 +359,7 @@ export class EvalRunner {
       deepseek: 'DEEPSEEK_API_KEY',
       openai: 'OPENAI_API_KEY',
       anthropic: 'ANTHROPIC_API_KEY',
+      openrouter: 'OPENROUTER_API_KEY',
     };
     const requiredKey = envKeyMap[provider];
     if (requiredKey && !process.env[requiredKey]) {

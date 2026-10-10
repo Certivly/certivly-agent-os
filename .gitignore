@@ -137,6 +137,10 @@ dist
 agentos.config.json
 .agentos/
 .freebuff/
+.opencode/
+.harnesses/
+.skillopt/
+.skill-optimizer/
 *.db
 test.db
 sessions.db

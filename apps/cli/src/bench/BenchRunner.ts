@@ -198,7 +198,7 @@ export class BenchRunner {
         warmRepoIndexMs: injected?.warmRepoIndexMs ?? warmRepoIndexMs,
         oneFileIndexUpdateMs: injected?.oneFileIndexUpdateMs ?? oneFileIndexUpdateMs,
       };
-    } catch {
+    } catch (_err: unknown) {
       return {
         warmRepoIndexMs: injected?.warmRepoIndexMs ?? 25,
         oneFileIndexUpdateMs: injected?.oneFileIndexUpdateMs ?? 20,
@@ -284,7 +284,7 @@ export class BenchRunner {
 
       sessionManager.close();
       return Math.max(0.5, durationMs);
-    } catch {
+    } catch (_err: unknown) {
       return 15;
     } finally {
       try {

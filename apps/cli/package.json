@@ -20,7 +20,8 @@
     "react": "^19.2.7"
   },
   "bin": {
-    "agent": "./dist/index.js"
+    "agent": "./dist/index.js",
+    "agentos": "./dist/index.js"
   },
   "scripts": {
     "start": "bun run src/index.ts",

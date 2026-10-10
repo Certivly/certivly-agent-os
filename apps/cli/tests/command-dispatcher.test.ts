@@ -48,6 +48,40 @@ describe('CommandDispatcher (Phase 3)', () => {
     expect(res.payload?.modelId).toBe('claude-3-5-sonnet');
   });
 
+  it('dispatches /todos to toggle_todos action', () => {
+    const res = CommandDispatcher.dispatch('/todos');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('todos');
+    expect(res.action).toBe('toggle_todos');
+  });
+
+  it('dispatches /librarian with repoUrl to librarian action', () => {
+    const res = CommandDispatcher.dispatch('/librarian https://github.com/owner/repo inspect auth');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('librarian');
+    expect(res.action).toBe('librarian');
+    expect(res.payload?.repoUrl).toBe('https://github.com/owner/repo');
+    expect(res.payload?.question).toBe('inspect auth');
+  });
+
+  it('dispatches /clear to clear action', () => {
+    const res = CommandDispatcher.dispatch('/clear');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('clear');
+    expect(res.action).toBe('clear');
+  });
+
+  it('searches and filters slash commands dynamically', () => {
+    const all = CommandDispatcher.getAvailableCommands();
+    expect(all.length).toBeGreaterThanOrEqual(10);
+
+    const planMatches = CommandDispatcher.searchCommands('plan');
+    expect(planMatches.some(c => c.name === 'plan')).toBe(true);
+
+    const mcpMatches = CommandDispatcher.searchCommands('/mcp');
+    expect(mcpMatches.some(c => c.name === 'mcp')).toBe(true);
+  });
+
   it('handles /help and returns command list', () => {
     const res = CommandDispatcher.dispatch('/help');
     expect(res.isCommand).toBe(true);
@@ -55,5 +89,53 @@ describe('CommandDispatcher (Phase 3)', () => {
     expect(res.message).toContain('/plan');
     expect(res.message).toContain('/build');
     expect(res.message).toContain('/diff');
+    expect(res.message).toContain('/todos');
+    expect(res.message).toContain('/bugfix');
+  });
+
+  it('dispatches /bugfix with target to bugfix action', () => {
+    const res = CommandDispatcher.dispatch('/bugfix tests/math.test.ts');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('bugfix');
+    expect(res.action).toBe('bugfix');
+    expect(res.payload?.target).toBe('tests/math.test.ts');
+  });
+
+  it('dispatches /undo and /revert to undo action', () => {
+    const resUndo = CommandDispatcher.dispatch('/undo');
+    expect(resUndo.isCommand).toBe(true);
+    expect(resUndo.command).toBe('undo');
+    expect(resUndo.action).toBe('undo');
+
+    const resRevert = CommandDispatcher.dispatch('/revert snap_123');
+    expect(resRevert.isCommand).toBe(true);
+    expect(resRevert.command).toBe('revert');
+    expect(resRevert.action).toBe('undo');
+    expect(resRevert.payload?.targetId).toBe('snap_123');
+  });
+
+  it('dispatches /snapshots to snapshots action', () => {
+    const res = CommandDispatcher.dispatch('/snapshots');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('snapshots');
+    expect(res.action).toBe('snapshots');
+  });
+
+  it('dispatches /research with query to research action', () => {
+    const res = CommandDispatcher.dispatch('/research Bun 1.1 terminal shell capabilities');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('research');
+    expect(res.action).toBe('research');
+    expect(res.payload?.query).toBe('Bun 1.1 terminal shell capabilities');
+    expect(res.message).toContain('Deep Research');
+  });
+
+  it('dispatches /team deep-research to team action', () => {
+    const res = CommandDispatcher.dispatch('/team deep-research React 19 compiler changes');
+    expect(res.isCommand).toBe(true);
+    expect(res.command).toBe('team');
+    expect(res.action).toBe('team');
+    expect(res.payload?.workflow).toBe('deep-research');
+    expect(res.payload?.goal).toBe('React 19 compiler changes');
   });
 });
