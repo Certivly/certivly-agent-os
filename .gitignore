@@ -36,6 +36,7 @@ apps/desktop/dist/
 apps/desktop/out/
 apps/desktop/release/
 dist-electron/
+dist-installer/
 *.exe
 *.dmg
 *.AppImage
