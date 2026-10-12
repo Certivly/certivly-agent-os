@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { SessionManager } from '../src';
 
 describe('Sessions Package Complete Suite', () => {
@@ -8,7 +9,7 @@ describe('Sessions Package Complete Suite', () => {
   let manager: SessionManager;
 
   beforeEach(() => {
-    dbPath = path.join(process.cwd(), `temp-test-sessions-${crypto.randomUUID()}.db`);
+    dbPath = path.join(os.tmpdir(), `temp-test-sessions-${crypto.randomUUID()}.db`);
     manager = new SessionManager(dbPath);
   });
 

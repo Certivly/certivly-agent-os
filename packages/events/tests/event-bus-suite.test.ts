@@ -9,6 +9,7 @@ import {
 } from '../src';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 describe('Events Package Complete Suite', () => {
   describe('EventMatcher', () => {
@@ -215,16 +216,24 @@ describe('Events Package Complete Suite', () => {
   });
 
   describe('PersistentEventBus', () => {
-    const testDbPath = path.join(process.cwd(), 'temp-test-events.db');
+    let testDbPath: string;
+    let store: EventStore;
+
+    beforeEach(() => {
+      testDbPath = path.join(os.tmpdir(), `temp-test-events-${crypto.randomUUID()}.db`);
+      store = new EventStore(testDbPath);
+    });
 
     afterEach(() => {
+      try {
+        store.close();
+      } catch {}
       if (fs.existsSync(testDbPath)) {
         try { fs.unlinkSync(testDbPath); } catch {}
       }
     });
 
     it('persists emitted events and replays them accurately', () => {
-      const store = new EventStore(testDbPath);
       const persistentBus = new PersistentEventBus({ store });
 
       const inMemorySeen: string[] = [];
