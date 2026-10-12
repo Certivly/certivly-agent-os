@@ -1,118 +1,173 @@
 # Provider Setup Guide
 
-AgentOS supports both cloud-hosted AI providers and local, privacy-first open models.
+AgentOS supports both industry-leading cloud AI providers and local, privacy-first open models.
 
 ---
 
 ## 1. Cloud Providers
 
-### OpenAI
-
-Set your API key via environment variable:
-
-```bash
-export OPENAI_API_KEY="sk-..."
-```
-
-Supported models:
-- `gpt-4o` (recommended for production coding)
-- `gpt-4o-mini` (fast & cost-effective)
-- `o1`, `o3-mini` (high-reasoning tasks)
-
-Run a task with OpenAI:
-
-```bash
-agent run "Fix bug in src/auth.ts" --model gpt-4o
-```
-
----
-
 ### Anthropic
 
-Set your Anthropic API key:
+Set your API key via environment variable or the CLI credential manager:
 
 ```bash
+# Using CLI auth manager (recommended)
+agentos auth set anthropic --key sk-ant-...
+
+# Or via shell environment variable
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 Supported models:
-- `claude-3-5-sonnet-20241022` (state-of-the-art coding)
-- `claude-3-5-haiku-20241022` (speed & lightweight edits)
+- `claude-3-5-sonnet-20241022` (Recommended default for production coding)
+- `claude-3-5-haiku-20241022` (High-speed, lightweight edits)
+- `claude-3-opus-20240229` (Complex architectural synthesis)
 
-Run with Anthropic:
+Run a task with Anthropic:
 
 ```bash
-agent run "Add unit tests for payment webhook" --model claude-3-5-sonnet
+agentos "add unit tests for payment webhook" --model claude-3-5-sonnet
 ```
 
 ---
 
-## 2. Local Models
+### OpenAI
+
+Set your OpenAI API key:
+
+```bash
+# Using CLI auth manager
+agentos auth set openai --key sk-...
+
+# Or via shell environment variable
+export OPENAI_API_KEY="sk-..."
+```
+
+Supported models:
+- `gpt-4o` (Versatile flagship reasoning)
+- `gpt-4o-mini` (Fast & cost-effective)
+- `o1`, `o3-mini` (Deep reasoning & mathematical analysis)
+
+Run a task with OpenAI:
+
+```bash
+agentos "fix race condition in queue processor" --model gpt-4o
+```
+
+---
+
+### Google Gemini
+
+Set your Google Gemini API key:
+
+```bash
+# Using CLI auth manager
+agentos auth set gemini --key AIza...
+
+# Or via shell environment variable
+export GEMINI_API_KEY="AIza..."
+```
+
+Supported models:
+- `gemini-2.0-flash` (Ultra-low latency with strong code generation)
+- `gemini-1.5-pro` (Extended context window reasoning)
+
+Run with Gemini:
+
+```bash
+agentos "refactor api client to use native fetch" --model gemini-2.0-flash
+```
+
+---
+
+### DeepSeek
+
+Set your DeepSeek API key:
+
+```bash
+# Using CLI auth manager
+agentos auth set deepseek --key sk-...
+
+# Or via shell environment variable
+export DEEPSEEK_API_KEY="sk-..."
+```
+
+Supported models:
+- `deepseek-chat` (DeepSeek-V3 general reasoning)
+- `deepseek-reasoner` (DeepSeek-R1 chain-of-thought model)
+
+Run with DeepSeek:
+
+```bash
+agentos "optimize SQL query joins in analytics service" --model deepseek-chat
+```
+
+---
+
+## 2. Local Privacy-First Models
 
 AgentOS includes first-class support for local inference servers with zero telemetry.
 
-### LM Studio
+### Ollama
 
-1. Download and start [LM Studio](https://lmstudio.ai/).
-2. Load a model with tool-calling capabilities (e.g., `Qwen2.5-Coder-7B-Instruct` or `Llama-3.1-8B-Instruct`).
-3. Start the local server (default endpoint: `http://localhost:1234/v1`).
-4. Validate connectivity with the diagnostic probe:
+1. Install [Ollama](https://ollama.com) and pull a coding model:
+   ```bash
+   ollama run qwen2.5-coder:7b
+   ```
 
-```bash
-agent doctor providers
-```
+2. By default, Ollama listens at `http://localhost:11434`.
 
-5. Run AgentOS pointing to LM Studio:
+3. Verify connection:
+   ```bash
+   agentos doctor providers
+   ```
 
-```bash
-agent run "Refactor helper functions" --model lmstudio:qwen2.5-coder-7b
-```
+4. Execute via Ollama:
+   ```bash
+   agentos "fix null pointer exception" --model ollama:qwen2.5-coder:7b
+   ```
 
 ---
 
-### Ollama
+### LM Studio
 
-1. Install [Ollama](https://ollama.com/) and pull a coding model:
-
-```bash
-ollama run qwen2.5-coder:7b
-```
-
-2. By default, Ollama listens at `http://localhost:11434`.
-3. Verify connection:
-
-```bash
-agent doctor providers
-```
-
-4. Execute via Ollama:
-
-```bash
-agent run "Fix null pointer exception" --model ollama:qwen2.5-coder:7b
-```
+1. Download and launch [LM Studio](https://lmstudio.ai).
+2. Load a tool-compatible model (e.g., `Qwen2.5-Coder-7B-Instruct` or `Llama-3.1-8B-Instruct`).
+3. Start the local server (default endpoint: `http://localhost:1234/v1`).
+4. Validate connectivity with the diagnostic probe:
+   ```bash
+   agentos doctor providers --probe
+   ```
+5. Run AgentOS pointing to LM Studio:
+   ```bash
+   agentos "refactor helper functions" --model lmstudio:local-model
+   ```
 
 ---
 
 ## 3. Diagnostic Commands
 
-Use `agent doctor` to check provider connectivity and runtime configuration:
+Use `agentos doctor` and `agentos models` to verify connectivity and runtime readiness:
 
 ```bash
-# Check all configured providers
-agent doctor providers
+# List all catalog models and see active selection
+agentos models list
 
-# Check system runtime environment
-agent doctor runtime
+# Test provider API connectivity
+agentos models test deepseek-chat
+
+# Probe all configured providers for live response
+agentos doctor providers --probe
 ```
 
 ---
 
-## 4. Common Errors & Solutions
+## 4. Common Errors & Resolutions
 
 | Error | Root Cause | Solution |
 | :--- | :--- | :--- |
-| `Missing API Key` | Environment variable not exported in current shell | Run `export OPENAI_API_KEY="..."` or set in `.env`. |
-| `Connection refused: localhost:1234` | LM Studio local server is not active | Open LM Studio -> Local Server tab -> Click "Start Server". |
-| `Connection refused: localhost:11434` | Ollama daemon is stopped | Run `ollama serve` or launch Ollama desktop app. |
-| `Model does not support tools` | Local model weights do not implement tool calling tokens | Use tool-compatible models such as `qwen2.5-coder` or `mistral-nemo`. |
-| `Rate limit exceeded (429)` | Cloud provider quota reached | Switch to another provider or use local model fallback. |
+| `Missing API Key` | Key not configured in environment or config | Run `agentos auth set <provider> --key sk-...` or export environment variable. |
+| `Connection refused: localhost:1234` | LM Studio local server not running | Open LM Studio -> Local Server tab -> Click "Start Server". |
+| `Connection refused: localhost:11434` | Ollama daemon is stopped | Run `ollama serve` or launch the Ollama desktop app. |
+| `Model does not support tools` | Local model weights lack tool calling tokens | Use tool-compatible weights such as `qwen2.5-coder` or `llama-3.1`. |
+| `Rate limit exceeded (429)` | Cloud provider quota reached | Switch to another provider with `agentos models set <model>` or fall back to local models. |

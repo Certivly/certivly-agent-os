@@ -1,6 +1,6 @@
 # Evaluation Harness & Benchmarks
 
-AgentOS contains an automated evaluation harness in `packages/evals` and task fixtures in `evals/tasks/` to rigorously benchmark coding agents against real bugs and test suites.
+AgentOS contains an automated evaluation harness in `evals/` and task fixtures in `evals/tasks/` to benchmark coding agents against real bugs and test suites.
 
 ---
 
@@ -52,7 +52,26 @@ The eval runner executes the following lifecycle for each task:
 
 ---
 
-## 3. Adding a New Evaluation Task
+## 3. Running Evaluations
+
+```bash
+# Run all benchmark evaluation tasks with the scripted solver
+bun run eval --task all --model fake:scripted
+
+# Run smoke test tasks
+bun run eval --task smoke --model fake:scripted
+
+# Benchmark an LLM provider on a specific task
+bun run eval --task ts-off-by-one --model anthropic:claude-3-5-sonnet
+
+# Save and compare evaluation runs
+bun run eval --task all --output results-v1.jsonl
+bun run eval --task all --compare results-v1.jsonl
+```
+
+---
+
+## 4. Adding a New Evaluation Task
 
 To add a new task:
 
@@ -62,16 +81,16 @@ To add a new task:
 4. Add `workspace/` containing a minimal, reproducible code tree where tests initially fail.
 5. Verify your task with the scripted runner:
    ```bash
-   agent eval --task <your-task-id> --model fake:scripted
+   bun run eval --task <your-task-id> --model fake:scripted
    ```
 
 ---
 
-## 4. Regression Policy & Gates
+## 5. Regression Policy & Gates
 
 - **Zero Regression Rule**: No code change may reduce pass rates on existing evaluation tasks.
 - **Smoke Gate**: `bun run gate:smoke` runs the smoke test suite and must pass 100% on every release or pull request.
-- **Compare Mode**: Use `agent eval compare` to measure candidate models against established baselines:
+- **Compare Mode**: Use `agentos eval compare` to measure candidate models against established baselines:
    ```bash
-   agent eval compare --baseline evals/results/baseline.jsonl --candidate evals/results/candidate.jsonl
+   bun run eval --compare baseline.jsonl
    ```

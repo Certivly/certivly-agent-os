@@ -13,7 +13,7 @@ We have an authentication utility in `src/auth/jwt.ts` that validates tokens, bu
 ## 1. Run the Agent
 
 ```bash
-agent run "Add comprehensive unit tests for expired tokens and malformed signatures in tests/auth/jwt.test.ts"
+agentos "Add comprehensive unit tests for expired tokens and malformed signatures in tests/auth/jwt.test.ts"
 ```
 
 ---
@@ -36,7 +36,7 @@ agent run "Add comprehensive unit tests for expired tokens and malformed signatu
 ## 3. Review Changes
 
 ```bash
-agent patch show
+agentos patch show
 ```
 
 The patch is confirmed safe and can be applied or saved to a git branch.

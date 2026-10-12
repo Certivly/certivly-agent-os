@@ -9,15 +9,15 @@ This document outlines the strategic evolution, experimentation protocol, proven
 AgentOS operates on a single-agent, layered truthful execution path:
 
 ```text
-CLI (apps/cli)
+CLI & Desktop (apps/cli, apps/desktop)
  └──> AgentRuntime (packages/agent-runtime)
        └──> AgentLoop
-             ├──> Providers (packages/providers: OpenAI, Anthropic, Ollama, LM Studio)
-             ├──> Tools (packages/tools: workspace sandboxed operations, command policy)
-             ├──> Sandbox (packages/sandbox: isolated git worktrees, process isolation)
-             ├──> Verification (packages/agent-runtime: automated feedback & repair)
+             ├──> Providers (packages/providers: Anthropic, OpenAI, Gemini, DeepSeek, Ollama, LM Studio)
+             ├──> Tools (packages/tools: workspace sandboxed operations, command policy, web research)
+             ├──> Sandbox (packages/sandbox: isolated git worktrees, process isolation, shadow snapshots)
+             ├──> Verification (packages/agent-runtime: automated test discovery, feedback & repair)
              ├──> Planning (packages/agent-runtime: lightweight, reactive step tracker)
-             └──> Patch Engine (packages/patch-engine: unified diffs, SHA-256 pre-images)
+             └──> Patch Engine (packages/patch-engine: unified diffs, SHA-256 pre-images, rollback)
 ```
 
 The production loop prioritizes **truthful verification over blind generation**, isolating all filesystem modifications within temporary worktrees until human approval or verification sign-off.
@@ -45,7 +45,7 @@ Any architectural change, provider adapter, or prompt enhancement must follow ou
    bun run eval --task all --model fake:scripted
    ```
 3. **Zero Regression Gate**: A candidate is rejected immediately if it regresses pass rate on established benchmark tasks.
-4. **Efficiency Budget Check**: Latency or token increases must be accompanied by proportional pass-rate gains. Run `agent bench --check` to ensure budgets are preserved.
+4. **Efficiency Budget Check**: Latency or token increases must be accompanied by proportional pass-rate gains.
 5. **Clean Rollback**: If an experiment fails to prove value, the flag and associated code branches must be cleanable within one commit.
 
 ---
@@ -54,12 +54,14 @@ Any architectural change, provider adapter, or prompt enhancement must follow ou
 
 The following capabilities have been validated through benchmarks and are enabled in the live path:
 
-- **Truthful Test Verification**: Discovering and running `bun test`, `npm test`, `pytest`, `tsc` inside the sandbox with automated error recovery.
-- **Streaming Tool Call Parity**: Unified incremental streaming across OpenAI, Anthropic, Ollama, and LM Studio.
+- **Truthful Test Verification**: Discovering and running `bun test`, `npm test`, `pytest`, `cargo test`, `tsc` inside the sandbox with automated error recovery.
+- **Streaming Tool Call Parity**: Unified incremental streaming across Anthropic, OpenAI, Gemini, DeepSeek, Ollama, and LM Studio.
 - **Atomic Pre-Image Patch Engine**: SHA-256 validation preventing patch drift or clobbering external modifications.
 - **Secret Redaction**: Automated scrubbing of API keys, bearer tokens, and private credentials from execution traces.
-- **Local Model Diagnostics (`agent doctor`)**: Live reachability and tool-readiness probes for local LLM engines.
+- **System Diagnostics (`agentos doctor`)**: Live reachability and tool-readiness probes for model providers, MCP servers, and workspace plugins.
 - **Lightweight Reactive Planning**: Triggered dynamically by multi-file edits or verification failures.
+- **Multi-Harness Instruction Auto-Discovery**: Automatic loading and attribution of `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, `QWEN.md`, and `GEMINI.md`.
+- **Specialized Subagents**: Targeted delegation to `researcher-web`, `researcher-docs`, `explore`, `code-search`, `analyzer`, `test-runner`, and `browser_verifier`.
 
 ---
 
@@ -100,7 +102,7 @@ Code residing in `archive/` is strictly isolated from active imports:
 
 1. **Benchmark Prerequisite**: No archived package may be reintroduced without a reproduction harness demonstrating a +10% improvement in task success over current `AgentLoop`.
 2. **De-coupling**: Features revived from archive must be rewritten against current clean interfaces (`@agent-os/tools`, `@agent-os/providers`, `@agent-os/sandbox`).
-3. **No Zombie Modules**: Partial revivals that bring unmaintained dependencies or circular imports will be rejected during `release:check`.
+3. **No Zombie Modules**: Partial revivals that bring unmaintained dependencies or circular imports will be rejected during `bun run release:check`.
 
 ---
 

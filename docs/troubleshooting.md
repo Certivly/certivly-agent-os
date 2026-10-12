@@ -10,18 +10,23 @@ This guide covers common issues encountered when using, configuring, or evaluati
 `AuthenticationError: 401 Unauthorized` or `Invalid API key`.
 
 ### Resolution
-1. Verify the required environment variable is set:
+1. Verify credentials using the CLI auth status command:
    ```bash
-   echo $OPENAI_API_KEY
+   agentos auth status
+   ```
+2. Set credentials securely:
+   ```bash
+   agentos auth set anthropic --key sk-ant-...
+   agentos auth set openai --key sk-...
+   ```
+3. Or verify shell environment variables:
+   ```bash
    echo $ANTHROPIC_API_KEY
+   echo $OPENAI_API_KEY
    ```
-2. In PowerShell on Windows:
-   ```powershell
-   $env:OPENAI_API_KEY="sk-..."
-   ```
-3. Run the doctor tool to verify:
+4. Run the diagnostic doctor probe:
    ```bash
-   agent doctor providers
+   agentos doctor providers --probe
    ```
 
 ---
@@ -32,7 +37,7 @@ This guide covers common issues encountered when using, configuring, or evaluati
 `fatal: 'agentos-worktree-...' already exists` or disk space warnings in `.agentos/worktrees`.
 
 ### Resolution
-Sandboxes automatically clean up on normal process exit. If a hard crash occurs:
+Sandboxes automatically clean up on normal process exit. If a hard system crash occurs:
 1. List active git worktrees:
    ```bash
    git worktree list
@@ -51,12 +56,12 @@ Sandboxes automatically clean up on normal process exit. If a hard crash occurs:
 ## 3. Evaluation Benchmark Failures
 
 ### Symptom
-`agent eval --task <task-id>` fails verification or reports non-zero exit code.
+`agentos eval --task <task-id>` fails verification or reports non-zero exit code.
 
 ### Resolution
 1. Inspect the detailed run trace in `.agentos/traces/`:
    ```bash
-   agent trace show <run-id>
+   agentos trace show <run-id>
    ```
 2. Check the test output generated inside the sandbox:
    ```bash
@@ -65,7 +70,7 @@ Sandboxes automatically clean up on normal process exit. If a hard crash occurs:
 3. Verify the task environment has prerequisites installed (e.g., Python 3 for Python tasks, Bun for TypeScript tasks).
 4. Run the baseline scripted runner to verify harness correctness:
    ```bash
-   agent eval --task smoke --model fake:scripted
+   agentos eval --task smoke --model fake:scripted
    ```
 
 ---
@@ -79,11 +84,11 @@ Sandboxes automatically clean up on normal process exit. If a hard crash occurs:
 AgentOS enforces atomic patch safety. If files were modified externally during an active agent session:
 1. Review the generated patch file:
    ```bash
-   agent patch show
+   agentos patch show
    ```
 2. Discard uncommitted external edits or save the patch to a separate branch:
    ```bash
-   agent patch save ./my-fix.patch
+   agentos patch save ./my-fix.patch
    git apply --reject ./my-fix.patch
    ```
 
@@ -97,4 +102,24 @@ AgentOS enforces atomic patch safety. If files were modified externally during a
 ### Resolution
 1. Local models occasionally return arguments that violate strict Zod schemas.
 2. Ensure the local model prompt includes JSON schema definitions or upgrade to a fine-tuned tool-calling model (such as `Qwen2.5-Coder-7B`).
-3. Set `--self-review` to allow AgentOS to self-correct invalid tool parameters during the execution turn.
+3. Start with `--self-review` to allow AgentOS to self-correct invalid tool parameters during the execution turn.
+
+---
+
+## 6. Desktop Application Port Conflicts
+
+### Symptom
+`Error: listen EADDRINUSE: address already in use 127.0.0.1:3456`.
+
+### Resolution
+1. Specify an alternative port:
+   ```bash
+   agentos desktop --port 4567
+   ```
+2. Check running processes on port 3456:
+   ```bash
+   # On macOS / Linux
+   lsof -i :3456
+   # On Windows
+   netstat -ano | findstr :3456
+   ```

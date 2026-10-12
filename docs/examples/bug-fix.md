@@ -15,7 +15,7 @@ A service in `src/billing/discount.ts` calculates a 0% discount when a customer 
 Execute the agent pointing to the task:
 
 ```bash
-agent run "Fix discount calculation off-by-one error for 10-point customers in src/billing/discount.ts and ensure bun test passes"
+agentos "Fix discount calculation off-by-one error for 10-point customers in src/billing/discount.ts and ensure bun test passes"
 ```
 
 ---
@@ -44,7 +44,7 @@ agent run "Fix discount calculation off-by-one error for 10-point customers in s
 View the diff in the terminal:
 
 ```bash
-agent patch show
+agentos patch show
 ```
 
 Output:
@@ -61,5 +61,5 @@ Output:
 Apply the changes to your workspace:
 
 ```bash
-agent patch apply
+agentos patch apply
 ```

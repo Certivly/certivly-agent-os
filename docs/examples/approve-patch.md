@@ -6,10 +6,10 @@ This walkthrough explains how AgentOS handles changes that require explicit deve
 
 ## Scenario
 
-A prompt requests refactoring a database migration script and updating critical dependencies:
+A prompt requests refactoring a database migration script and updating connection pooling:
 
 ```bash
-agent run "Update database connection pooling in src/db/pool.ts and adjust retry limits"
+agentos "Update database connection pooling in src/db/pool.ts and adjust retry limits"
 ```
 
 ---
@@ -52,11 +52,11 @@ When the run finishes, or if a high-risk command was requested, AgentOS renders 
 - Or use CLI commands:
   ```bash
   # Inspect unified diff
-  agent patch show
+  agentos patch show
 
   # Save patch file to disk
-  agent patch save ./pending.diff
+  agentos patch save ./pending.diff
 
   # Apply patch
-  agent patch apply
+  agentos patch apply
   ```
