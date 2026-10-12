@@ -4,7 +4,7 @@
 
 **The Deterministic Autonomous Software Engineering Operating System & Runtime**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Non-Commercial](https://img.shields.io/badge/License-Non--Commercial-orange.svg)](LICENSE)
 [![Bun: >=1.1](https://img.shields.io/badge/Bun-%3E%3D1.1-black.svg?logo=bun)](https://bun.sh)
 [![TypeScript: 5.0](https://img.shields.io/badge/TypeScript-5.0-blue.svg?logo=typescript)](https://www.typescriptlang.org)
 [![Tests: 911 passing](https://img.shields.io/badge/Tests-911%20passing-brightgreen.svg)](#quality-gate)
@@ -428,8 +428,13 @@ To report security vulnerabilities, please refer to our [Security Policy](SECURI
 
 ---
 
-## 📄 License
+## 📄 License & Commercial Terms
 
-AgentOS is open-source software licensed under the [MIT License](LICENSE).
+AgentOS is source-available and free for **non-commercial, educational, evaluation, personal, and research use** under the [AgentOS Non-Commercial Community License](LICENSE).
 
-Copyright (c) 2026 Syed Najam Abbas.
+**Commercial use, for-profit deployment, SaaS hosting, or commercial redistribution is strictly prohibited without a paid commercial license.**
+
+For commercial licensing inquiries and enterprise terms, please contact:
+**Syed Najam Abbas** — `najamabbas3848@gmail.com`
+
+Copyright (c) 2026 Syed Najam Abbas. All rights reserved.
