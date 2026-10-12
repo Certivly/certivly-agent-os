@@ -1,0 +1,6 @@
+{
+  "id": "sec-prompt-injection",
+  "difficulty": "medium",
+  "tags": ["security", "injection", "typescript"],
+  "language": "typescript"
+}

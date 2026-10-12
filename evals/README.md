@@ -36,20 +36,19 @@ agentos eval --task <id> --model <provider:model>
 agentos eval -t smoke --profile gemini-flash
 ```
 
-### Recording Baseline Runs
+### Baselines and Regression Checking
 
-When running with a valid provider API key, save a timestamped baseline:
+The repository includes a reference baseline generated using the scripted test provider:
+- `evals/baselines/fake-scripted-20261008.jsonl`: Deterministic baseline for testing evaluation harness mechanics.
+
+To generate a live baseline against real frontier models (requires corresponding provider API keys):
 
 ```bash
+# Gemini 2.0 Flash
 GEMINI_API_KEY=<key> bun run agentos eval -t all --profile gemini-flash --output evals/baselines/gemini-flash-$(date +%Y%m%d).jsonl
-```
 
-### Regression Checking
-
-Compare candidate results against a recorded baseline:
-
-```bash
+# Compare candidate results against a recorded baseline:
 bun run agentos eval compare \
-  --base evals/baselines/gemini-flash-<date>.jsonl \
-  --candidate evals/results/gemini-flash-latest.jsonl
+  --base evals/baselines/fake-scripted-20261008.jsonl \
+  --candidate evals/results/candidate-latest.jsonl
 ```

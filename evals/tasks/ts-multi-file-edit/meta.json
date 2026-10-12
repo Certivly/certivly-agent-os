@@ -1,0 +1,6 @@
+{
+  "id": "ts-multi-file-edit",
+  "difficulty": "medium",
+  "tags": ["refactor", "multi-file", "typescript"],
+  "language": "typescript"
+}

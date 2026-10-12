@@ -105,6 +105,12 @@ export class FakeScriptedModel implements Model {
     if (allContent.includes('repo-map-symbol-lookup')) {
       return 'repo-map-symbol-lookup';
     }
+    if (allContent.includes('sec-prompt-injection') || allContent.includes('sanitizer.ts') || allContent.includes('sanitizeUsername')) {
+      return 'sec-prompt-injection';
+    }
+    if (allContent.includes('ts-multi-file-edit') || allContent.includes('getUsersByRole')) {
+      return 'ts-multi-file-edit';
+    }
 
     const match = allContent.match(/task[:\s]+([a-z0-9-]+)/i);
     if (match) {
@@ -130,6 +136,22 @@ export class FakeScriptedModel implements Model {
   }
 
   public async generate(request: GenerationRequest): Promise<GenerationResponse> {
+    const sysPrompt = request.systemPrompt || '';
+    if (sysPrompt.includes('lightweight execution plan') || sysPrompt.includes('file discovery agent')) {
+      if (sysPrompt.includes('file discovery agent')) {
+        return { text: JSON.stringify({ candidates: [], summary: 'Mocked candidates' }) };
+      }
+      return {
+        text: JSON.stringify({
+          objective: 'Execute scripted task',
+          filesLikelyTouched: [],
+          steps: ['Execute task'],
+          verificationCommands: [],
+          risks: [],
+        }),
+      };
+    }
+
     const taskId = this.resolveTaskId(request);
     const script = this.loadScript(taskId);
 

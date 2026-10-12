@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { FakeScriptedModel, FakeScriptedProvider } from '../src/adapters/fake-scripted';
 
 describe('Action 3.02: Fake Scripted Provider', () => {
-  const tempScriptsDir = path.join(process.cwd(), 'temp-test-scripts-' + Date.now());
+  const tempScriptsDir = path.join(os.tmpdir(), 'temp-test-scripts-' + Date.now());
 
   beforeEach(() => {
     fs.mkdirSync(tempScriptsDir, { recursive: true });

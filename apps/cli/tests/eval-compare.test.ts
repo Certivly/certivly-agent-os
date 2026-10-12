@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 import { EvalCompare } from '../src/eval/EvalCompare';
 import { EvalReporter } from '../src/eval/EvalReporter';
 import type { EvalResult } from '../src/eval/EvalTypes';
 
 describe('Action 3.01: Eval Baseline And Regression Policy', () => {
-  const tempDir = path.join(process.cwd(), 'temp-test-compare-' + Date.now());
+  const tempDir = path.join(os.tmpdir(), 'temp-test-compare-' + Date.now());
   const baseJsonl = path.join(tempDir, 'baseline.jsonl');
   const candJsonl = path.join(tempDir, 'candidate.jsonl');
 
