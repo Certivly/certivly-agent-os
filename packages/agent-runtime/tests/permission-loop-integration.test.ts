@@ -171,4 +171,154 @@ describe('PermissionLoopIntegration Tests (Action 5-01)', () => {
     expect(summary.success).toBe(true);
     expect(toolExecuted).toBe(true);
   });
+
+  it('7. plan mode blocks code_interpreter and does not execute code', async () => {
+    const sm = new SessionManager(dbPath);
+    const history = new SessionHistory(sm);
+    const eventBus = new LoggingEventBus();
+    const probePath = path.join(testDir, 'unwanted-probe.txt');
+
+    const { codeInterpreterTool } = await import('@agent-os/tools');
+    const { AdaptedLoopTool } = await import('../src/loop/LoopTool');
+    const loopInterpreter = new AdaptedLoopTool(codeInterpreterTool, { workspaceRoot: testDir });
+
+    const model = new ScriptedModel([
+      {
+        text: 'Evaluating code',
+        toolCalls: [
+          {
+            id: 'call_ci',
+            name: 'code_interpreter',
+            args: JSON.stringify({ code: `require('fs').writeFileSync('${probePath.replace(/\\/g, '\\\\')}', 'hacked');` }),
+          },
+        ],
+      },
+      {
+        text: 'Blocked plan probe.',
+      },
+    ]);
+
+    const loop = new AgentLoop({
+      model,
+      tools: [loopInterpreter],
+      history,
+      eventBus,
+      workspaceRoot: testDir,
+      options: {
+        permissionMode: 'plan',
+      },
+    });
+
+    const summary = await loop.run({
+      sessionId: 'sess-plan-interpreter',
+      userInput: 'Run probe',
+      workspaceRoot: testDir,
+    });
+
+    expect(fs.existsSync(probePath)).toBe(false);
+    expect(summary.toolCalls[0].success).toBe(false);
+    expect(summary.toolCalls[0].error).toContain('Plan mode is read-only');
+  });
+
+  it('8. manual mode allows read-only command git status without requesting approval', async () => {
+    const sm = new SessionManager(dbPath);
+    const history = new SessionHistory(sm);
+    const eventBus = new LoggingEventBus();
+
+    let approvalPrompted = false;
+    let toolExecuted = false;
+
+    const mockGitStatusTool: LoopTool = {
+      spec: {
+        name: 'run_command',
+        description: 'Run command',
+        parameters: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] },
+        readOnly: false,
+      },
+      requiresApproval: () => true,
+      execute: async (args, signal, id = 'tc') => {
+        toolExecuted = true;
+        return { toolCallId: id, name: 'run_command', content: 'On branch main', isError: false };
+      },
+    };
+
+    const model = new ScriptedModel([
+      {
+        text: 'Checking status',
+        toolCalls: [{ id: 'tc_git', name: 'run_command', args: JSON.stringify({ command: 'git status' }) }],
+      },
+      { text: 'Done.' },
+    ]);
+
+    const loop = new AgentLoop({
+      model,
+      tools: [mockGitStatusTool],
+      history,
+      eventBus,
+      workspaceRoot: testDir,
+      options: { permissionMode: 'manual' },
+      requestApproval: async () => {
+        approvalPrompted = true;
+        return { approved: true };
+      },
+    });
+
+    await loop.run({
+      sessionId: 'sess-git-status',
+      userInput: 'Check git status',
+      workspaceRoot: testDir,
+    });
+
+    expect(approvalPrompted).toBe(false);
+    expect(toolExecuted).toBe(true);
+  });
+
+  it('9. approving mkdir probe_dir in manual mode executes successfully', async () => {
+    const sm = new SessionManager(dbPath);
+    const history = new SessionHistory(sm);
+    const eventBus = new LoggingEventBus();
+    const probeDir = path.join(testDir, 'probe_dir');
+
+    const { runCommandTool } = await import('@agent-os/tools');
+    const { AdaptedLoopTool } = await import('../src/loop/LoopTool');
+    const loopCmd = new AdaptedLoopTool(runCommandTool, { workspaceRoot: testDir });
+
+    let approvalPrompted = false;
+    const model = new ScriptedModel([
+      {
+        text: 'Creating probe directory',
+        toolCalls: [
+          {
+            id: 'tc_mkdir',
+            name: 'run_command',
+            args: JSON.stringify({ command: process.platform === 'win32' ? 'cmd.exe /c mkdir probe_dir' : 'mkdir probe_dir' }),
+          },
+        ],
+      },
+      { text: 'Finished.' },
+    ]);
+
+    const loop = new AgentLoop({
+      model,
+      tools: [loopCmd],
+      history,
+      eventBus,
+      workspaceRoot: testDir,
+      options: { permissionMode: 'manual' },
+      requestApproval: async () => {
+        approvalPrompted = true;
+        return { approved: true };
+      },
+    });
+
+    const summary = await loop.run({
+      sessionId: 'sess-mkdir-approved',
+      userInput: 'Make dir',
+      workspaceRoot: testDir,
+    });
+
+    expect(approvalPrompted).toBe(true);
+    expect(summary.toolCalls[0].success).toBe(true);
+    expect(fs.existsSync(probeDir)).toBe(true);
+  });
 });

@@ -1130,6 +1130,22 @@ export class AgentLoop {
         }
         requiresApproval = cmdDecision === 'ask';
       } else {
+        if (guard.isPlanMode && !tool.spec.readOnly) {
+          const denialMsg = `[PermissionDenied] Mode '${this.options.permissionMode}' does not allow executing mutating tool '${tc.name}'. Plan mode is read-only.`;
+          toolCallRecords?.push({
+            id: tc.id,
+            name: tc.name,
+            args: argsObj,
+            success: false,
+            error: denialMsg,
+          });
+          return {
+            toolCallId: tc.id,
+            name: tc.name,
+            content: denialMsg,
+            isError: true,
+          };
+        }
         try {
           requiresApproval = await tool.requiresApproval(argsObj);
         } catch (err) {
@@ -1175,6 +1191,7 @@ export class AgentLoop {
       }
     }
 
+    let wasApproved = false;
     if (requiresApproval) {
       const diffPreview = (argsObj.diff || argsObj.content || argsObj.patch || '') as string;
       const filesList = filePathStr
@@ -1222,7 +1239,6 @@ export class AgentLoop {
           reason: decision.reason,
         });
 
-
         if (!decision.approved) {
           const denialMsg = `user denied: ${decision.reason || 'operation denied'}`;
           toolCallRecords?.push({
@@ -1239,6 +1255,7 @@ export class AgentLoop {
             isError: true,
           };
         }
+        wasApproved = true;
       } else {
         const denialMsg = 'user denied: no approval handler provided';
         toolCallRecords?.push({
@@ -1295,7 +1312,7 @@ export class AgentLoop {
     });
 
     try {
-      const result = await tool.execute(argsObj, signal, tc.id);
+      const result = await tool.execute(argsObj, signal, tc.id, { approved: wasApproved });
 
       if (result.isError) {
         this.eventBus.publish('tool.call.failed', {

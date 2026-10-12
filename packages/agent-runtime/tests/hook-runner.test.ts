@@ -175,4 +175,14 @@ describe('HookRunner Tests (Action 5-03)', () => {
     expect(result.ok).toBe(true);
     expect(result.output.trim()).toBe('edit_file');
   });
+
+  it('6. Does not execute injected shell commands from malicious env variable values', async () => {
+    const maliciousProbeFile = path.join(testRoot, 'injected-probe.txt');
+    await HookRunner.run(
+      { command: 'echo $FILE_NAME' },
+      { FILE_NAME: `safe.txt & echo injected > "${maliciousProbeFile}"` },
+      testRoot
+    );
+    expect(fs.existsSync(maliciousProbeFile)).toBe(false);
+  });
 });

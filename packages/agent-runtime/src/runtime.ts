@@ -1,4 +1,4 @@
-import { ConfigManager, AgentConfig } from '@agent-os/config';
+import { ConfigManager, AgentConfig, WorkspaceTrustManager } from '@agent-os/config';
 import { SessionManager } from '@agent-os/sessions';
 import * as fs from 'fs';
 import {
@@ -24,6 +24,7 @@ import {
   readDocsTool,
   setSubagentDelegateHandler,
   McpClientManager,
+  commandPolicyEngine,
 } from '@agent-os/tools';
 import { ToolCatalog, CodeModeTool } from '@agent-os/codemode';
 import { Provider, Model, OpenAIProvider, AnthropicProvider, LMStudioProvider, GeminiProvider, DeepSeekProvider, OllamaProvider, OpenRouterProvider } from '@agent-os/providers';
@@ -63,10 +64,14 @@ export class AgentRuntime {
   private skillRegistry: SkillRegistry;
   private subagentRegistry: SubagentRegistry;
   private mcpManager?: McpClientManager;
+  private sessionId: string;
+  private trustManager: WorkspaceTrustManager;
 
   constructor(options: RuntimeOptions, sessionId: string = 'default') {
     this.options = options;
+    this.sessionId = sessionId;
     this.approvalHandler = options.requestApproval;
+    this.trustManager = new WorkspaceTrustManager();
     const wsRoot = options.workspaceRoot || process.cwd();
     if (options.configManager) {
       this.configManager = options.configManager;
@@ -99,6 +104,11 @@ export class AgentRuntime {
     this.registerStandardTools();
 
     this.eventBus = new LoggingEventBus();
+
+    if (this.approvalHandler) {
+      this.setRequestApprovalHandler(this.approvalHandler);
+    }
+
     const resolvedModel = this.resolveModel(config.activeModel);
     if (resolvedModel) {
       this.activeModel = resolvedModel;
@@ -114,8 +124,17 @@ export class AgentRuntime {
       this.activeModel = this.activeProvider.getModel(config.activeModel);
     }
 
-    // Initialize MCP Client Manager (loads both user ~/.agentos/mcp.json and workspace .agentos/mcp.json)
-    this.mcpManager = new McpClientManager(resolvedWsRoot);
+    const isTrusted = this.trustManager.isWorkspaceTrusted(resolvedWsRoot);
+    if (!isTrusted) {
+      this.eventBus.publish('workspace.untrusted', {
+        sessionId,
+        workspaceRoot: resolvedWsRoot,
+        warning: 'Workspace is untrusted. Workspace MCP servers and lifecycle hooks are disabled. Run "agentos trust" to trust this workspace.',
+      });
+    }
+
+    // Initialize MCP Client Manager (respects workspace trust)
+    this.mcpManager = new McpClientManager(resolvedWsRoot, { isTrusted });
     const mcpWorkspaceConfig = path.join(resolvedWsRoot, '.agentos', 'mcp.json');
     const mcpGlobalConfig = path.join(os.homedir(), '.agentos', 'mcp.json');
     if (fs.existsSync(mcpWorkspaceConfig) || fs.existsSync(mcpGlobalConfig)) {
@@ -486,7 +505,7 @@ export class AgentRuntime {
           parallelExploration: agentConfig.parallelExploration,
           planningMode: agentConfig.planningMode,
           permissionMode,
-          hooks: config.hooks,
+          hooks: this.trustManager.isWorkspaceTrusted(workspaceRoot) ? config.hooks : undefined,
           workflowMemoryStore: this.workflowMemoryStore,
           fastModel,
           planningModel,
@@ -525,6 +544,16 @@ export class AgentRuntime {
 
   public setRequestApprovalHandler(handler: ApprovalHandler): void {
     this.approvalHandler = handler;
+    commandPolicyEngine.setApprovalCallback(async (cmd: string) => {
+      const res = await handler({
+        sessionId: this.sessionId,
+        toolName: 'run_command',
+        args: { command: cmd },
+        reason: `Policy approval required to run: ${cmd}`,
+        toolCallId: `cmd-policy-${Date.now()}`,
+      });
+      return res.approved;
+    });
   }
 
   public async resume(sessionId: string, runId?: string): Promise<RunSummary> {
@@ -555,7 +584,7 @@ export class AgentRuntime {
         parallelExploration: agentConfig.parallelExploration,
         planningMode: agentConfig.planningMode,
         permissionMode,
-        hooks: config.hooks,
+        hooks: this.trustManager.isWorkspaceTrusted(workspaceRoot) ? config.hooks : undefined,
         workflowMemoryStore: this.workflowMemoryStore,
         fastModel,
         planningModel,

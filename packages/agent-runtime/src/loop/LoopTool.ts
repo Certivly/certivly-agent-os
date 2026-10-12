@@ -19,7 +19,12 @@ export interface ToolExecutionResult {
 export interface LoopTool {
   spec: LoopToolSpec;
   requiresApproval(args: Record<string, unknown>): Promise<boolean> | boolean;
-  execute(args: Record<string, unknown>, signal?: AbortSignal, toolCallId?: string): Promise<ToolExecutionResult>;
+  execute(
+    args: Record<string, unknown>,
+    signal?: AbortSignal,
+    toolCallId?: string,
+    contextOverrides?: { approved?: boolean; cwd?: string }
+  ): Promise<ToolExecutionResult>;
 }
 
 export function validateToolArguments(spec: LoopToolSpec, args: Record<string, unknown>): string[] {
@@ -104,7 +109,8 @@ export class AdaptedLoopTool implements LoopTool {
   public async execute(
     args: Record<string, unknown>,
     signal?: AbortSignal,
-    toolCallId: string = crypto.randomUUID()
+    toolCallId: string = crypto.randomUUID(),
+    contextOverrides?: { approved?: boolean; cwd?: string }
   ): Promise<ToolExecutionResult> {
     if (signal?.aborted) {
       return {
@@ -119,7 +125,9 @@ export class AdaptedLoopTool implements LoopTool {
       if (this.workspaceTool) {
         const res = await this.workspaceTool.execute(args, {
           workspaceRoot: this.workspaceRoot,
+          cwd: contextOverrides?.cwd,
           signal,
+          approved: contextOverrides?.approved,
         });
         return {
           toolCallId,

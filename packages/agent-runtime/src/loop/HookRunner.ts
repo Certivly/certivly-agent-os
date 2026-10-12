@@ -11,13 +11,6 @@ export class HookRunner {
   ): Promise<{ ok: boolean; output: string }> {
     const timeoutMs = hook.timeoutMs ?? 5000;
 
-    // Expand $VARIABLE and ${VARIABLE} references in hook.command using env
-    let expandedCommand = hook.command;
-    for (const [key, val] of Object.entries(env)) {
-      expandedCommand = expandedCommand.split(`\${${key}}`).join(val);
-      expandedCommand = expandedCommand.split(`$${key}`).join(val);
-    }
-
     const isWin = process.platform === 'win32';
     let shell = 'sh';
     if (isWin) {
@@ -29,7 +22,16 @@ export class HookRunner {
       }
     }
 
-    const args = shell === 'cmd.exe' ? ['/d', '/s', '/c', expandedCommand] : ['-c', expandedCommand];
+    // Do NOT interpolate raw variable values into command text (prevents command injection via file names)
+    // Instead, rely on shell environment expansion (translated for cmd.exe if needed)
+    let shellCommand = hook.command;
+    if (shell === 'cmd.exe') {
+      shellCommand = shellCommand
+        .replace(/\$\{([A-Za-z0-9_]+)\}/g, '%$1%')
+        .replace(/\$([A-Za-z0-9_]+)/g, '%$1%');
+    }
+
+    const args = shell === 'cmd.exe' ? ['/d', '/s', '/c', shellCommand] : ['-c', shellCommand];
 
     try {
       const result = spawnSync(shell, args, {
