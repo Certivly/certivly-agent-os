@@ -435,6 +435,6 @@ AgentOS is source-available and free for **non-commercial, educational, evaluati
 **Commercial use, for-profit deployment, SaaS hosting, or commercial redistribution is strictly prohibited without a paid commercial license.**
 
 For commercial licensing inquiries and enterprise terms, please contact:
-**Syed Najam Abbas** — `najamabbas3848@gmail.com`
+**Syed Najam Abbas** — `dumbdevs@gmail.com`
 
 Copyright (c) 2026 Syed Najam Abbas. All rights reserved.
