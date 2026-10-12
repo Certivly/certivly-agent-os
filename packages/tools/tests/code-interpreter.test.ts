@@ -73,4 +73,9 @@ describe('code_interpreter Tool (Qwen Code Sandboxed Evaluator)', () => {
     expect(result.isError).toBe(true);
     expect(result.content).toContain('aborted');
   });
+
+  it('7. is marked readOnly: false and requires approval before executing', async () => {
+    expect(codeInterpreterTool.spec.readOnly).toBe(false);
+    expect(await codeInterpreterTool.requiresApproval({})).toBe(true);
+  });
 });

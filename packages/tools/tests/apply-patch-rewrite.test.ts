@@ -204,4 +204,44 @@ f2 content
     const actual = fs.readFileSync(path.join(testWorkspace, 'util.ts'), 'utf8');
     expect(actual).toBe('const pattern = "$& $\'";\n');
   });
+
+  it('9. accepts standard Codex format with *** Update File and @@ -/+ hunks', async () => {
+    fs.writeFileSync(path.join(testWorkspace, 'calculator.ts'), 'function add(a, b) {\n  return a - b;\n}\n', 'utf8');
+
+    const patch = `
+*** Begin Patch
+*** Update File: calculator.ts
+@@ -1,3 +1,3 @@
+ function add(a, b) {
+-  return a - b;
++  return a + b;
+ }
+*** End Patch
+`.trim();
+
+    const res = await applyPatchTool.execute({ patch }, context);
+    expect(res.isError).toBe(false);
+
+    const actual = fs.readFileSync(path.join(testWorkspace, 'calculator.ts'), 'utf8');
+    expect(actual).toBe('function add(a, b) {\n  return a + b;\n}\n');
+  });
+
+  it('10. rejects ambiguous patch hunk that matches multiple locations', async () => {
+    fs.writeFileSync(path.join(testWorkspace, 'repeat.ts'), 'line\nrepeat_block\nmiddle\nrepeat_block\nend\n', 'utf8');
+
+    const patch = `
+*** Begin Patch
+*** Update File: repeat.ts
+<<<<
+repeat_block
+====
+replaced_block
+>>>>
+*** End Patch
+`.trim();
+
+    const res = await applyPatchTool.execute({ patch }, context);
+    expect(res.isError).toBe(true);
+    expect(res.content).toContain('Ambiguous patch hunk');
+  });
 });

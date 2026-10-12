@@ -48,7 +48,10 @@ export const terminalInteractiveTool: WorkspaceTool = {
       required: ['action', 'sessionId'],
     },
   },
-  requiresApproval: async (args: Record<string, unknown>): Promise<boolean> => {
+  requiresApproval: async (args: Record<string, unknown>, context?: ToolContext): Promise<boolean> => {
+    if (context?.approved) {
+      return false;
+    }
     const action = String(args.action || '');
     if (action === 'start') {
       const cmd = typeof args.command === 'string' ? args.command.trim() : '';
@@ -90,7 +93,7 @@ export const terminalInteractiveTool: WorkspaceTool = {
         const cmd = typeof args.command === 'string' && args.command.trim() ? args.command.trim() : undefined;
         if (cmd) {
           const decision = await commandPolicyEngine.evaluate(cmd);
-          if (!decision.allowed) {
+          if (!context?.approved && !decision.allowed) {
             return {
               content: `Error: Command "${cmd}" was denied by security policy: ${decision.reason || 'Blocked'}`,
               isError: true,
@@ -129,6 +132,16 @@ export const terminalInteractiveTool: WorkspaceTool = {
         }
 
         if (typeof args.input === 'string') {
+          const trimmedInput = args.input.trim();
+          if (trimmedInput) {
+            const decision = await commandPolicyEngine.evaluate(trimmedInput);
+            if (!context?.approved && !decision.allowed) {
+              return {
+                content: `Error: Input "${trimmedInput}" was denied by security policy: ${decision.reason || 'Blocked'}`,
+                isError: true,
+              };
+            }
+          }
           const pressEnter = args.pressEnter !== false;
           await manager.send(sessionId, args.input, pressEnter);
         }

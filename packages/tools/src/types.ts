@@ -9,6 +9,7 @@ export interface ToolContext {
   workspaceRoot: string;
   cwd?: string;
   signal?: AbortSignal;
+  approved?: boolean;
 }
 
 export interface ToolResult {
@@ -21,6 +22,6 @@ export interface ToolResult {
 
 export interface WorkspaceTool {
   spec: ToolSpec;
-  requiresApproval(args: Record<string, unknown>, context: ToolContext): boolean | Promise<boolean>;
+  requiresApproval(args: Record<string, unknown>, context?: ToolContext): boolean | Promise<boolean>;
   execute(args: Record<string, unknown>, context: ToolContext): Promise<ToolResult>;
 }

@@ -2,7 +2,7 @@ import { spawn, execSync } from 'child_process';
 import * as fs from 'fs';
 import { Tool } from '../interface';
 import { ToolError } from '@agent-os/shared';
-import { commandPolicyEngine, truncateOutput, MAX_COMMAND_OUTPUT } from '../policy';
+import { commandPolicyEngine, truncateOutput, MAX_COMMAND_OUTPUT, isReadOnlyCommand, isHardDeniedCommand } from '../policy';
 import { WorkspaceManager, workspaceManager } from '../workspace';
 import { toolOutputStore, ToolOutputStore } from '../storage/ToolOutputStore';
 import type { WorkspaceTool, ToolContext, ToolResult } from '../types';
@@ -49,6 +49,7 @@ export const runCommandTool: WorkspaceTool & Tool = {
   requiresApproval: async (args: Record<string, unknown>) => {
     const command = args.command as string;
     if (typeof command !== 'string') return true;
+    if (isReadOnlyCommand(command)) return false;
     const decision = await commandPolicyEngine.evaluate(command);
     return !decision.allowed;
   },
@@ -58,9 +59,16 @@ export const runCommandTool: WorkspaceTool & Tool = {
       throw new ToolError('Command must be a non-empty string');
     }
 
-    const decision = await commandPolicyEngine.evaluate(command);
-    if (!decision.allowed) {
-      throw new ToolError(`Command execution blocked by policy: ${decision.reason || 'Approval required'}`);
+    const hardDeny = isHardDeniedCommand(command);
+    if (hardDeny.denied) {
+      throw new ToolError(`Command execution blocked by security policy: ${hardDeny.reason || 'prohibited command'}`);
+    }
+
+    if (!context?.approved) {
+      const decision = await commandPolicyEngine.evaluate(command);
+      if (!decision.allowed) {
+        throw new ToolError(`Command execution blocked by policy: ${decision.reason || 'Approval required'}`);
+      }
     }
 
     // Resolve and validate cwd

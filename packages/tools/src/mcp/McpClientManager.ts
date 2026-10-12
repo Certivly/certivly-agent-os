@@ -10,7 +10,10 @@ export class McpClientManager {
   private connections: Map<string, McpServerConnection> = new Map();
   private bridgedTools: McpToolBridge[] = [];
 
-  constructor(private workspaceRoot: string = process.cwd()) {}
+  constructor(
+    private workspaceRoot: string = process.cwd(),
+    private options?: { isTrusted?: boolean }
+  ) {}
 
   /**
    * Initializes MCP servers from user config (~/.agentos/mcp.json) and workspace config (.agentos/mcp.json)
@@ -33,20 +36,24 @@ export class McpClientManager {
     }
 
     // 2. Workspace MCP configuration: .agentos/mcp.json or custom path
-    const configPath = customConfigPath
-      ? path.resolve(this.workspaceRoot, customConfigPath)
-      : path.resolve(this.workspaceRoot, '.agentos', 'mcp.json');
+    if (this.options?.isTrusted === false) {
+      console.warn(`[McpClientManager] Skipping workspace MCP configuration: workspace '${this.workspaceRoot}' is not trusted.`);
+    } else {
+      const configPath = customConfigPath
+        ? path.resolve(this.workspaceRoot, customConfigPath)
+        : path.resolve(this.workspaceRoot, '.agentos', 'mcp.json');
 
-    if (fs.existsSync(configPath) && path.resolve(configPath).toLowerCase() !== path.resolve(globalConfigPath).toLowerCase()) {
-      try {
-        const content = fs.readFileSync(configPath, 'utf-8');
-        const parsed = JSON.parse(content) as McpConfigFile;
-        if (parsed && typeof parsed.mcpServers === 'object') {
-          // Workspace servers override user servers on collision
-          Object.assign(serversToRegister, parsed.mcpServers);
+      if (fs.existsSync(configPath) && path.resolve(configPath).toLowerCase() !== path.resolve(globalConfigPath).toLowerCase()) {
+        try {
+          const content = fs.readFileSync(configPath, 'utf-8');
+          const parsed = JSON.parse(content) as McpConfigFile;
+          if (parsed && typeof parsed.mcpServers === 'object') {
+            // Workspace servers override user servers on collision
+            Object.assign(serversToRegister, parsed.mcpServers);
+          }
+        } catch (err: any) {
+          console.warn(`[McpClientManager] Failed to parse workspace MCP config at ${configPath}:`, err.message);
         }
-      } catch (err: any) {
-        console.warn(`[McpClientManager] Failed to parse workspace MCP config at ${configPath}:`, err.message);
       }
     }
 

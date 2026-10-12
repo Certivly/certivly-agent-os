@@ -20,9 +20,9 @@ export const codeInterpreterTool: WorkspaceTool = {
       },
       required: ['code'],
     },
-    readOnly: true,
+    readOnly: false,
   },
-  requiresApproval: () => false,
+  requiresApproval: () => true,
   execute: async (args: Record<string, unknown>, context?: ToolContext): Promise<ToolResult & { output: string }> => {
     const rawCode = typeof args.code === 'string' ? args.code : '';
     if (!rawCode.trim()) {
@@ -78,13 +78,20 @@ ${rawCode}
         return resolve({ content: msg, output: msg, isError: true });
       }
 
+      // Build a sanitized environment to prevent leaking secrets/keys
+      const sanitizedEnv: Record<string, string> = {
+        NODE_ENV: 'test',
+        PATH: process.env.PATH || '',
+        SYSTEMROOT: process.env.SYSTEMROOT || '',
+        TEMP: process.env.TEMP || '',
+        TMP: process.env.TMP || '',
+        HOME: process.env.HOME || process.env.USERPROFILE || '',
+      };
+
       const proc = spawn('bun', ['-'], {
         cwd: workspaceRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          NODE_ENV: 'test',
-        },
+        env: sanitizedEnv,
       });
 
       const timer = setTimeout(() => {

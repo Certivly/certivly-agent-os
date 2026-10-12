@@ -260,6 +260,8 @@ function parseCodexPatch(patch: string, ws: WorkspaceManager): FilePatchPlan[] {
 
       if (hunks.length > 0) {
         newContent = hunks.join('\n');
+      } else if (section.bodyLines.some(l => l.startsWith('+') || l.startsWith('@@'))) {
+        newContent = applyUnifiedHunks('', section.bodyLines, true, false);
       } else if (section.type === 'Add') {
         newContent = sectionBody.trim() ? sectionBody + '\n' : '';
       } else {
@@ -302,7 +304,17 @@ function parseCodexPatch(patch: string, ws: WorkspaceManager): FilePatchPlan[] {
       if (idx === -1) {
         throw new Error(`Patch hunk oldText not found in '${targetRel}'`);
       }
+      const secondIdx = content.indexOf(oldBlock, idx + 1);
+      if (secondIdx !== -1) {
+        throw new Error(`Ambiguous patch hunk in '${targetRel}': oldText matches multiple locations`);
+      }
       content = content.slice(0, idx) + newBlock + content.slice(idx + oldBlock.length);
+    }
+
+    // Support standard Codex @@ -/+ hunk format inside *** Update File sections
+    if (!anyHunk && section.bodyLines.some(l => l.startsWith('@@') || l.startsWith('-') || l.startsWith('+'))) {
+      content = applyUnifiedHunks(originalContent, section.bodyLines, false, isCRLF);
+      anyHunk = true;
     }
 
     if (!anyHunk) {
@@ -425,13 +437,8 @@ function applyUnifiedHunks(original: string, diffLines: string[], isNew: boolean
   while (i < diffLines.length) {
     const line = diffLines[i];
     if (line.startsWith('@@')) {
-      const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-      if (!match) {
-        i++;
-        continue;
-      }
-
-      const origStart = parseInt(match[1], 10) - 1; // 0-indexed
+      const match = line.match(/@@\s*-?(\d+)?(?:,(\d+))?\s*\+?(\d+)?(?:,(\d+))?\s*@@/);
+      const origStart = match && match[1] ? Math.max(0, parseInt(match[1], 10) - 1) : 0;
       i++;
 
       const removedLines: string[] = [];
@@ -461,6 +468,10 @@ function applyUnifiedHunks(original: string, diffLines: string[], isNew: boolean
         const idx = currentText.indexOf(removedBlock);
         if (idx === -1) {
           throw new Error(`Hunk failed to match content in file`);
+        }
+        const secondIdx = currentText.indexOf(removedBlock, idx + 1);
+        if (secondIdx !== -1) {
+          throw new Error(`Ambiguous hunk match in file: context matches multiple locations`);
         }
         // Safe replacement via slice: never use string.replace() directly because $', $&, $`, $$ corrupt text
         const addedBlock = addedLines.join(eol);
