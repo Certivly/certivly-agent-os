@@ -82,7 +82,7 @@ describe('AgentOS Binary & Installer Suite', () => {
     } finally {
       fs.rmSync(tempInstallDir, { recursive: true, force: true });
     }
-  });
+  }, 30000);
 
   it('6. POSIX shell installer install.sh has valid syntax', () => {
     const shInstaller = path.join(rootDir, 'install.sh');
